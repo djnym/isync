@@ -36,7 +36,7 @@ fi
 AC_CHECK_LIB(db, db_create, [LIBS="$LIBS -ldb"], [AC_MSG_ERROR([Berkley DB not found.])])
 AC_CHECK_HEADER(db.h, , [AC_MSG_ERROR([Berkley DB header file not found.])])
 
-AC_OUTPUT(Makefile src/Makefile debian/Makefile isync.spec)
+AC_OUTPUT(Makefile src/Makefile isync.spec)
 
 if $ssl; then
     AC_MSG_RESULT([
