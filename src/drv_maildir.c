@@ -38,6 +38,9 @@
 #include <time.h>
 
 #define USE_DB 1
+#ifdef __linux__
+# define LEGACY_FLOCK 1
+#endif
 
 #ifdef USE_DB
 #include <db.h>
@@ -355,11 +358,13 @@ maildir_uidval_lock( maildir_store_t *ctx )
 	int n;
 	char buf[128];
 
+#ifdef LEGACY_FLOCK
 	/* This is legacy only */
 	if (flock( ctx->uvfd, LOCK_EX ) < 0) {
 		fprintf( stderr, "Maildir error: cannot flock UIDVALIDITY.\n" );
 		return DRV_BOX_BAD;
 	}
+#endif
 	/* This (theoretically) works over NFS. Let's hope nobody else did
 	   the same in the opposite order, as we'd deadlock then. */
 #if SEEK_SET != 0
@@ -384,8 +389,10 @@ maildir_uidval_unlock( maildir_store_t *ctx )
 {
 	lck.l_type = F_UNLCK;
 	fcntl( ctx->uvfd, F_SETLK, &lck );
+#ifdef LEGACY_FLOCK
 	/* This is legacy only */
 	flock( ctx->uvfd, LOCK_UN );
+#endif
 }
 
 static int
