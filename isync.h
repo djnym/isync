@@ -155,6 +155,10 @@ imap_t;
 #define SYNC_EXPUNGE	(1<<1)	/* don't fetch deleted messages */
 #define SYNC_QUIET	(1<<2)	/* only display critical errors */
 
+/* flags for maildir_open */
+#define OPEN_FAST	(1<<0)	/* fast open - don't parse */
+#define OPEN_CREATE	(1<<1)	/* create mailbox if nonexistent */
+
 extern config_t global;
 extern config_t *boxes;
 extern unsigned int Tag;
@@ -184,7 +188,7 @@ int imap_expunge (imap_t *);
 imap_t *imap_open (config_t *, unsigned int, imap_t *);
 int imap_append_message (imap_t *, int, message_t *);
 
-mailbox_t *maildir_open (const char *, int fast);
+mailbox_t *maildir_open (const char *, int flags);
 int maildir_expunge (mailbox_t *, int);
 int maildir_set_uidvalidity (mailbox_t *, unsigned int uidvalidity);
 int maildir_close (mailbox_t *);

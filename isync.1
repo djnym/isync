@@ -1,6 +1,6 @@
 .ig
 \" isync - IMAP4 to maildir mailbox synchronizer
-\" Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
+\" Copyright (C) 2000-1 Michael R. Elkins <me@mutt.org>
 \"
 \"  This program is free software; you can redistribute it and/or modify
 \"  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ..
-.TH isync 1 "2001 Oct 30"
+.TH isync 1 "2001 Nov 20"
 ..
 .SH NAME
 isync - synchronize IMAP4 and maildir mailboxes
@@ -42,6 +42,10 @@ all flags are synchronized.
 .TP
 \fB-a\fR, \fB--all\fR
 Synchronize all mailboxes specified in the user's ~/.isyncrc.
+.TP
+\fB-C\fR, \fB--create\fR
+Automatically create the local maildir-style mailbox if it doesn't already
+exist.
 .TP
 \fB-c\fR, \fB--config\fR \fIfile\fR
 Read configuration from
@@ -206,7 +210,8 @@ deleted.
 If
 .I count
 is 0, the maximum number of messages is
-.B unlimited  (Default: 0).
+.B unlimited
+(Default: 0).
 ..
 .TP
 \fBMaxSize\fR \fIbytes\fR
@@ -328,7 +333,7 @@ mutt(1), maildir(5)
 Up to date information on
 .B isync
 can be found at
-http://www.sigpipe.org/isync/.
+http://www.sigpipe.org:8080/isync/.
 ..
 .SH AUTHOR
 Written by Michael R. Elkins <me@mutt.org>.

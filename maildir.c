@@ -119,14 +119,16 @@ read_uid (const char *path, const char *file)
 
 }
 
-/* open a maildir mailbox.  if `fast' is nonzero, we just check to make
+/* open a maildir mailbox.
+ * if OPEN_FAST is set, we just check to make
  * sure its a valid mailbox and don't actually parse it.  any IMAP messages
  * with the \Recent flag set are guaranteed not to be in the mailbox yet,
  * so we can save a lot of time when the user just wants to fetch new messages
  * without syncing the flags.
+ * if OPEN_CREATE is set, we create the mailbox if it doesn't already exist.
  */
 mailbox_t *
-maildir_open (const char *path, int fast)
+maildir_open (const char *path, int flags)
 {
     char buf[_POSIX_PATH_MAX];
     DIR *d;
@@ -136,27 +138,68 @@ maildir_open (const char *path, int fast)
     mailbox_t *m;
     char *s;
     int count = 0;
+    struct stat sb;
+    const char *subdirs[] = { "cur", "new", "tmp" };
+    int i;
 
     m = calloc (1, sizeof (mailbox_t));
     /* filename expansion happens here, not in the config parser */
     m->path = expand_strdup (path);
 
-    /* check to make sure this looks like a valid maildir box */
-    snprintf (buf, sizeof (buf), "%s/new", m->path);
-    if (access (buf, F_OK))
+    if (stat (m->path, &sb))
     {
-	free (m->path);
-	free (m);
-	perror ("access");
-	return 0;
+	if (errno == ENOENT && (flags & OPEN_CREATE))
+	{
+	    if (mkdir (m->path, S_IRUSR | S_IWUSR | S_IXUSR))
+	    {
+		fprintf (stderr, "ERROR: mkdir %s: %s (errno %d)\n",
+			 m->path, strerror (errno), errno);
+		free (m->path);
+		free (m);
+		return NULL;
+	    }
+
+	    for (i = 0; i < 3; i++)
+	    {
+		snprintf (buf, sizeof (buf), "%s/%s", m->path, subdirs[i]);
+		if (mkdir (buf, S_IRUSR | S_IWUSR | S_IXUSR))
+		{
+		    fprintf (stderr, "ERROR: mkdir %s: %s (errno %d)\n",
+			     buf, strerror (errno), errno);
+		    free (m->path);
+		    free (m);
+		    return NULL;
+		}
+	    }
+
+	}
+	else
+	{
+	    fprintf (stderr, "ERROR: stat %s: %s (errno %d)\n", m->path,
+		     strerror (errno), errno);
+	    free (m->path);
+	    free (m);
+	    return NULL;
+	}
     }
-    snprintf (buf, sizeof (buf), "%s/cur", m->path);
-    if (access (buf, F_OK))
+    else
     {
-	free (m->path);
-	free (m);
-	perror ("access");
-	return 0;
+	/* check to make sure this looks like a valid maildir box */
+	for (i = 0; i < 3; i++)
+	{
+	    snprintf (buf, sizeof (buf), "%s/%s", m->path, subdirs[i]);
+	    if (stat (buf, &sb))
+	    {
+		fprintf (stderr, "ERROR: stat %s: %s (errno %d)\n", buf,
+			 strerror (errno), errno);
+		fprintf (stderr,
+			 "ERROR: %s does not appear to be a valid maildir style mailbox\n",
+			 m->path);
+		free (m->path);
+		free (m);
+		return 0;
+	    }
+	}
     }
 
     /* check for the uidvalidity value */
@@ -176,7 +219,7 @@ maildir_open (const char *path, int fast)
 	return NULL;
     }
 
-    if (fast)
+    if (flags & OPEN_FAST)
 	return m;
 
     cur = &m->msgs;
@@ -224,11 +267,11 @@ maildir_open (const char *path, int fast)
 		    m->maxuidchanged = 1;
 		}
 		/* Courier-IMAP names it files
-		 * 	unique,S=<size>:info
+		 *      unique,S=<size>:info
 		 * so we need to put the UID before the size, hence here
 		 * we check for a comma as a valid terminator as well,
 		 * since the format will be
-		 * 	unique,U=<uid>,S=<size>:info
+		 *      unique,U=<uid>,S=<size>:info
 		 */
 		if (*s && *s != ':' && *s != ',')
 		{
@@ -358,7 +401,8 @@ maildir_clean_tmp (const char *mbox)
     dirp = opendir (path);
     if (dirp == NULL)
     {
-	fprintf (stderr, "maildir_clean_tmp: opendir: %s: %s (errno %d)\n", path, strerror (errno), errno);
+	fprintf (stderr, "maildir_clean_tmp: opendir: %s: %s (errno %d)\n",
+		 path, strerror (errno), errno);
 	return;
     }
     /* assuming this scan will take less than a second, we only need to
@@ -369,7 +413,8 @@ maildir_clean_tmp (const char *mbox)
     {
 	snprintf (path, sizeof (path), "%s/tmp/%s", mbox, entry->d_name);
 	if (stat (path, &info))
-	    fprintf (stderr, "maildir_clean_tmp: stat: %s: %s (errno %d)\n", path, strerror (errno), errno);
+	    fprintf (stderr, "maildir_clean_tmp: stat: %s: %s (errno %d)\n",
+		     path, strerror (errno), errno);
 	else if (S_ISREG (info.st_mode) && now - info.st_ctime >= _24_HOURS)
 	{
 	    /* this should happen infrequently enough that it won't be
@@ -377,7 +422,9 @@ maildir_clean_tmp (const char *mbox)
 	     */
 	    printf ("Warning: removing stale file %s\n", path);
 	    if (unlink (path))
-		fprintf (stderr, "maildir_clean_tmp: unlink: %s: %s (errno %d)\n", path, strerror (errno), errno);
+		fprintf (stderr,
+			 "maildir_clean_tmp: unlink: %s: %s (errno %d)\n",
+			 path, strerror (errno), errno);
 	}
     }
 }

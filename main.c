@@ -35,6 +35,7 @@
 struct option Opts[] = {
     {"all", 0, NULL, 'a'},
     {"config", 1, NULL, 'c'},
+    {"create", 0, NULL, 'C'},
     {"delete", 0, NULL, 'd'},
     {"expunge", 0, NULL, 'e'},
     {"fast", 0, NULL, 'f'},
@@ -70,6 +71,7 @@ usage (void)
     printf ("usage: %s [ flags ] mailbox [mailbox ...]\n", PACKAGE);
     puts ("  -a, --all	Synchronize all defined mailboxes");
     puts ("  -c, --config CONFIG	read an alternate config file (default: ~/.isyncrc)");
+    puts ("  -C, --create		create local maildir mailbox if nonexistent");
     puts ("  -d, --delete		delete local msgs that don't exist on the server");
     puts ("  -e, --expunge		expunge	deleted messages from the server");
     puts ("  -f, --fast		only fetch new messages");
@@ -141,6 +143,7 @@ main (int argc, char **argv)
     struct passwd *pw;
     int quiet = 0;
     int all = 0;
+    int create = 0;
 
     pw = getpwuid (getuid ());
 
@@ -163,7 +166,7 @@ main (int argc, char **argv)
     global.use_tlsv1 = 1;
 #endif
 
-#define FLAGS "ac:defhp:qu:r:s:vV"
+#define FLAGS "aCc:defhp:qu:r:s:vV"
 
 #if HAVE_GETOPT_LONG
     while ((i = getopt_long (argc, argv, FLAGS, Opts, NULL)) != -1)
@@ -175,6 +178,9 @@ main (int argc, char **argv)
 	{
 	    case 'a':
 		all = 1;
+		break;
+	    case 'C':
+		create = 1;
 		break;
 	    case 'c':
 		config = optarg;
@@ -270,10 +276,15 @@ main (int argc, char **argv)
 
 	if (!quiet)
 	    printf ("Reading %s\n", box->path);
-	mail = maildir_open (box->path, fast);
+	i = 0;
+	if (fast)
+	    i |= OPEN_FAST;
+	if (create)
+	    i |= OPEN_CREATE;
+	mail = maildir_open (box->path, i);
 	if (!mail)
 	{
-	    fprintf (stderr, "%s: unable to load mailbox\n", box->path);
+	    fprintf (stderr, "ERROR: unable to load mailbox %s\n", box->path);
 	    goto cleanup;
 	}
 
@@ -326,7 +337,7 @@ main (int argc, char **argv)
 	if (maildir_close (mail))
 	    exit (1);
 
-cleanup:
+      cleanup:
 	if (all)
 	    box = box->next;
     }
