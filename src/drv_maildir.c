@@ -822,11 +822,28 @@ maildir_rescan( maildir_store_t *ctx )
 	for (msgapp = &ctx->gen.msgs, i = 0;
 	     (msg = (maildir_message_t *)*msgapp) || i < msglist.nents; )
 	{
-		if (!msg || msglist.ents[i].uid < msg->gen.uid) {
+		if (!msg) {
+#if 0
+			debug( "adding new message %d\n", msglist.ents[i].uid );
+			maildir_app_msg( ctx, &msgapp, msglist.ents + i );
+#else
 			debug( "ignoring new message %d\n", msglist.ents[i].uid );
-			/* maildir_app_msg( ctx, &msgapp, msglist.ents + i ); */
+#endif
 			i++;
-		} else if (i >= msglist.nents || msglist.ents[i].uid > msg->gen.uid) {
+		} else if (i >= msglist.nents) {
+			debug( "purging deleted message %d\n", msg->gen.uid );
+			msg->gen.status = M_DEAD;
+			msgapp = &msg->gen.next;
+		} else if (msglist.ents[i].uid < msg->gen.uid) {
+			/* this should not happen, actually */
+#if 0
+			debug( "adding new message %d\n", msglist.ents[i].uid );
+			maildir_app_msg( ctx, &msgapp, msglist.ents + i );
+#else
+			debug( "ignoring new message %d\n", msglist.ents[i].uid );
+#endif
+			i++;
+		} else if (msglist.ents[i].uid > msg->gen.uid) {
 			debug( "purging deleted message %d\n", msg->gen.uid );
 			msg->gen.status = M_DEAD;
 			msgapp = &msg->gen.next;
