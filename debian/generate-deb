@@ -2,7 +2,7 @@
 #
 # Intended to be run from the root of the isync source tree in the repository.
 #
-VERSION=0.9.2
+VERSION=`dpkg-parsechangelog | sed -ne 's/^Version: \(.*\)-[^-]\+$/\1/p'`
 
 if [ ! -f ../isync_$VERSION.orig.tar.gz ]; then
 	echo isync_$VERSION.orig.tar.gz must be found in the parent directory.
@@ -13,11 +13,17 @@ rm -rf ../isync-$VERSION
 fakeroot ./debian/rules clean
 cp -rl . ../isync-$VERSION
 cd ../isync-$VERSION
-find . -name CVS | xargs rm -rf
-find . -type l | xargs rm
+find . -name CVS -print0 | xargs -0r rm -rf
+find . -name .cvsignore -print0 | xargs -0r rm
+find . -type l -print0 | xargs -0r rm
+find . -name .#\*#  -print0 | xargs -0r rm
 aclocal
 autoheader
 automake --add-missing --copy
 autoconf
-rm config.guess config.sub
-dpkg-buildpackage -rfakeroot
+if [ -n "$DOSIGN" ]; then
+    SIGNOPTS=
+else
+    SIGNOPTS="-us -uc"
+fi
+dpkg-buildpackage -rfakeroot $SIGNOPTS
