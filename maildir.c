@@ -427,9 +427,53 @@ maildir_set_uidvalidity (mailbox_t * mbox, unsigned int uidvalidity)
     return (ret);
 }
 
+#define _24_HOURS (3600 * 24)
+
+static void
+maildir_clean_tmp (const char *mbox)
+{
+    char path[_POSIX_PATH_MAX];
+    DIR *dirp;
+    struct dirent *entry;
+    struct stat info;
+    time_t now;
+
+    snprintf (path, sizeof (path), "%s/tmp", mbox);
+    dirp = opendir (path);
+    if (dirp == NULL)
+    {
+	fprintf (stderr, "maildir_clean_tmp: opendir: %s: %s (errno %d)\n", path, strerror (errno), errno);
+	return;
+    }
+    /* assuming this scan will take less than a second, we only need to
+     * check the time once before the following loop.
+     */
+    time (&now);
+    while ((entry = readdir (dirp)))
+    {
+	snprintf (path, sizeof (path), "%s/tmp/%s", path, entry->d_name);
+	if (stat (path, &info))
+	    fprintf (stderr, "maildir_clean_tmp: stat: %s: %s (errno %d)\n", path, strerror (errno), errno);
+	else if (now - info.st_ctime >= _24_HOURS)
+	{
+	    /* this should happen infrequently enough that it won't be
+	     * bothersome to the user to display when it occurs.
+	     */
+	    printf ("Warning: removing stale file %s\n", path);
+	    if (unlink (path))
+		fprintf (stderr, "maildir_clean_tmp: unlink: %s: %s (errno %d)\n", path, strerror (errno), errno);
+	}
+    }
+}
+
 void
 maildir_close (mailbox_t * mbox)
 {
+    /* per the maildir(5) specification, delivery agents are supposed to
+     * set a 24-hour timer on items placed in the `tmp' directory.
+     */
+    maildir_clean_tmp (mbox->path);
+
     free (mbox->path);
     free_message (mbox->msgs);
     memset (mbox, 0xff, sizeof (mailbox_t));

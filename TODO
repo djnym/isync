@@ -6,6 +6,3 @@ finish implementing --quiet
 
 isync gets confused when new mail is delivered while in the middle of an
 IMAP session.  need to handled those asynchronous notifications properly.
-
-in order to be in total compliance with the maildir(5) spec, we need to
-add code to clean the tmp directory on the 24-hour timer.
