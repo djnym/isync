@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Intended to be run from the root of the isync source tree in the repository.
+#
+VERSION=0.9.2
+
+if [ ! -f ../isync_$VERSION.orig.tar.gz ]; then
+	echo isync_$VERSION.orig.tar.gz must be found in the parent directory.
+	exit 1
+fi
+rm -rf ../isync-$VERSION
+
+fakeroot ./debian/rules clean
+cp -rl . ../isync-$VERSION
+cd ../isync-$VERSION
+find . -name CVS | xargs rm -rf
+find . -type l | xargs rm
+aclocal
+autoheader
+automake --add-missing --copy
+autoconf
+rm config.guess config.sub
+dpkg-buildpackage -rfakeroot
