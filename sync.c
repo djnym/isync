@@ -1,4 +1,6 @@
-/* isync - IMAP4 to maildir mailbox synchronizer
+/* $Id$
+ *
+ * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -56,6 +58,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 	    {
 		cur->flags |= D_DELETED;
 		cur->dead = 1;
+		mbox->deleted++;
 	    }
 	    continue;
 	}
@@ -69,9 +72,13 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 	    if (cur->flags != (tmp->flags & ~(D_RECENT | D_DRAFT)))
 	    {
 		/* set local flags that don't exist on the server */
+		if (!(tmp->flags & D_DELETED) && (cur->flags & D_DELETED))
+		    imap->deleted++;
 		imap_set_flags (imap, cur->uid, cur->flags & ~tmp->flags);
 
 		/* update local flags */
+		if((cur->flags & D_DELETED) == 0 && (tmp->flags & D_DELETED))
+		    mbox->deleted++;
 		cur->flags |= (tmp->flags & ~(D_RECENT | D_DRAFT));
 		cur->changed = 1;
 		mbox->changed = 1;
@@ -86,13 +93,20 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 	if (!cur->processed)
 	{
 	    /* new message on server */
-	    fputs (".", stdout);
-	    fflush (stdout);
+
+	    if ((flags & SYNC_EXPUNGE) && (cur->flags & D_DELETED))
+	    {
+		/* this message has been marked for deletion and
+		 * we are currently expunging a mailbox.  don't
+		 * bother downloading this message
+		 */
+		continue;
+	    }
 
 	    /* create new file */
 	    snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d.UID%d",
-		      mbox->path, Hostname, time (0), MaildirCount++,
-		      getpid (), cur->uid);
+		    mbox->path, Hostname, time (0), MaildirCount++,
+		    getpid (), cur->uid);
 
 	    if (cur->flags)
 	    {
@@ -103,7 +117,12 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 			  (cur->flags & D_ANSWERED) ? "R" : "",
 			  (cur->flags & D_SEEN) ? "S" : "",
 			  (cur->flags & D_DELETED) ? "T" : "");
+
 	    }
+
+	    /* give some visual feedback that something is happening */
+	    fputs (".", stdout);
+	    fflush (stdout);
 
 //          printf("creating %s\n", path);
 	    fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600);

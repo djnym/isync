@@ -1,4 +1,6 @@
-/* isync - IMAP4 to maildir mailbox synchronizer
+/* $Id$
+ *
+ * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -48,6 +50,7 @@ struct mailbox
 {
     char *path;
     message_t *msgs;
+    unsigned int deleted;	/* # of deleted messages */
     unsigned int changed:1;
 };
 
@@ -84,12 +87,14 @@ typedef struct
     message_t *recent_msgs;	/* list of recent messages - only contains
 				 * UID to be used in a FETCH FLAGS command
 				 */
+    unsigned int deleted;	/* # of deleted messages */
 }
 imap_t;
 
 /* flags for sync_mailbox */
 #define SYNC_FAST	(1<<0)	/* don't sync flags, only fetch new msgs */
 #define	SYNC_DELETE	(1<<1)	/* delete local that don't exist on server */
+#define SYNC_EXPUNGE	(1<<2)	/* don't fetch deleted messages */
 
 extern config_t global;
 extern unsigned int Tag;

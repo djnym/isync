@@ -1,4 +1,6 @@
-/* isync - IMAP4 to maildir mailbox synchronizer
+/* $Id$
+ *
+ * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -133,10 +135,15 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    {
 		if (!rec)
 		{
-		    rec = &imap->msgs;
+		    rec = &imap->recent_msgs;
 		    while (*rec)
 			rec = &(*rec)->next;
 		}
+		/* need to add arg1 */
+		*rec = calloc (1, sizeof (message_t));
+		(*rec)->uid = atoi (arg1);
+		rec = &(*rec)->next;
+		/* parse rest of `cmd' */
 		while ((arg = next_arg (&cmd)))
 		{
 		    *rec = calloc (1, sizeof (message_t));
@@ -189,7 +196,10 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		    else if (!strcmp ("\\Flagged", arg))
 			(*cur)->flags |= D_FLAGGED;
 		    else if (!strcmp ("\\Deleted", arg))
+		    {
 			(*cur)->flags |= D_DELETED;
+			imap->deleted++;
+		    }
 		    else if (!strcmp ("\\Answered", arg))
 			(*cur)->flags |= D_ANSWERED;
 		    else if (!strcmp ("\\Draft", arg))

@@ -1,4 +1,6 @@
-/* isync - IMAP4 to maildir mailbox synchronizer
+/* $Id$
+ *
+ * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -129,6 +131,8 @@ maildir_open (const char *path, int fast)
 	    s = strchr (p->file, ':');
 	    if (s)
 		parse_info (p, s + 1);
+	    if (p->flags & D_DELETED)
+		m->deleted++;
 	    cur = &p->next;
 	}
 	closedir (d);
@@ -189,10 +193,8 @@ maildir_sync (mailbox_t * mbox)
 		if (p)
 		    *p = 0;
 
-		p = strrchr (cur->file, '/');
-
 		/* generate new path */
-		snprintf (path, sizeof (path), "%s/%s%s:2,%s%s%s%s",
+		snprintf (path, sizeof (path), "%s/%s/%s:2,%s%s%s%s",
 			  mbox->path, (cur->flags & D_SEEN) ? "cur" : "new",
 			  cur->file, (cur->flags & D_FLAGGED) ? "F" : "",
 			  (cur->flags & D_ANSWERED) ? "R" : "",

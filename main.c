@@ -1,4 +1,6 @@
-/* isync - IMAP4 to maildir mailbox synchronizer
+/* $Id$
+ *
+ * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -364,17 +366,20 @@ main (int argc, char **argv)
     i = 0;
     i |= (fast) ? SYNC_FAST : 0;
     i |= (delete) ? SYNC_DELETE : 0;
+    i |= (expunge) ? SYNC_EXPUNGE : 0;
     if (sync_mailbox (mail, imap, i))
 	exit (1);
 
     if (!fast)
     {
-	if (expunge)
+	if (expunge && (imap->deleted || mail->deleted))
 	{
 	    /* remove messages marked for deletion */
-	    puts ("Expunging messages");
+	    printf ("Expunging %d messages from server\n", imap->deleted);
 	    if (imap_expunge (imap))
 		exit (1);
+	    printf ("Expunging %d messages from local mailbox\n",
+		    mail->deleted);
 	    if (maildir_expunge (mail, 0))
 		exit (1);
 	}
