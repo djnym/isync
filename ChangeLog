@@ -1,3 +1,317 @@
+2004-09-08 18:40  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	don't encode maturity in version number
+
+2004-09-08 18:38  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* Makefile.am:
+
+	optimize rpms for i686
+
+2004-09-08 18:28  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	sanitize the OpenSSL detection
+
+2004-09-08 18:14  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_imap.c:
+
+	stddef.h for offsetof
+
+2004-09-08 16:52  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_maildir.c:
+
+	first check _both_ bounds, then compare ...
+
+2004-09-07 13:59  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/sync.c:
+
+	print name of mailbox being opened.
+
+2004-08-13 13:03  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_imap.c:
+
+	fix -C for imap mailboxes:
+	- SELECT does not return [TRYCREATE]
+	- fix bit field truncation
+
+2004-06-17 15:44  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	A{C,S}_HELP_STRING aliasing tricks.
+
+2004-05-23 18:39  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_maildir.c:
+
+	store new UIDVALIDITY immediately after initializing it
+
+2004-04-27 22:23  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/compat/main.c:
+
+	old -l is new -l -C
+
+2004-04-26 16:48  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/compat/: config.c, isync.h, main.c:
+
+	full support for absolute paths in Mailboxes
+
+2004-04-26 16:09  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/compat/config.c:
+
+	strip $HOME and ~ from Mailbox paths
+
+2004-03-30 00:32  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: util.c, compat/util.c:
+
+	fix return values of asprintf replacement.
+
+2004-03-29 08:52  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/compat/: config.c, isync.1, isync.h, main.c:
+
+	unscrew --delete by merging it into the config file. merge --expunge as
+	well for symmetry.
+
+2004-03-27 17:07  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* .cvsignore, Makefile.am, README, configure.in, isync.1,
+	  isync.spec.in, isyncrc.sample, src/.cvsignore, src/Makefile.am,
+	  src/config.c, src/cram.c, src/dotlock.c, src/dotlock.h,
+	  src/drv_imap.c, src/drv_maildir.c, src/imap.c, src/isync.h,
+	  src/list.c, src/maildir.c, src/main.c, src/mbsync.1,
+	  src/mbsyncrc.sample, src/mdconvert.1, src/mdconvert.c,
+	  src/sync.c, src/util.c, src/compat/.cvsignore,
+	  src/compat/Makefile.am, src/compat/config.c,
+	  src/compat/convert.c, src/compat/isync.1, src/compat/isync.h,
+	  src/compat/isyncrc.sample, src/compat/main.c, src/compat/util.c:
+
+	The Big Rewrite. too many change to list them all.
+
+	as opposed to earlier threats, BerkDB was not entirely dropped; i
+	suppose the isync 0.7 -> 0.8 change had a reason, so i added an
+	alternative UID storage scheme.
+	note that BDB 4.0 is not sufficient, as the db->open function changed in
+	an incompatible way ...
+
+	i updated the debian packaging except for a changelog entry.
+	note that i removed the upgrade blurb, as upstream now has a smooth
+	upgrade path down to at least isync 0.4.
+
+2004-03-26 17:34  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* get-cert:
+
+	excessively secure temp file creation.
+	more user friendliness.
+
+2004-03-23 16:52  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/sync.c:
+
+	be cygwin-compliant: don't use link()
+
+2004-03-22 17:51  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/sync.c:
+
+	unscrew file naming scheme
+
+2004-02-07 16:36  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/dotlock.c:
+
+	portability: don't rely on struct flock layout
+
+2004-02-01 17:44  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* .cvsignore:
+
+	shht
+
+2004-02-01 17:27  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: main.c, sync.c:
+
+	once again: (slightly) better output.
+	make maildir flag setting failure non-fatal. maildir sucks ...
+
+2004-01-31 02:01  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: imap.c, isync.h:
+
+	more sophisticated CAPABILITY handling. also, don't issue the command if
+	the initial response already had it in the status code.
+
+2004-01-31 00:39  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	don't ask for NAMESPACE if Folder was specified
+
+2004-01-31 00:35  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: imap.c, isync.h:
+
+	following the "screw murphy" principle and commiting untested patch:
+	obey LOGINDISABLED
+
+2004-01-27 22:01  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	PREAUTH cannot come out of the blue
+
+2004-01-27 21:58  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	cleanup around parse_fetch
+
+2004-01-27 21:50  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: imap.c, isync.h, main.c:
+
+	make Tag int, move it to imap.c
+
+2004-01-27 01:11  Nicolas Boullis <nboullis@users.sf.net>
+
+	* acinclude.m4, configure.in:
+
+	Add a --disable-maintainer-mode option to configure.
+
+2004-01-20 02:55  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	don't use STARTTLS for PREAUTH connections. uw-imap doesn't seem to like
+	it, and it does not make too much sense anyway - i think - state converse
+	opinions now.
+
+2004-01-20 02:27  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* Makefile.am:
+
+	exclude ChangeLog (do'h), NEWS and TODO when creating ChangeLog. exclude
+	debian/ as well, based on the fact that it already has a detailed log -
+	is that ok with everybody?
+
+2004-01-18 03:22  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* isync.1, src/imap.c, src/isync.h, src/maildir.c, src/main.c,
+	  src/sync.c:
+
+	another message output cleanup, still not perfect (info messages will be
+	interleaved with progress dots).
+	support specifying -q twice to suppress warnings as well.
+
+2004-01-17 12:38  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* isync.1:
+
+	document mua interaction
+
+2004-01-16 11:11  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* AUTHORS:
+
+	credit where credit is due. are the comments satisfactory for everybody?
+
+2004-01-15 04:51  Theodore Ts'o <tytso@users.sf.net>
+
+	* get-cert:
+
+	Script that can be used to extract the server's certificate from an IMAP
+	server.
+
+2004-01-15 03:23  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	remove useless define and more verbose error message.
+
+2004-01-13 04:56  Theodore Ts'o <tytso@users.sf.net>
+
+	* configure.in:
+
+	Use a more sophisticated test for the existence of libdb that works for
+	berk_db 4.0.
+
+2004-01-12 02:49  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	bah, forgot to remove debian/Makefile.in from AC_OUTPUT. :}
+	kde's overly sophisticated build system does that automatically ...
+
+2004-01-12 02:24  Theodore Ts'o <tytso@users.sf.net>
+
+	* src/: imap.c, isync.h, main.c:
+
+	Optimized isync by not fetching the sizes of messages if they are
+	unneeded (i.e., if MaxSize is not specified in the config file).
+
+	Patch and idea originally from Nicolas Boullis <nboullis@debian.org>,
+	modified/polished by Theodore Ts'o per comments by Oswald Buddenhagen.
+
+2004-01-12 01:52  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in, src/isync.h, src/maildir.c, src/sync.c:
+
+	sync uid database after every message. this is accompanied by a dbm ->
+	db4 migration. patch by theodore, with some final polishing by me.
+
+2004-01-12 01:38  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* Makefile.am:
+
+	use ../CVSROOT/accounts for UID mapping in ChangeLog.
+
+2004-01-12 01:36  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* AUTHORS:
+
+	be more explicit about contact address
+
+2004-01-11 13:38  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* .cvsignore:
+
+	new stuff
+
+2004-01-11 13:35  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* Makefile.am:
+
+	getting rid of Makefile.am in debian/ - it seems to be non-standard and
+	is a pita to maintain anyway. instead, make distdir and distclean depend
+	on a partial debian-clean.
+
+2004-01-11 12:53  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* autogen.sh:
+
+	don't call configure
+
+2004-01-09 21:43  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/main.c:
+
+	ignore anything that does not look remotely like a maildir when
+	collecting mailboxes for OneToOne.
+
 2003-12-07 16:37  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* isyncrc.sample:
@@ -16,18 +330,6 @@
 
 	make imaps: on the command line adjust the port and ssl options as well
 
-2003-12-07 16:18  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* ChangeLog:
-
-	regen
-
-2003-12-07 16:15  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* debian/changelog:
-
-	new release
-
 2003-12-07 16:09  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* configure.in:
@@ -39,12 +341,6 @@
 	* src/imap.c:
 
 	echo the mailbox the password is for
-
-2003-12-02 03:52  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* TODO:
-
-	item morphed
 
 2003-11-11 04:02  Oswald Buddenhagen <ossi@users.sf.net>
 
@@ -70,18 +366,11 @@
 
 	minor
 
-2003-05-07 02:07  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* ChangeLog:
-
-	regen
-
 2003-05-07 02:06  Oswald Buddenhagen <ossi@users.sf.net>
 
-	* .cvsignore, Makefile.am, autogen.sh, configure.in,
-	debian/changelog, src/config.c, src/cram.c, src/dotlock.c,
-	src/imap.c, src/isync.h, src/list.c, src/maildir.c, src/main.c,
-	src/sync.c:
+	* .cvsignore, Makefile.am, autogen.sh, configure.in, src/config.c,
+	  src/cram.c, src/dotlock.c, src/imap.c, src/isync.h, src/list.c,
+	  src/maildir.c, src/main.c, src/sync.c:
 
 	- make it work without SSL
 	- switch from -Ds in Makefile to config.h
@@ -93,23 +382,11 @@
 
 	make it actually work
 
-2003-05-06 04:18  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* ChangeLog:
-
-	regen
-
 2003-05-06 04:17  Oswald Buddenhagen <ossi@users.sf.net>
 
-	* Makefile.am, debian/Makefile.am:
+	* Makefile.am:
 
 	minors
-
-2003-05-06 04:16  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* NEWS:
-
-	update
 
 2003-05-06 04:15  Oswald Buddenhagen <ossi@users.sf.net>
 
@@ -155,28 +432,16 @@
 
 	fix imaps:
 
-2003-03-26 04:33  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* debian/: changelog, compat, control, dirs, rules:
-
-	debian packaging update
-
 2003-02-27 19:43  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* src/sync.c:
 
 	ignore \Recent, as it is voided by the syncronization run itself.
 
-2003-02-27 19:41  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* TODO:
-
-	more to do ...
-
 2002-12-28 16:31  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* src/: config.c, cram.c, imap.c, isync.h, list.c, maildir.c,
-	main.c, sync.c:
+	  main.c, sync.c:
 
 	- update copyrights. 2003 didn't begin yet, but who cares? :)
 
@@ -189,13 +454,7 @@
 
 2002-12-28 05:12  Oswald Buddenhagen <ossi@users.sf.net>
 
-	* TODO:
-
-	- ssh tunnels are supported for ages ...
-
-2002-12-28 05:12  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* TODO, src/maildir.c, src/sync.c:
+	* src/: maildir.c, sync.c:
 
 	- update isyncmaxuid properly
 
@@ -229,18 +488,11 @@
 
 	- ssht!
 
-2002-12-28 04:07  Oswald Buddenhagen <ossi@users.sf.net>
-
-	* debian/.cvsignore:
-
-	- ssht!
-
 2002-12-28 04:03  Oswald Buddenhagen <ossi@users.sf.net>
 
-	* .cvsignore, AUTHORS, ChangeLog, Makefile.am, NEWS, README,
-	autogen.sh, configure.in, isync.spec.in, debian/control,
-	debian/copyright, debian/docs, src/.cvsignore, src/isync.h,
-	src/Makefile.am:
+	* .cvsignore, AUTHORS, Makefile.am, README, autogen.sh,
+	  configure.in, isync.spec.in, src/.cvsignore, src/isync.h,
+	  src/Makefile.am:
 
 	- took over maintenance
 	- moved to sourceforge
@@ -249,8 +501,8 @@
 2002-10-30 03:31  Michael Elkins <me@sigpipe.org>
 
 	* isync.1, src/config.c, src/cram.c, src/dotlock.c, src/dotlock.h,
-	src/imap.c, src/isync.h, src/list.c, src/maildir.c, src/main.c,
-	src/sync.c:
+	  src/imap.c, src/isync.h, src/list.c, src/maildir.c, src/main.c,
+	  src/sync.c:
 
 	Updated the copyright notice to allow an exception for linking with OpenSSL,
 	which has a non-GPL compatible license.
@@ -258,7 +510,7 @@
 2002-10-30 03:23  Michael Elkins <me@sigpipe.org>
 
 	* .cvsignore, isync.1, src/config.c, src/imap.c, src/isync.h,
-	src/maildir.c, src/main.c, src/sync.c:
+	  src/maildir.c, src/main.c, src/sync.c:
 
 	Bunch 'o patches from Oswald Buddenhagen:
 
@@ -375,14 +627,14 @@
 
 2002-06-19 02:44  Michael Elkins <me@sigpipe.org>
 
-	* Makefile.am, debian/Makefile.am, debian/changelog:
+	* Makefile.am:
 
 	Debian package cleanups from Oswald Buddenhagen <ossi@kde.org>
 
 2002-06-18 08:37  Michael Elkins <me@sigpipe.org>
 
 	* README, isync.1, src/isync.h, src/maildir.c, src/main.c,
-	src/sync.c:
+	  src/sync.c:
 
 	updated URL for project
 
@@ -391,17 +643,10 @@
 
 	fixed bug where isync could not handle a 0 value UIDVALIDITY
 
-2002-04-19 23:38  Michael Elkins <me@sigpipe.org>
-
-	* debian/: changelog, rules:
-
-	changed debian/rules to set DESTDIR instead of `prefix' when doing a make
-	install.
-
 2002-04-19 21:43  Michael Elkins <me@sigpipe.org>
 
 	* configure.in, isync.1, isyncrc.sample, src/config.c, src/imap.c,
-	src/isync.h, src/main.c:
+	  src/isync.h, src/main.c:
 
 	PREAUTH support from Oswald Buddenhagen <ossi@kde.org>
 
@@ -411,13 +656,13 @@
 
 2002-01-28 20:39  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, isync.spec.in, debian/changelog:
+	* isync.spec.in:
 
 	post 0.8 release commit
 
 2002-01-28 20:34  Michael Elkins <me@sigpipe.org>
 
-	* TODO, configure.in:
+	* configure.in:
 
 	check for dbm_open() in libc and libdb
 
@@ -429,7 +674,7 @@
 
 2002-01-16 23:23  Michael Elkins <me@sigpipe.org>
 
-	* AUTHORS, Makefile.am, NEWS, src/sync.c:
+	* AUTHORS, Makefile.am, src/sync.c:
 
 	remove tilde backup files for distclean
 
@@ -450,15 +695,14 @@
 
 2002-01-16 22:51  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am, configure.in, debian/Makefile.am:
+	* Makefile.am, configure.in:
 
 	added debian build files dist target so that people can use them to build
 	their own .deb packages without having to use CVS
 
 2002-01-16 22:43  Michael Elkins <me@sigpipe.org>
 
-	* isync.1, debian/changelog, debian/control, debian/copyright,
-	debian/docs, debian/rules, src/maildir.c, src/sync.c:
+	* isync.1, src/maildir.c, src/sync.c:
 
 	added debian build files
 
@@ -477,9 +721,8 @@
 
 2002-01-16 20:47  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, NEWS, TODO, configure.in, isync.1, src/config.c,
-	src/cram.c, src/imap.c, src/isync.h, src/list.c, src/maildir.c,
-	src/main.c, src/sync.c:
+	* configure.in, isync.1, src/config.c, src/cram.c, src/imap.c,
+	  src/isync.h, src/list.c, src/maildir.c, src/main.c, src/sync.c:
 
 	updated year in copyright notice
 
@@ -497,14 +740,13 @@
 
 2001-11-20 19:28  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am, isync.spec.in:
+	* Makefile.am, isync.spec.in:
 
 	post 0.7-release commit
 
 2001-11-20 19:06  Michael Elkins <me@sigpipe.org>
 
-	* Makefile.am, NEWS, isync.1, src/isync.h, src/maildir.c,
-	src/main.c:
+	* Makefile.am, isync.1, src/isync.h, src/maildir.c, src/main.c:
 
 	added --create/-C command line option to force creation of the local
 	maildir-style mailbox if nonexistent
@@ -513,8 +755,8 @@
 
 2001-11-19 20:41  Michael Elkins <me@sigpipe.org>
 
-	* Makefile.am, TODO, configure.in, src/config.c, src/isync.h,
-	src/list.c, src/main.c:
+	* Makefile.am, configure.in, src/config.c, src/isync.h, src/list.c,
+	  src/main.c:
 
 	added memory debugging code
 
@@ -524,7 +766,7 @@
 
 2001-11-16 22:23  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, src/cram.c, src/imap.c, src/isync.h, src/sync.c:
+	* src/: cram.c, imap.c, isync.h, sync.c:
 
 	remove c++ style comments
 
@@ -532,7 +774,7 @@
 
 2001-11-16 00:59  Michael Elkins <me@sigpipe.org>
 
-	* NEWS, isync.1, src/config.c, src/isync.h, src/main.c, src/sync.c:
+	* isync.1, src/config.c, src/isync.h, src/main.c, src/sync.c:
 
 	Added MaxMessages patch from Eivind Eklund <eivind@FreeBSD.org>.
 
@@ -601,7 +843,7 @@
 
 2001-10-31 07:06  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, NEWS, isync.1:
+	* isync.1:
 
 	post 0.6 commit
 
@@ -613,13 +855,13 @@
 
 2001-10-03 19:10  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am, src/maildir.c:
+	* Makefile.am, src/maildir.c:
 
 	fixed broken code in maildir_clean_tmp()
 
 2001-10-03 18:48  Michael Elkins <me@sigpipe.org>
 
-	* TODO, src/maildir.c:
+	* src/maildir.c:
 
 	added code to clean the tmp directory in a maildir to comply with
 	maildir(5)
@@ -647,8 +889,8 @@
 
 2001-10-03 07:42  Michael Elkins <me@sigpipe.org>
 
-	* NEWS, TODO, isync.1, isyncrc.sample, src/config.c, src/isync.h,
-	src/main.c, src/sync.c:
+	* isync.1, isyncrc.sample, src/config.c, src/isync.h, src/main.c,
+	  src/sync.c:
 
 	added `Delete' configuration option to force -d option
 
@@ -657,12 +899,6 @@
 	load_config() needs to print a newline in its error messages since
 	next_arg() kills the newline of the line that was read out of the config
 	file.
-
-2001-10-03 02:03  Michael Elkins <me@sigpipe.org>
-
-	* TODO:
-
-	update TODO list with action items
 
 2001-10-03 02:01  Michael Elkins <me@sigpipe.org>
 
@@ -716,7 +952,7 @@
 
 2001-06-18 23:38  Michael Elkins <me@sigpipe.org>
 
-	* TODO, configure.in, src/imap.c, isync.1:
+	* configure.in, src/imap.c, isync.1:
 
 	handle untagged responses in imap_fetch_message() so that it doesn't bomb
 	out if new mail arrives while in the process of downloading
@@ -734,18 +970,6 @@
 
 	added -a (--all) flag to synchronize all mailboxes defined in ~/.isyncrc
 
-2001-06-13 19:13  Michael Elkins <me@sigpipe.org>
-
-	* NEWS:
-
-	post 0.5-release commit
-
-2001-06-13 18:57  Michael Elkins <me@sigpipe.org>
-
-	* ChangeLog:
-
-	updated ChangeLog.  removed smtppush binary.
-
 2001-06-12 02:32  Michael Elkins <me@sigpipe.org>
 
 	* AUTHORS, README, COPYING, Makefile.am, configure.in, src/main.c:
@@ -760,7 +984,7 @@
 
 2001-02-19 19:44  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, src/cram.c, src/imap.c, src/maildir.c:
+	* src/: cram.c, imap.c, maildir.c:
 
 	rfc2595 compliance patch from Daniel Resare <noa@metamatrix.se>
 		- CAPABILITY should be reissued after starting TLS since the
@@ -825,7 +1049,7 @@
 2001-01-24 08:09  Michael Elkins <me@sigpipe.org>
 
 	* isync.1, src/config.c, src/cram.c, src/imap.c, src/list.c,
-	src/maildir.c, src/main.c, src/sync.c:
+	  src/maildir.c, src/main.c, src/sync.c:
 
 	fixed cram compilation error under bsd
 
@@ -833,7 +1057,7 @@
 
 2001-01-16 20:45  Michael Elkins <me@sigpipe.org>
 
-	* TODO, isync.1, src/config.c, src/imap.c, src/isync.h, src/main.c:
+	* isync.1, src/config.c, src/imap.c, src/isync.h, src/main.c:
 
 	added support for tilde (~) expansion in the `Mailbox' and `CertificateFile'
 	configuration directives
@@ -855,7 +1079,7 @@
 2001-01-11 11:13  Michael Elkins <me@sigpipe.org>
 
 	* Makefile.am, isync.1, isyncrc.sample, src/config.c, src/imap.c,
-	src/isync.h, src/main.c, src/sync.c:
+	  src/isync.h, src/main.c, src/sync.c:
 
 	broke config code into config.c
 
@@ -894,7 +1118,7 @@
 
 2000-12-31 23:39  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, isync.spec.in:
+	* isync.spec.in:
 
 	pre 0.4 commit.
 
@@ -985,8 +1209,8 @@
 
 2000-12-22 08:14  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, NEWS, configure.in, isync.1, isyncrc.sample,
-	src/imap.c, src/isync.h, src/maildir.c, src/main.c, src/sync.c:
+	* configure.in, isync.1, isyncrc.sample, src/imap.c, src/isync.h,
+	  src/maildir.c, src/main.c, src/sync.c:
 
 	added MaxSize configuration variable
 
@@ -1002,12 +1226,6 @@
 
 	keep track of the uidvalidity so isync can detect if the mailbox on the
 	server has changed since the last sync.
-
-2000-12-21 21:59  Michael Elkins <me@sigpipe.org>
-
-	* NEWS:
-
-	updated NEWS for 0.3 release
 
 2000-12-21 21:56  Michael Elkins <me@sigpipe.org>
 
@@ -1058,7 +1276,7 @@
 
 2000-12-21 11:24  Michael Elkins <me@sigpipe.org>
 
-	* Makefile.am, README, TODO, src/imap.c, src/isync.h, src/list.c:
+	* Makefile.am, README, src/imap.c, src/isync.h, src/list.c:
 
 	added generic IMAP list parser and rewrote imap_exec() to handle
 	arbitrary data instead of hardcoded
@@ -1077,7 +1295,7 @@
 
 2000-12-21 01:35  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, configure.in, src/main.c:
+	* configure.in, src/main.c:
 
 	config options were not case insensitive
 
@@ -1095,7 +1313,7 @@
 
 2000-12-20 23:28  Michael Elkins <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am:
+	* Makefile.am:
 
 	updated ChangeLog
 
@@ -1115,17 +1333,17 @@
 
 2000-12-20 22:41  Michael Elkins <me@sigpipe.org>
 
-	* AUTHORS, ChangeLog, Makefile.am, NEWS, README, configure.in,
-	src/isync.h, src/main.c, TODO, src/imap.c, src/maildir.c,
-	src/sync.c, isync.1, isyncrc.sample:
+	* AUTHORS, Makefile.am, README, configure.in, src/isync.h,
+	  src/main.c, src/imap.c, src/maildir.c, src/sync.c, isync.1,
+	  isyncrc.sample:
 
 	Initial revision
 
 2000-12-20 22:41  Michael Elkins <me@sigpipe.org>
 
-	* AUTHORS, ChangeLog, Makefile.am, NEWS, README, configure.in,
-	src/isync.h, src/main.c, TODO, src/imap.c, src/maildir.c,
-	src/sync.c, isync.1, isyncrc.sample:
+	* AUTHORS, Makefile.am, README, configure.in, src/isync.h,
+	  src/main.c, src/imap.c, src/maildir.c, src/sync.c, isync.1,
+	  isyncrc.sample:
 
 	initial import
 
