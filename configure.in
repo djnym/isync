@@ -5,6 +5,8 @@ if test $CC = gcc; then
 	CFLAGS="$CFLAGS -pipe"
 fi
 AC_CHECK_FUNCS(getopt_long)
+AC_CHECK_LIB(socket,socket)
+AC_CHECK_LIB(nsl,inet_ntoa)
 AC_CHECK_LIB(crypto,ERR_error_string)
 AC_CHECK_LIB(ssl,SSL_library_init)
 CFLAGS="$CFLAGS -W -Wall -pedantic -Wmissing-prototypes -Wmissing-declarations"

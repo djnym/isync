@@ -14,9 +14,21 @@ maildir-style mailbox with a remote IMAP4 mailbox, suitable for use in
 IMAP-disconnected mode.  Multiple copies of the remote IMAP4 mailbox can be
 maintained, and all flags are synchronized.
 
-``isync'' has been tested with the following IMAP servers:
+* Features:
 
-	Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
+	* Supports imaps: (port 993) TLS/SSL connections
+	* Supports STARTTLS
+	* Fast mode for fetching new mail only
+
+* Compatibility
+
+	``isync'' has been tested with the following IMAP servers:
+
+	* Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
+
+* Requirements
+
+	OpenSSL for TLS/SSL support (optional)
 
 * INSTALLING
 

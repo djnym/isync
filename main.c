@@ -159,9 +159,9 @@ load_config (char *where)
 	if (buf[0] == '#')
 	    continue;
 	p = buf;
-	while (*p && !isspace (*p))
+	while (*p && !isspace ((unsigned char)*p))
 	    p++;
-	while (isspace (*p))
+	while (isspace ((unsigned char)*p))
 	    p++;
 	if (!strncasecmp ("mailbox", buf, 7))
 	{
@@ -173,6 +173,7 @@ load_config (char *where)
 	}
 	else if (!strncasecmp ("host", buf, 4))
 	{
+#if HAVE_LIBSSL
 	    if (!strncasecmp ("imaps:", p, 6))
 	    {
 		p += 6;
@@ -187,6 +188,7 @@ load_config (char *where)
 		    global.port = 993;
 		}
 	    }
+#endif
 	    if (*cur)
 		(*cur)->host = strdup (p);
 	    else
@@ -267,7 +269,7 @@ next_arg (char **s)
 	return 0;
     if (!*s)
 	return 0;
-    while (isspace (**s))
+    while (isspace ((unsigned char)**s))
 	(*s)++;
     if (!**s)
     {
@@ -275,7 +277,7 @@ next_arg (char **s)
 	return 0;
     }
     ret = *s;
-    while (**s && !isspace (**s))
+    while (**s && !isspace ((unsigned char)**s))
 	(*s)++;
     if (**s)
 	*(*s)++ = 0;
