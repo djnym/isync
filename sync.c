@@ -200,36 +200,43 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		mbox->deleted++;
 	    cur->flags |= (tmp->flags & ~(D_RECENT | D_DRAFT));
 
-	    /* generate old path */
-	    snprintf (path, sizeof (path), "%s/%s/%s",
-		      mbox->path, cur->new ? "new" : "cur", cur->file);
-
-	    /* truncate old flags (if present) */
-	    p = strchr (cur->file, ':');
-	    if (p)
-		*p = 0;
-
-	    /* generate new path - always put this in the cur/ directory
-	     * because its no longer new
+	    /* don't bother renaming the file if we are just going to
+	     * remove it later.
 	     */
-	    snprintf (newpath, sizeof (newpath), "%s/cur/%s:2,%s%s%s%s",
-		      mbox->path,
-		      cur->file, (cur->flags & D_FLAGGED) ? "F" : "",
-		      (cur->flags & D_ANSWERED) ? "R" : "",
-		      (cur->flags & D_SEEN) ? "S" : "",
-		      (cur->flags & D_DELETED) ? "T" : "");
+	    if ((cur->flags & D_DELETED) == 0 || (flags & SYNC_EXPUNGE) == 0)
+	    {
+		    /* generate old path */
+		    snprintf (path, sizeof (path), "%s/%s/%s",
+				    mbox->path, cur->new ? "new" : "cur", cur->file);
 
-	    if (rename (path, newpath))
-	    {
-		perror ("rename");
-		return -1;
-	    }
-	    else
-	    {
-		/* update the filename in the msg struct */
-		p = strrchr (newpath, '/');
-		free (cur->file);
-		cur->file = strdup (p + 1);
+		    /* truncate old flags (if present) */
+		    p = strchr (cur->file, ':');
+		    if (p)
+			    *p = 0;
+
+		    /* generate new path - always put this in the cur/ directory
+		     * because its no longer new
+		     */
+		    snprintf (newpath, sizeof (newpath), "%s/cur/%s:2,%s%s%s%s",
+				    mbox->path,
+				    cur->file, (cur->flags & D_FLAGGED) ? "F" : "",
+				    (cur->flags & D_ANSWERED) ? "R" : "",
+				    (cur->flags & D_SEEN) ? "S" : "",
+				    (cur->flags & D_DELETED) ? "T" : "");
+
+		    if (rename (path, newpath))
+		    {
+			    perror ("rename");
+			    return -1;
+		    }
+		    else
+		    {
+			    /* update the filename in the msg struct */
+			    p = strrchr (newpath, '/');
+			    free (cur->file);
+			    cur->file = strdup (p + 1);
+			    cur->new = 0; /* not any more */
+		    }
 	    }
 	}
     }
