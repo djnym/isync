@@ -28,20 +28,27 @@
 #include "dotlock.h"
 
 #include <unistd.h>
+#include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #if TESTING
 #include <stdio.h>
 #endif
 
-static struct flock lck = { 0, SEEK_SET, 0, 0, 0 };
-
 int dotlock_lock (const char *path, int *fd)
 {
+  struct flock lck;
+
   *fd = open (path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
   if (*fd == -1)
     return -1;
+  memset (&lck, 0, sizeof(lck));
+#if SEEK_SET != 0
+  lck.l_whence = SEEK_SET;
+#endif
+#if F_WRLCK != 0
   lck.l_type = F_WRLCK;
+#endif
   if (fcntl (*fd, F_SETLK, &lck))
   {
     close (*fd);
@@ -54,10 +61,17 @@ int dotlock_lock (const char *path, int *fd)
 int dotlock_unlock (int *fd)
 {
   int r = 0;
+  struct flock lck;
 
   if (*fd != -1)
   {
+    memset (&lck, 0, sizeof(lck));
+#if SEEK_SET != 0
+    lck.l_whence = SEEK_SET;
+#endif
+#if F_UNLCK != 0
     lck.l_type = F_UNLCK;
+#endif
     if (fcntl (*fd, F_SETLK, &lck))
       r = -1;
     close (*fd);
