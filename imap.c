@@ -150,6 +150,67 @@ buffer_gets (buffer_t * b, char **s)
 }
 
 static int
+parse_fetch (imap_t * imap, list_t * list, message_t *cur)
+{
+    list_t *tmp;
+
+    if (!is_list (list))
+	return -1;
+
+    for (tmp = list->child; tmp; tmp = tmp->next)
+    {
+	if (is_atom (tmp))
+	{
+	    if (!strcmp ("UID", tmp->val))
+	    {
+		tmp = tmp->next;
+		if (is_atom (tmp))
+		    cur->uid = atoi (tmp->val);
+		else
+		    puts ("Error, unable to parse UID");
+	    }
+	    else if (!strcmp ("FLAGS", tmp->val))
+	    {
+		tmp = tmp->next;
+		if (is_list (tmp))
+		{
+		    list_t *flags = tmp->child;
+
+		    for (; flags; flags = flags->next)
+		    {
+			if (is_atom (flags))
+			{
+			    if (!strcmp ("\\Seen", flags->val))
+				cur->flags |= D_SEEN;
+			    else if (!strcmp ("\\Flagged", flags->val))
+				cur->flags |= D_FLAGGED;
+			    else if (!strcmp ("\\Deleted", flags->val))
+			    {
+				cur->flags |= D_DELETED;
+				imap->deleted++;
+			    }
+			    else if (!strcmp ("\\Answered", flags->val))
+				cur->flags |= D_ANSWERED;
+			    else if (!strcmp ("\\Draft", flags->val))
+				cur->flags |= D_DRAFT;
+			    else if (!strcmp ("\\Recent", flags->val))
+				cur->flags |= D_RECENT;
+			    else
+				printf ("Warning, unknown flag %s\n",flags->val);
+			}
+			else
+			    puts ("Error, unable to parse FLAGS list");
+		    }
+		}
+		else
+		    puts ("Error, unable to parse FLAGS");
+	    }
+	}
+    }
+    return 0;
+}
+
+static int
 imap_exec (imap_t * imap, const char *fmt, ...)
 {
     va_list ap;
@@ -181,12 +242,18 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	if (*arg == '*')
 	{
 	    arg = next_arg (&cmd);
-	    arg1 = next_arg (&cmd);
+	    if (!arg)
+	    {
+		puts ("Error, unable to parse untagged command");
+		return -1;
+	    }
 
-	    if (arg1 && !strcmp ("EXISTS", arg1))
-		imap->count = atoi (arg);
-	    else if (arg1 && !strcmp ("RECENT", arg1))
-		imap->recent = atoi (arg);
+	    if (!strcmp ("NAMESPACE", arg))
+	    {
+		imap->ns_personal = parse_list (cmd, &cmd);
+		imap->ns_other = parse_list (cmd, &cmd);
+		imap->ns_shared = parse_list (cmd, 0);
+	    }
 	    else if (!strcmp ("SEARCH", arg))
 	    {
 		if (!rec)
@@ -195,10 +262,6 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		    while (*rec)
 			rec = &(*rec)->next;
 		}
-		/* need to add arg1 */
-		*rec = calloc (1, sizeof (message_t));
-		(*rec)->uid = atoi (arg1);
-		rec = &(*rec)->next;
 		/* parse rest of `cmd' */
 		while ((arg = next_arg (&cmd)))
 		{
@@ -207,66 +270,41 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		    rec = &(*rec)->next;
 		}
 	    }
-	    else if (arg1 && !strcmp ("FETCH", arg1))
+	    else if ((arg1 = next_arg (&cmd)))
 	    {
-		if (!cur)
+		if (!strcmp ("EXISTS", arg1))
+		    imap->count = atoi (arg);
+		else if (!strcmp ("RECENT", arg1))
+		    imap->recent = atoi (arg);
+		else if (!strcmp ("FETCH", arg1))
 		{
-		    cur = &imap->msgs;
-		    while (*cur)
-			cur = &(*cur)->next;
-		}
+		    list_t *list;
 
-		/* new message
-		 *      * <N> FETCH (UID <uid> FLAGS (...))
-		 */
-		arg = next_arg (&cmd);	/* (UID */
-		arg = next_arg (&cmd);	/* <uid> */
-		*cur = calloc (1, sizeof (message_t));
-		(*cur)->uid = atoi (arg);
-
-		arg = next_arg (&cmd);	/* FLAGS */
-		if (!arg || strcmp ("FLAGS", arg))
-		{
-		    printf ("FETCH parse error: expected FLAGS at %s\n", arg);
-		    return -1;
-		}
-
-		/* if we need to parse additional info, we should keep
-		 * a copy of this `arg' pointer
-		 */
-
-		cmd++;
-		arg = strchr (cmd, ')');
-		if (!arg)
-		{
-		    puts ("FETCH parse error");
-		    return -1;
-		}
-		*arg = 0;
-
-		/* parse message flags */
-		while ((arg = next_arg (&cmd)))
-		{
-		    if (!strcmp ("\\Seen", arg))
-			(*cur)->flags |= D_SEEN;
-		    else if (!strcmp ("\\Flagged", arg))
-			(*cur)->flags |= D_FLAGGED;
-		    else if (!strcmp ("\\Deleted", arg))
+		    if (!cur)
 		    {
-			(*cur)->flags |= D_DELETED;
-			imap->deleted++;
+			cur = &imap->msgs;
+			while (*cur)
+			    cur = &(*cur)->next;
 		    }
-		    else if (!strcmp ("\\Answered", arg))
-			(*cur)->flags |= D_ANSWERED;
-		    else if (!strcmp ("\\Draft", arg))
-			(*cur)->flags |= D_DRAFT;
-		    else if (!strcmp ("\\Recent", arg))
-			(*cur)->flags |= D_RECENT;
-		    else
-			printf ("warning, unknown flag %s\n", arg);
-		}
 
-		cur = &(*cur)->next;
+		    list = parse_list (cmd, 0);
+
+		    *cur = calloc (1, sizeof(message_t));
+		    if (parse_fetch (imap, list, *cur))
+		    {
+			free_list (list);
+			return -1;
+		    }
+
+		    free_list (list);
+
+		    cur = &(*cur)->next;
+		}
+	    }
+	    else
+	    {
+		puts ("Error, unable to parse untagged command");
+		return -1;
 	    }
 	}
 	else if ((size_t) atol (arg) != Tag)
@@ -344,6 +382,7 @@ imap_open (config_t * box, int fast)
     int s;
     struct sockaddr_in sin;
     struct hostent *he;
+    char *ns_prefix = 0;
 #if HAVE_LIBSSL
     int use_ssl = 0;
 #endif
@@ -427,11 +466,28 @@ imap_open (config_t * box, int fast)
 
     puts ("Logging in...");
     ret = imap_exec (imap, "LOGIN %s %s", box->user, box->pass);
+
+    if (!ret)
+    {
+	/* get NAMESPACE info */
+	if (!imap_exec (imap, "NAMESPACE"))
+	{
+	    /* XXX for now assume personal namespace */
+	    if (is_list (imap->ns_personal) &&
+		    is_list(imap->ns_personal->child) &&
+		    is_atom(imap->ns_personal->child->child))
+	    {
+		ns_prefix = imap->ns_personal->child->child->val;
+	    }
+	}
+    }
+
     if (!ret)
     {
 	fputs ("Selecting mailbox... ", stdout);
 	fflush (stdout);
-	ret = imap_exec (imap, "SELECT %s", box->box);
+	ret = imap_exec (imap, "SELECT %s%s",
+			 ns_prefix ? ns_prefix : "", box->box);
 	if (!ret)
 	    printf ("%d messages, %d recent\n", imap->count, imap->recent);
     }

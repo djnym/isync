@@ -16,15 +16,24 @@ maintained, and all flags are synchronized.
 
 * Features:
 
-	* Supports imaps: (port 993) TLS/SSL connections
-	* Supports STARTTLS
 	* Fast mode for fetching new mail only
+	* Supports imaps: (port 993) TLS/SSL connections
+	* Supports STARTTLS (RFC2595)
+	* Supports NAMESPACE (RFC2342)
 
 * Compatibility
 
 	``isync'' has been tested with the following IMAP servers:
 
 	* Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
+
+* Platforms
+
+	``isync'' has successfully be compiled under:
+
+	* Linux 2.2.18
+	* Solaris 2.7
+	* OpenBSD 2.8
 
 * Requirements
 

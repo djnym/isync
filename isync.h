@@ -92,6 +92,18 @@ struct message
     unsigned int dead:1;	/* message doesn't exist on the server */
 };
 
+/* struct used for parsing IMAP lists */
+typedef struct _list list_t;
+
+#define NIL	(void*)0x1
+#define LIST	(void*)0x2
+
+struct _list {
+    char *val;
+    list_t *next;
+    list_t *child;
+};
+
 /* imap connection info */
 typedef struct
 {
@@ -105,6 +117,10 @@ typedef struct
 				 * UID to be used in a FETCH FLAGS command
 				 */
     unsigned int deleted;	/* # of deleted messages */
+    /* NAMESPACE info */
+    list_t *ns_personal;
+    list_t *ns_other;
+    list_t *ns_shared;
 }
 imap_t;
 
@@ -135,3 +151,10 @@ imap_t *imap_open (config_t *, int);
 mailbox_t *maildir_open (const char *, int fast);
 int maildir_expunge (mailbox_t *, int);
 int maildir_sync (mailbox_t *);
+
+/* parse an IMAP list construct */
+list_t * parse_list (char *s, char **end);
+int is_atom (list_t *list);
+int is_list (list_t *list);
+int is_nil (list_t *list);
+void free_list (list_t *list);
