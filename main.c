@@ -95,6 +95,7 @@ config_defaults (config_t * conf)
     conf->port = global.port;
     conf->box = global.box;
     conf->host = global.host;
+    conf->max_size = global.max_size;
 #if HAVE_LIBSSL
     conf->require_ssl = global.require_ssl;
     conf->use_imaps = global.use_imaps;
@@ -206,6 +207,13 @@ load_config (char *where)
 	    if (*cur)
 		(*cur)->alias = strdup (p);
 	}
+	else if (!strncasecmp ("maxsize", buf, 7))
+	{
+	    if (*cur)
+		(*cur)->max_size = atol (p);
+	    else
+		global.max_size = atol (p);
+	}
 #if HAVE_LIBSSL
 	else if (!strncasecmp ("CertificateFile", buf, 15))
 	{
@@ -285,6 +293,7 @@ main (int argc, char **argv)
     global.port = 143;
     global.box = "INBOX";
     global.user = strdup (pw->pw_name);
+    global.max_size = 100000;
 #if HAVE_LIBSSL
     /* this will probably annoy people, but its the best default just in
      * case people forget to turn it on
@@ -380,16 +389,14 @@ main (int argc, char **argv)
 	exit (1);
     }
 
-    imap = imap_open (box, fast);
+    imap = imap_open (box, fast ? mail->maxuid + 1 : 1);
     if (!imap)
 	exit (1);
 
     puts ("Synchronizing");
-    i = 0;
-    i |= (fast) ? SYNC_FAST : 0;
-    i |= (delete) ? SYNC_DELETE : 0;
-    i |= (expunge) ? SYNC_EXPUNGE : 0;
-    if (sync_mailbox (mail, imap, i))
+    i = delete ? SYNC_DELETE : 0;
+    i |= expunge ? SYNC_EXPUNGE : 0;
+    if (sync_mailbox (mail, imap, i, box->max_size))
 	exit (1);
 
     if (!fast)

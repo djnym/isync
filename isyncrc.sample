@@ -6,6 +6,8 @@
 User me
 #Port	143
 #Box	INBOX
+# don't download messages larger than 200K bytes
+MaxSize	200000
 
 ###
 ### work mailbox

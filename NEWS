@@ -1,3 +1,17 @@
+[0.4]
+
+Added MaxSize configuration option to limit downloading of new messages from
+the server to less than some threshold.
+
+More robust --fast option works without using \Recent flags, so the previous
+problem with multiple accesses killing these flags is no longer a problem.
+
+RFC2060 obsoleted RFC822.PEEK, use BODY.PEEK[] instead which does the same
+job.
+
+Don't need to request UID in a FETCH when doing UID FETCH (RFC2060 states
+that its automatically returned).
+
 [0.3]
 
 Fixed to clean up temp maildir files when the fetch of a new message failed.

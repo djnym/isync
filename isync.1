@@ -66,12 +66,6 @@ Causes
 to skip the step of synchronzing message flags between the local maildir
 mailbox and the IMAP mailbox.  Only new messages existing on the server will
 be fetched into the local mailbox.
-.B NOTE:
-This command works by checking the \\Recent flag on messages in the IMAP
-mailbox.  If you access the IMAP mailbox from multiple locations, the
-\\Recent flag will be lost between sessions, so you must do a full
-synchronization to fetch the messages which do not exist in the local
-mailbox.
 .TP
 .B -h, --help
 Displays a summary of command line options
@@ -157,6 +151,15 @@ will prompt you for it.
 Defines an alias for the mailbox which can be used as a shortcut on the
 command line.
 ..
+.TP
+\fBMaxSize\fR \fIbytes\fR
+Sets a threshold for the maximum message size (in bytes) for which
+.B isync
+should fetch from the server.  This is useful for weeding out messages with
+large attachments.  If
+.I bytes
+is 0, the maximum file size is
+.B unlimited.
 .TP
 \fBRequireSSL\fR \fIyes|no\fR
 .B isync

@@ -54,6 +54,7 @@ struct config
     char *pass;
     char *box;
     char *alias;
+    unsigned int max_size;
     config_t *next;
 #if HAVE_LIBSSL
     char *cert_file;
@@ -69,7 +70,9 @@ struct mailbox
     message_t *msgs;
     unsigned int deleted;	/* # of deleted messages */
     unsigned int uidvalidity;
+    unsigned int maxuid;	/* largest uid we know about */
     unsigned int changed:1;
+    unsigned int maxuidchanged:1;
 };
 
 /* message dispositions */
@@ -86,6 +89,7 @@ struct message
     char *file;
     unsigned int uid;
     unsigned int flags;
+    unsigned int size;
     message_t *next;
     unsigned int processed:1;	/* message has already been evaluated */
     unsigned int new:1;		/* message is in the new/ subdir */
@@ -119,6 +123,8 @@ typedef struct
 				 */
     unsigned int deleted;	/* # of deleted messages */
     unsigned int uidvalidity;
+    unsigned int maxuid;
+    unsigned int minuid;
     /* NAMESPACE info */
     list_t *ns_personal;
     list_t *ns_other;
@@ -127,9 +133,8 @@ typedef struct
 imap_t;
 
 /* flags for sync_mailbox */
-#define SYNC_FAST	(1<<0)	/* don't sync flags, only fetch new msgs */
-#define	SYNC_DELETE	(1<<1)	/* delete local that don't exist on server */
-#define SYNC_EXPUNGE	(1<<2)	/* don't fetch deleted messages */
+#define	SYNC_DELETE	(1<<0)	/* delete local that don't exist on server */
+#define SYNC_EXPUNGE	(1<<1)	/* don't fetch deleted messages */
 
 extern config_t global;
 extern unsigned int Tag;
@@ -142,18 +147,20 @@ extern SSL_CTX *SSLContext;
 
 char *next_arg (char **);
 
-int sync_mailbox (mailbox_t *, imap_t *, int);
+int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int);
 
 void imap_close (imap_t *);
 int imap_fetch_message (imap_t *, unsigned int, int);
 int imap_set_flags (imap_t *, unsigned int, unsigned int);
 int imap_expunge (imap_t *);
-imap_t *imap_open (config_t *, int);
+imap_t *imap_open (config_t *, unsigned int);
 
 mailbox_t *maildir_open (const char *, int fast);
 int maildir_expunge (mailbox_t *, int);
 int maildir_sync (mailbox_t *);
 int maildir_set_uidvalidity (mailbox_t *, unsigned int uidvalidity);
+
+message_t * find_msg (message_t * list, unsigned int uid);
 
 /* parse an IMAP list construct */
 list_t * parse_list (char *s, char **end);

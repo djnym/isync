@@ -1,5 +1,55 @@
 2000-12-21  Michael Elkins  <me@sigipe.org>
 
+	* imap.c, isync.h, maildir.c, sync.c:
+	RFC822.PEEK is obsolete in RFC2060.  Use BODY.PEEK[] instead, which does
+	the same thing
+
+	keep track of the uidvalidity so isync can detect if the mailbox on the
+	server has changed since the last sync.
+
+	* NEWS: updated NEWS for 0.3 release
+
+	* Makefile.am, isync.spec:
+	added support for building RPMS
+
+	* Makefile.am, isync.1:
+	added target for creating html version of the man page
+
+	documented the imaps: prefix to the Host command
+
+	* imap.c, sync.c:
+	can't assume flag order when fetching a message.  just search for the
+	first `{' to find the message size.
+
+	* isync.1, sync.c:
+	added BUGS section to manpage detailing the fact that we break the
+	maildir(5) spec by parsing the filename
+
+	change message delivery to use the method described in maildir(5)
+
+	* configure.in, main.c, sync.c:
+	use getpass() to get the user's password
+
+	unlink the temp file if we are unable to fetch a new message from the
+	server.
+
+	update version to 0.3
+
+	* isync.1: fixed typo in man page for --verbose option
+
+	* Makefile.am, README, TODO, imap.c, isync.h, list.c:
+	added generic IMAP list parser and rewrote imap_exec() to handle
+	arbitrary data instead of hardcoded
+
+	* Makefile.am, README, configure.in, main.c:
+	fixes to compile cleanly under Solaris 2.7
+
+	* configure.in, imap.c, isync.1, isync.h, main.c:
+	added OpenSSL support
+
+	* ChangeLog, configure.in, main.c:
+	config options were not case insensitive
+
 	* imap.c, isync.h, maildir.c, main.c, sync.c:
 	don't fetch deleted messages when expunging
 

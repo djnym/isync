@@ -25,7 +25,37 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "isync.h"
+
+static int
+do_lock (int fd, int flag)
+{
+    struct flock lck;
+    struct stat sb;
+
+    if (fstat (fd, &sb))
+    {
+	perror ("fstat");
+	return -1;
+    }
+
+    memset (&lck, 0, sizeof (lck));
+    lck.l_type = flag;
+    lck.l_whence = SEEK_SET;
+    lck.l_start = 0;
+    lck.l_len = sb.st_size;
+
+    if (fcntl (fd, F_SETLK, &lck))
+    {
+	perror ("fcntl");
+	close (fd);
+	return -1;
+    }
+
+    return 0;
+}
 
 /* 2,<flags> */
 static void
@@ -49,6 +79,45 @@ parse_info (message_t * m, char *s)
     }
 }
 
+static unsigned int
+read_uid (const char *path, const char *file)
+{
+    char full[_POSIX_PATH_MAX];
+    int fd;
+    int ret;
+    int len;
+    char buf[64];
+    unsigned int uid = 0;
+
+    snprintf (full, sizeof (full), "%s/%s", path, file);
+    fd = open (full, O_RDONLY);
+    if (fd == -1)
+    {
+	if (errno != ENOENT)
+	{
+	    perror ("open");
+	    return -1;
+	}
+	return 0;	/* doesn't exist */
+    }
+    ret = do_lock (fd, F_RDLCK);
+    if (!ret)
+    {
+	len = read (fd, buf, sizeof (buf) - 1);
+	if (len == -1)
+	    ret = -1;
+	else
+	{
+	    buf[len] = 0;
+	    uid = atol (buf);
+	}
+    }
+    ret |= do_lock (fd, F_UNLCK);
+    close (fd);
+    return ret ? ret : uid;
+
+}
+
 /* open a maildir mailbox.  if `fast' is nonzero, we just check to make
  * sure its a valid mailbox and don't actually parse it.  any IMAP messages
  * with the \Recent flag set are guaranteed not to be in the mailbox yet,
@@ -66,7 +135,6 @@ maildir_open (const char *path, int fast)
     mailbox_t *m;
     char *s;
     int count = 0;
-    FILE *fp;
 
     /* check to make sure this looks like a valid maildir box */
     snprintf (buf, sizeof (buf), "%s/new", path);
@@ -84,16 +152,22 @@ maildir_open (const char *path, int fast)
 
     m = calloc (1, sizeof (mailbox_t));
     m->path = strdup (path);
-    m->uidvalidity = -1;
 
     /* check for the uidvalidity value */
-    snprintf (buf, sizeof (buf), "%s/isyncuidvalidity", path);
-    if ((fp = fopen (buf, "r")))
+    m->uidvalidity = read_uid (path, "isyncuidvalidity");
+    if (m->uidvalidity == (unsigned int) -1)
     {
-	buf[sizeof (buf) - 1] = 0;
-	if (fgets (buf, sizeof (buf) - 1, fp))
-	    m->uidvalidity = atol (buf);
-	fclose (fp);
+	free (m->path);
+	free (m);
+	return NULL;
+    }
+
+    /* load the current maxuid */
+    if ((m->maxuid = read_uid (path, "isyncmaxuid")) == (unsigned int) -1)
+    {
+	free (m->path);
+	free (m);
+	return NULL;
     }
 
     if (fast)
@@ -108,6 +182,8 @@ maildir_open (const char *path, int fast)
 	d = opendir (buf);
 	if (!d)
 	{
+	    free (m->path);
+	    free (m);
 	    perror ("opendir");
 	    return 0;
 	}
@@ -130,10 +206,15 @@ maildir_open (const char *path, int fast)
 	     */
 	    s = strstr (p->file, "UID");
 	    if (!s)
-		puts ("warning, no uid for message");
+		puts ("Warning, no uid for message");
 	    else
 	    {
 		p->uid = strtol (s + 3, &s, 10);
+		if (p->uid > m->maxuid)
+		{
+		    m->maxuid = p->uid;
+		    m->maxuidchanged = 1;
+		}
 		if (*s && *s != ':')
 		{
 		    puts ("warning, unable to parse uid");
@@ -183,6 +264,70 @@ maildir_expunge (mailbox_t * mbox, int dead)
     return 0;
 }
 
+static int
+update_maxuid (mailbox_t * mbox)
+{
+    int fd;
+    char buf[64];
+    size_t len;
+    unsigned int uid;
+    char path[_POSIX_PATH_MAX];
+    int ret = 0;
+
+    snprintf (path, sizeof (path), "%s/isyncmaxuid", mbox->path);
+    fd = open (path, O_RDWR | O_CREAT, 0600);
+    if (fd == -1)
+    {
+	perror ("open");
+	return -1;
+    }
+
+    /* lock the file */
+    if (do_lock (fd, F_WRLCK))
+    {
+	close (fd);
+	return -1;
+    }
+
+    /* read the file again just to make sure it wasn't updated while
+     * we were doing something else
+     */
+    len = read (fd, buf, sizeof (buf) - 1);
+    buf[len] = 0;
+    uid = atol (buf);
+    if (uid > mbox->maxuid)
+    {
+	puts ("Error, maxuid is now higher (fatal)");
+	ret = -1;
+    }
+
+    if (!ret)
+    {
+	/* rewind */
+	lseek (fd, 0, SEEK_SET);
+
+	/* write out the file */
+	snprintf (buf, sizeof (buf), "%u\n", mbox->maxuid);
+	len = write (fd, buf, strlen (buf));
+	if (len == (size_t) - 1)
+	{
+	    perror ("write");
+	    ret = -1;
+	}
+	else
+	{
+	    ret = ftruncate (fd, len);
+	    if (ret)
+		perror ("ftruncate");
+	}
+    }
+
+    ret |= do_lock (fd, F_UNLCK);
+    ret |= close (fd);
+
+    return ret;
+}
+
 int
 maildir_sync (mailbox_t * mbox)
 {
@@ -190,6 +335,7 @@ maildir_sync (mailbox_t * mbox)
     char path[_POSIX_PATH_MAX];
     char oldpath[_POSIX_PATH_MAX];
     char *p;
+    int ret = 0;
 
     if (mbox->changed)
     {
@@ -219,7 +365,11 @@ maildir_sync (mailbox_t * mbox)
 	    }
 	}
     }
-    return 0;
+
+    if (mbox->maxuidchanged)
+	ret = update_maxuid (mbox);
+
+    return ret;
 }
 
 int
@@ -242,7 +392,7 @@ maildir_set_uidvalidity (mailbox_t * mbox, unsigned int uidvalidity)
     ret = write (fd, buf, strlen (buf));
 
     if (ret == -1)
-	perror("write");
+	perror ("write");
     else if ((size_t) ret != strlen (buf))
 	ret = -1;
     else
@@ -250,7 +400,7 @@ maildir_set_uidvalidity (mailbox_t * mbox, unsigned int uidvalidity)
 
     if (close (fd))
     {
-	perror("close");
+	perror ("close");
 	ret = -1;
     }
 

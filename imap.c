@@ -150,9 +150,13 @@ buffer_gets (buffer_t * b, char **s)
 }
 
 static int
-parse_fetch (imap_t * imap, list_t * list, message_t * cur)
+parse_fetch (imap_t * imap, list_t * list)
 {
     list_t *tmp;
+    unsigned int uid = 0;
+    unsigned int mask = 0;
+    unsigned int size = 0;
+    message_t *cur;
 
     if (!is_list (list))
 	return -1;
@@ -165,7 +169,14 @@ parse_fetch (imap_t * imap, list_t * list, message_t * cur)
 	    {
 		tmp = tmp->next;
 		if (is_atom (tmp))
-		    cur->uid = atoi (tmp->val);
+		{
+		    uid = atoi (tmp->val);
+		    if (uid < imap->minuid)
+		    {
+			/* already saw this message */
+			return 0;
+		    }
+		}
 		else
 		    puts ("Error, unable to parse UID");
 	    }
@@ -181,20 +192,17 @@ parse_fetch (imap_t * imap, list_t * list, message_t * cur)
 			if (is_atom (flags))
 			{
 			    if (!strcmp ("\\Seen", flags->val))
-				cur->flags |= D_SEEN;
+				mask |= D_SEEN;
 			    else if (!strcmp ("\\Flagged", flags->val))
-				cur->flags |= D_FLAGGED;
+				mask |= D_FLAGGED;
 			    else if (!strcmp ("\\Deleted", flags->val))
-			    {
-				cur->flags |= D_DELETED;
-				imap->deleted++;
-			    }
+				mask |= D_DELETED;
 			    else if (!strcmp ("\\Answered", flags->val))
-				cur->flags |= D_ANSWERED;
+				mask |= D_ANSWERED;
 			    else if (!strcmp ("\\Draft", flags->val))
-				cur->flags |= D_DRAFT;
+				mask |= D_DRAFT;
 			    else if (!strcmp ("\\Recent", flags->val))
-				cur->flags |= D_RECENT;
+				mask |= D_RECENT;
 			    else
 				printf ("Warning, unknown flag %s\n",
 					flags->val);
@@ -206,8 +214,26 @@ parse_fetch (imap_t * imap, list_t * list, message_t * cur)
 		else
 		    puts ("Error, unable to parse FLAGS");
 	    }
+	    else if (!strcmp ("RFC822.SIZE", tmp->val))
+	    {
+		tmp = tmp->next;
+		if (is_atom (tmp))
+		    size = atol (tmp->val);
+	    }
 	}
     }
+
+    cur = calloc (1, sizeof (message_t));
+    cur->next = imap->msgs;
+    imap->msgs = cur;
+
+    if (mask & D_DELETED)
+	imap->deleted++;
+
+    cur->uid = uid;
+    cur->flags = mask;
+    cur->size = size;
+
     return 0;
 }
 
@@ -246,8 +272,6 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     char *cmd;
     char *arg;
     char *arg1;
-    message_t **cur = 0;
-    message_t **rec = 0;
 
     va_start (ap, fmt);
     vsnprintf (tmp, sizeof (tmp), fmt, ap);
@@ -281,22 +305,6 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		imap->ns_other = parse_list (cmd, &cmd);
 		imap->ns_shared = parse_list (cmd, 0);
 	    }
-	    else if (!strcmp ("SEARCH", arg))
-	    {
-		if (!rec)
-		{
-		    rec = &imap->recent_msgs;
-		    while (*rec)
-			rec = &(*rec)->next;
-		}
-		/* parse rest of `cmd' */
-		while ((arg = next_arg (&cmd)))
-		{
-		    *rec = calloc (1, sizeof (message_t));
-		    (*rec)->uid = atoi (arg);
-		    rec = &(*rec)->next;
-		}
-	    }
 	    else if (!strcmp ("OK", arg) || !strcmp ("BAD", arg) ||
 		     !strcmp ("NO", arg) || !strcmp ("PREAUTH", arg) ||
 		     !strcmp ("BYE", arg))
@@ -313,25 +321,15 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		{
 		    list_t *list;
 
-		    if (!cur)
-		    {
-			cur = &imap->msgs;
-			while (*cur)
-			    cur = &(*cur)->next;
-		    }
-
 		    list = parse_list (cmd, 0);
 
-		    *cur = calloc (1, sizeof (message_t));
-		    if (parse_fetch (imap, list, *cur))
+		    if (parse_fetch (imap, list))
 		    {
 			free_list (list);
 			return -1;
 		    }
 
 		    free_list (list);
-
-		    cur = &(*cur)->next;
 		}
 	    }
 	    else
@@ -357,66 +355,20 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     /* not reached */
 }
 
-static int
-fetch_recent_flags (imap_t * imap)
-{
-    char buf[1024];
-    message_t **cur = &imap->recent_msgs;
-    message_t *tmp;
-    unsigned int start = -1;
-    unsigned int last = -1;
-    int ret = 0;
-
-    buf[0] = 0;
-    while (*cur)
-    {
-	tmp = *cur;
-
-	if (last == (unsigned int) -1)
-	{
-	    /* init */
-	    start = tmp->uid;
-	    last = tmp->uid;
-	}
-	else if (tmp->uid == last + 1)
-	    last++;
-	else
-	{
-	    /* out of sequence */
-	    if (start == last)
-		ret = imap_exec (imap, "UID FETCH %d (UID FLAGS)", start);
-	    else
-		ret =
-		    imap_exec (imap, "UID FETCH %d:%d (UID FLAGS)", start,
-			       last);
-	    start = tmp->uid;
-	    last = tmp->uid;
-	}
-	free (tmp);
-	*cur = (*cur)->next;
-    }
-
-    if (start != (unsigned int) -1)
-    {
-	if (start == last)
-	    ret = imap_exec (imap, "UID FETCH %d (UID FLAGS)", start);
-	else
-	    ret =
-		imap_exec (imap, "UID FETCH %d:%d (UID FLAGS)", start, last);
-    }
-
-    return ret;
-}
-
+/* `box' is the config info for the maildrop to sync.  `minuid' is the
+ * minimum UID to consider.  in normal mode this will be 1, but in --fast
+ * mode we only fetch messages newer than the last one seen in the local
+ * mailbox.
+ */
 imap_t *
-imap_open (config_t * box, int fast)
+imap_open (config_t * box, unsigned int minuid)
 {
     int ret;
     imap_t *imap;
     int s;
     struct sockaddr_in sin;
     struct hostent *he;
-    char *ns_prefix = 0;
+    char *ns_prefix = "";
 #if HAVE_LIBSSL
     int use_ssl = 0;
 #endif
@@ -463,6 +415,7 @@ imap_open (config_t * box, int fast)
     imap->buf = calloc (1, sizeof (buffer_t));
     imap->buf->sock = imap->sock;
     imap->box = box;
+    imap->minuid = minuid;
 
 #if HAVE_LIBSSL
     if (!box->use_imaps)
@@ -520,28 +473,18 @@ imap_open (config_t * box, int fast)
     {
 	fputs ("Selecting mailbox... ", stdout);
 	fflush (stdout);
-	ret = imap_exec (imap, "SELECT %s%s",
-			 ns_prefix ? ns_prefix : "", box->box);
+	ret = imap_exec (imap, "SELECT %s%s", ns_prefix, box->box);
 	if (!ret)
 	    printf ("%d messages, %d recent\n", imap->count, imap->recent);
     }
 
     if (!ret)
     {
-	if (fast)
+	puts ("Reading IMAP mailbox index");
+	if (imap->count > 0)
 	{
-	    if (imap->recent > 0)
-	    {
-		puts ("Fetching info for recent messages");
-		ret = imap_exec (imap, "UID SEARCH RECENT");
-		if (!ret)
-		    ret = fetch_recent_flags (imap);
-	    }
-	}
-	else if (imap->count > 0)
-	{
-	    puts ("Reading IMAP mailbox index");
-	    ret = imap_exec (imap, "FETCH 1:%d (UID FLAGS)", imap->count);
+	    ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
+		    imap->minuid);
 	}
     }
 

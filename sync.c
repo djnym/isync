@@ -31,7 +31,7 @@
 
 static unsigned int MaildirCount = 0;
 
-static message_t *
+message_t *
 find_msg (message_t * list, unsigned int uid)
 {
     for (; list; list = list->next)
@@ -41,7 +41,7 @@ find_msg (message_t * list, unsigned int uid)
 }
 
 int
-sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
+sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 {
     message_t *cur;
     message_t *tmp;
@@ -69,12 +69,21 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 	return -1;
     }
 
+    if (mbox->maxuid == (unsigned int) -1 || imap->maxuid > mbox->maxuid)
+    {
+	mbox->maxuid = imap->maxuid;
+	mbox->maxuidchanged = 1;
+    }
+
+    /* if we are --fast mode, the mailbox wont have been loaded, so
+     * this next step is skipped.
+     */
     for (cur = mbox->msgs; cur; cur = cur->next)
     {
 	tmp = find_msg (imap->msgs, cur->uid);
 	if (!tmp)
 	{
-	    printf ("warning, uid %d doesn't exist on server\n", cur->uid);
+	    printf ("Warning, uid %d doesn't exist on server\n", cur->uid);
 	    if (flags & SYNC_DELETE)
 	    {
 		cur->flags |= D_DELETED;
@@ -85,25 +94,22 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 	}
 	tmp->processed = 1;
 
-	if (!(flags & SYNC_FAST))
+	/* check if local flags are different from server flags.
+	 * ignore \Recent and \Draft
+	 */
+	if (cur->flags != (tmp->flags & ~(D_RECENT | D_DRAFT)))
 	{
-	    /* check if local flags are different from server flags.
-	     * ignore \Recent and \Draft
-	     */
-	    if (cur->flags != (tmp->flags & ~(D_RECENT | D_DRAFT)))
-	    {
-		/* set local flags that don't exist on the server */
-		if (!(tmp->flags & D_DELETED) && (cur->flags & D_DELETED))
-		    imap->deleted++;
-		imap_set_flags (imap, cur->uid, cur->flags & ~tmp->flags);
+	    /* set local flags that don't exist on the server */
+	    if (!(tmp->flags & D_DELETED) && (cur->flags & D_DELETED))
+		imap->deleted++;
+	    imap_set_flags (imap, cur->uid, cur->flags & ~tmp->flags);
 
-		/* update local flags */
-		if((cur->flags & D_DELETED) == 0 && (tmp->flags & D_DELETED))
-		    mbox->deleted++;
-		cur->flags |= (tmp->flags & ~(D_RECENT | D_DRAFT));
-		cur->changed = 1;
-		mbox->changed = 1;
-	    }
+	    /* update local flags */
+	    if((cur->flags & D_DELETED) == 0 && (tmp->flags & D_DELETED))
+		mbox->deleted++;
+	    cur->flags |= (tmp->flags & ~(D_RECENT | D_DRAFT));
+	    cur->changed = 1;
+	    mbox->changed = 1;
 	}
     }
 
@@ -121,6 +127,13 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 		 * we are currently expunging a mailbox.  don't
 		 * bother downloading this message
 		 */
+		continue;
+	    }
+
+	    if (max_size && cur->size > max_size)
+	    {
+		printf ("Warning, message skipped because it is too big (%u)\n",
+			cur->size);
 		continue;
 	    }
 
@@ -150,7 +163,6 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 			  (cur->flags & D_ANSWERED) ? "R" : "",
 			  (cur->flags & D_SEEN) ? "S" : "",
 			  (cur->flags & D_DELETED) ? "T" : "");
-
 	    }
 
 	    /* give some visual feedback that something is happening */
