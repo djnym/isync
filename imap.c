@@ -586,7 +586,9 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 	if (!reuse)
 	{
 #if HAVE_LIBSSL
-	    if (!box->use_imaps)
+	    if (box->use_imaps)
+		use_ssl = 1;
+	    else if (box->use_sslv2 || box->use_sslv3 || box->use_tlsv1)
 	    {
 		/* let's see what this puppy can do... */
 		if ((ret = imap_exec (imap, "CAPABILITY")))
@@ -600,22 +602,20 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 		    use_ssl = 1;
 		}
 
-		if (!use_ssl)
+	    }
+
+	    if (!use_ssl)
+	    {
+		if (box->require_ssl)
 		{
-		    if (box->require_ssl)
-		    {
-			puts ("Error, SSL support not available");
-			ret = -1;
-			break;
-		    }
-		    else
-			puts ("Warning, SSL support not available");
+		    puts ("Error, SSL support not available");
+		    ret = -1;
+		    break;
 		}
+		else
+		    puts ("Warning, SSL support not available");
 	    }
 	    else
-		use_ssl = 1;
-
-	    if (use_ssl)
 	    {
 		/* initialize SSL */
 		if (init_ssl (box))
