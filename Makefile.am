@@ -22,4 +22,4 @@ dist-hook:
 rpm:
 	make dist
 	cp $(PACKAGE)-$(VERSION).tar.gz /usr/src/rpm/SOURCES
-	rpm -ba --clean isync.spec
+	CFLAGS="-O2 -mcpu=i686" rpm -ba --clean isync.spec
