@@ -10,7 +10,8 @@ Theodore Ts'o <tytso@mit.edu>
 Nicolas Boullis <nboullis@debian.org>
 	* Debian package maintainer and minor upstream contributions
 
-Send questions and bug reports to the isync-devel@lists.sf.net mailing list.
+Send questions and bug reports to the isync-devel@lists.sourceforge.net
+mailing list.
 
 _DON'T_ report bugs to Michael, not even in a CC: - he is not actively
 involved in isync development any more.
