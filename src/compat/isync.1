@@ -18,7 +18,7 @@
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 \"
 ..
-.TH isync 1 "2004 Mar 27"
+.TH isync 1 "2004 Mar 29"
 ..
 .SH NAME
 isync - synchronize IMAP4 and Maildir mailboxes
@@ -123,8 +123,9 @@ Enable printing of \fIdebug\fR messages.
 \fB-w\fR, \fB--write\fR
 Don't run \fBmbsync\fR, but instead write a permanent config file for it.
 The UID mappings of all configured mailboxes will be migrated.
-Note that some command line options that would affect an actual sync operation
-will be incorporated into the new config file as well.
+Note that most command line options that would affect an actual sync operation
+will be incorporated into the new config file as well; exceptions are
+--fast and --create[-remote|-local].
 The name of the new config file is determined by replacing the last occurrence
 of "isync" with "mbsync", or appending ".mbsync" if "isync" was not found.
 .TP

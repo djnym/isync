@@ -307,9 +307,9 @@ write_channel_parm( FILE *fp, config_t *cfg )
 		fprintf( fp, "MaxSize %d\n", cfg->max_size );
 	if (cfg->max_messages)
 		fprintf( fp, "MaxMessages %d\n", cfg->max_messages );
-	if (!cfg->delete)
+	if (!cfg->delete && !delete)
 		fputs( "Sync New ReNew Flags\n", fp );
-	if (cfg->expunge)
+	if (cfg->expunge || expunge)
 		fputs( "Expunge Both\n", fp );
 	fputc( '\n', fp );
 }

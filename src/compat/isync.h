@@ -78,7 +78,7 @@ extern const char *Home;
 extern config_t global, *boxes;
 
 extern const char *maildir, *xmaildir, *folder, *inbox;
-extern int o2o, altmap;
+extern int o2o, altmap, delete, expunge;
 
 /* config.c */
 void load_config( const char *, config_t *** );

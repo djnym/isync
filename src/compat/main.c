@@ -138,8 +138,6 @@ add_arg( char ***args, const char *arg )
 	(*args)[nu + 1] = 0;
 }
 
-#define OP_EXPUNGE         (1<<0)
-#define OP_DELETE          (1<<1)
 #define OP_FAST            (1<<2)
 #define OP_CREATE_REMOTE   (1<<3)
 #define OP_CREATE_LOCAL    (1<<4)
@@ -147,7 +145,7 @@ add_arg( char ***args, const char *arg )
 int Quiet, Verbose, Debug;
 config_t global, *boxes;
 const char *maildir, *xmaildir, *folder, *inbox;
-int o2o, altmap;
+int o2o, altmap, delete, expunge;
 
 const char *Home;
 
@@ -216,10 +214,10 @@ main( int argc, char **argv )
 			config = optarg;
 			break;
 		case 'd':
-			ops |= OP_DELETE;
+			delete = 1;
 			break;
 		case 'e':
-			ops |= OP_EXPUNGE;
+			expunge = 1;
 			break;
 		case 'f':
 			ops |= OP_FAST;
@@ -395,14 +393,10 @@ main( int argc, char **argv )
 	add_arg( &args, path2 );
 	if (ops & OP_FAST)
 		add_arg( &args, "-Ln" );
-	else if (!(ops & OP_DELETE))
-		add_arg( &args, "-nNf" );
 	if (ops & OP_CREATE_REMOTE)
 		add_arg( &args, "-Cm" );
 	if (ops & OP_CREATE_LOCAL)
 		add_arg( &args, "-Cs" );
-	if (ops & OP_EXPUNGE)
-		add_arg( &args, "-X" );
 	if (list)
 		add_arg( &args, "-l" );
 	if (o2o) {
