@@ -34,9 +34,9 @@ maintained, and all flags are synchronized.
 
 * Platforms
 
-	``isync'' has successfully be compiled under:
+	``isync'' has successfully been compiled on:
 
-	* Linux 2.2.18
+	* Linux
 	* Solaris 2.7
 	* OpenBSD 2.8
 	* FreeBSD 4.3
