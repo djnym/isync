@@ -25,6 +25,8 @@
 #include <time.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "isync.h"
 
 static unsigned int MaildirCount = 0;
@@ -48,6 +50,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
     char *p;
     int fd;
     int ret;
+    struct stat sb;
 
     for (cur = mbox->msgs; cur; cur = cur->next)
     {
@@ -104,10 +107,22 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 		continue;
 	    }
 
-	    /* create new file */
-	    snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d.UID%d",
-		    mbox->path, Hostname, time (0), MaildirCount++,
-		    getpid (), cur->uid);
+	    for (;;)
+	    {
+		/* create new file */
+		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d.UID%d",
+			mbox->path, Hostname, time (0), MaildirCount++,
+			getpid (), cur->uid);
+
+		if (stat (path, &sb))
+		{
+		    if (errno == ENOENT)
+			break;
+		}
+
+		sleep (2);
+	    }
+
 
 	    if (cur->flags)
 	    {
@@ -146,11 +161,15 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 
 		//          printf ("moving %s to %s\n", path, newpath);
 
-		if (rename (path, newpath))
-		    perror ("rename");
+		/* its ok if this fails, the next time we sync the message
+		 * will get pulled down
+		 */
+		if (link (path, newpath))
+		    perror ("link");
 	    }
-	    else
-		unlink(path);
+
+	    /* always remove the temp file */
+	    unlink (path);
 	}
     }
     puts ("");

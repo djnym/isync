@@ -190,6 +190,14 @@ will then use the global value by default.
 .B ~/.isyncrc
 Default configuration file
 ..
+.SH BUGS
+maildir(5) states that readers should not attempt to parse the filename of a
+a message other than the :info field.  However, since
+.B isync
+relies on using the message UIDs that info must be inserted into the
+filename in a way which will be interoperable with existing readers.  So
+the UID is placed in the filename of the messages in the local maildir
+mailbox rather than the :info field.
 .SH SEE ALSO
 mutt(1), maildir(5)
 .P
