@@ -400,7 +400,7 @@ main( int argc, char **argv )
 	if (ops & OP_CREATE_LOCAL)
 		add_arg( &args, "-Cs" );
 	if (list)
-		add_arg( &args, "-l" );
+		add_arg( &args, "-lC" );
 	if (o2o) {
 		if (all)
 			add_arg( &args, "o2o" );
