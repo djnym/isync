@@ -685,36 +685,36 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 
   do
   {
-    /* read the greeting string */
-    if (buffer_gets (imap->buf, &rsp))
-    {
-      puts ("Error, no greeting response");
-      ret = -1;
-      break;
-    }
-    if (Verbose)
-      puts (rsp);
-    arg = next_arg (&rsp);
-    if (!arg || *arg != '*' || (arg = next_arg (&rsp)) == NULL)
-    {
-      puts ("Error, invalid greeting response");
-      ret = -1;
-      break;
-    }
-    if (!strcmp ("PREAUTH", arg))
-      preauth = 1;
-    else if (strcmp ("OK", arg) != 0)
-    {
-      puts ("Error, unknown greeting response");
-      ret = -1;
-      break;
-    }
-
     /* if we are reusing the existing connection, we can skip the
      * authentication steps.
      */
     if (!reuse)
     {
+      /* read the greeting string */
+      if (buffer_gets (imap->buf, &rsp))
+      {
+        puts ("Error, no greeting response");
+        ret = -1;
+        break;
+      }
+      if (Verbose)
+        puts (rsp);
+      arg = next_arg (&rsp);
+      if (!arg || *arg != '*' || (arg = next_arg (&rsp)) == NULL)
+      {
+        puts ("Error, invalid greeting response");
+        ret = -1;
+        break;
+      }
+      if (!strcmp ("PREAUTH", arg))
+        preauth = 1;
+      else if (strcmp ("OK", arg) != 0)
+      {
+        puts ("Error, unknown greeting response");
+        ret = -1;
+        break;
+      }
+
 #if HAVE_LIBSSL
       if (box->use_imaps)
 	use_ssl = 1;
