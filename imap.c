@@ -567,6 +567,8 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
   int use_ssl = 0;
 #endif
 
+  (void) flags;
+
   if (imap)
   {
     /* determine whether or not we can reuse the existing session */

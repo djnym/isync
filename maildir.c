@@ -34,24 +34,16 @@ static int
 do_lock (int fd, int flag)
 {
     struct flock lck;
-    struct stat sb;
-
-    if (fstat (fd, &sb))
-    {
-	perror ("fstat");
-	return -1;
-    }
 
     memset (&lck, 0, sizeof (lck));
     lck.l_type = flag;
     lck.l_whence = SEEK_SET;
     lck.l_start = 0;
-    lck.l_len = sb.st_size;
+    lck.l_len = 0;
 
     if (fcntl (fd, F_SETLK, &lck))
     {
 	perror ("fcntl");
-	close (fd);
 	return -1;
     }
 
@@ -141,6 +133,7 @@ maildir_lock (mailbox_t * m)
     if (do_lock (m->lockfd, F_WRLCK))
     {
 	close (m->lockfd);
+	m->lockfd = -1;
 	return -1;
     }
     return 0;
@@ -149,12 +142,16 @@ maildir_lock (mailbox_t * m)
 static void
 maildir_unlock (mailbox_t * m)
 {
-    char path[_POSIX_PATH_MAX];
+  char path[_POSIX_PATH_MAX];
 
+  if (m->lockfd != -1)
+  {
     snprintf (path, sizeof (path), "%s/isynclock", m->path);
     unlink (path);
     do_lock (m->lockfd, F_UNLCK);
     close (m->lockfd);
+    m->lockfd = -1;
+  }
 }
 
 /* open a maildir mailbox.
@@ -314,8 +311,7 @@ maildir_open (const char *path, int flags)
   err:
     if (m->db)
 	dbm_close (m->db);
-    if (m->lockfd != -1)
-	maildir_unlock (m);
+    maildir_unlock (m);
     free (m->path);
     free (m);
     return NULL;
