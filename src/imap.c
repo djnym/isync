@@ -302,16 +302,20 @@ buffer_gets (buffer_t * b, char **s)
 }
 
 static int
-parse_fetch (imap_t * imap, list_t * list)
+parse_fetch (imap_t *imap, char *cmd)
 {
-    list_t *tmp;
+    list_t *tmp, *list, *flags;
     unsigned int uid = 0;
     unsigned int mask = 0;
     unsigned int size = 0;
     message_t *cur;
 
-    if (!is_list (list))
+    list = parse_list (cmd, 0);
+
+    if (!is_list (list)) {
+	free_list (list);
 	return -1;
+    }
 
     for (tmp = list->child; tmp; tmp = tmp->next)
     {
@@ -326,6 +330,7 @@ parse_fetch (imap_t * imap, list_t * list)
 		    if (uid < imap->minuid)
 		    {
 			/* already saw this message */
+			free_list (list);
 			return 0;
 		    }
 		    else if (uid > imap->maxuid)
@@ -339,9 +344,7 @@ parse_fetch (imap_t * imap, list_t * list)
 		tmp = tmp->next;
 		if (is_list (tmp))
 		{
-		    list_t *flags = tmp->child;
-
-		    for (; flags; flags = flags->next)
+		    for (flags = tmp->child; flags; flags = flags->next)
 		    {
 			if (is_atom (flags))
 			{
@@ -388,6 +391,7 @@ parse_fetch (imap_t * imap, list_t * list)
     cur->flags = mask;
     cur->size = size;
 
+    free_list (list);
     return 0;
 }
 
@@ -529,17 +533,8 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		    imap->recent = atoi (arg);
 		else if (!strcmp ("FETCH", arg1))
 		{
-		    list_t *list;
-
-		    list = parse_list (cmd, 0);
-
-		    if (parse_fetch (imap, list))
-		    {
-			free_list (list);
+		    if (parse_fetch (imap, cmd))
 			return -1;
-		    }
-
-		    free_list (list);
 		}
 	    }
 	    else
