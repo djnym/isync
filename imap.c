@@ -43,12 +43,6 @@ const char *Flags[] = {
     "\\Draft"
 };
 
-#if HAVE_LIBSSL
-
-#define MAX_DEPTH 1
-
-SSL_CTX *SSLContext = 0;
-
 void
 free_message (message_t * msg)
 {
@@ -63,6 +57,12 @@ free_message (message_t * msg)
 	free (tmp);
     }
 }
+
+#if HAVE_LIBSSL
+
+#define MAX_DEPTH 1
+
+SSL_CTX *SSLContext = 0;
 
 /* this gets called when a certificate is to be verified */
 static int
