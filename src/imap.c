@@ -793,7 +793,10 @@ imap_connect (config_t * cfg)
 	   */
 	  if (!global.pass)
 	  {
-	    global.pass = getpass ("Password:");
+	    char prompt[80];
+	    sprintf(prompt, "Password (mailbox %s@%s/%s):",
+		    cfg->user, cfg->host, cfg->box);
+	    global.pass = getpass (prompt);
 	    if (!global.pass)
 	    {
 	      perror ("getpass");
