@@ -26,6 +26,7 @@
 #include <config.h>
 
 #include <sys/types.h>
+#include <stdarg.h>
 #include <stdio.h>
 
 #define as(ar) (sizeof(ar)/sizeof(ar[0]))

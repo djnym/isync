@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <stdarg.h>
 #include <limits.h>
 #include <pwd.h>
 #include <stdio.h>
