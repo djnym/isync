@@ -68,6 +68,7 @@ Automatically create the remote IMAP mailbox if it doesn't already exist.
 .TP
 \fB-C\fR, \fB--create\fR
 Automatically create any mailboxes if they don't already exist.
+This is simply a combination of -L and -R.
 .TP
 \fB-d\fR, \fB--delete\fR
 Causes \fBisync\fR to delete messages from the local maildir mailbox 
@@ -282,6 +283,8 @@ in the sections for each mailbox.
 Default configuration file
 ..
 .SH BUGS
+No support for IMAP subfolders.
+.P
 \fBisync\fR does not use NFS-safe locking.  It will correctly prevent 
 concurrent synchronization of a mailbox on the same host, but not across NFS.
 .P
