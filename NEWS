@@ -1,3 +1,15 @@
+[0.3]
+
+Fixed to clean up temp maildir files when the fetch of a new message failed.
+
+Fixed to not assume order of the flags returned by "UID FETCH"
+
+Added support for building RPMs.
+
+[0.2]
+
+SSL support added.
+
 [0.1]
 
 Initial release.
