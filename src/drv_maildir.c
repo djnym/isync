@@ -877,7 +877,7 @@ maildir_again( maildir_store_t *ctx, maildir_message_t *msg, const char *fn )
 	}
 	if ((ret = maildir_rescan( ctx )) != DRV_OK)
 		return ret;
-	return (msg->gen.status & M_DEAD) ? DRV_OK : DRV_MSG_BAD;
+	return (msg->gen.status & M_DEAD) ? DRV_MSG_BAD : DRV_OK;
 }
 
 static int
