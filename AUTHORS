@@ -1,5 +1,8 @@
 Michael Elkins <me@mutt.org>
-	* Author, Lead Developer
+	* Author, Previous Lead Developer
 
 Oswald Buddenhagen <ossi@users.sf.net>
 	* Contributor, Current Maintainer
+
+_DON'T_ report bugs to Michael, not even in a CC: - he is not actively
+involved in isync development any more.
