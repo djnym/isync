@@ -282,6 +282,13 @@ mailbox rather than the :info field.
 When synchronizing multiple mailboxes on the same IMAP server, it is not
 possible to select different SSL options for each mailbox.  Only the options
 from the first mailbox are applied since the SSL session is reused.
+.P
+If new mail arrives in the IMAP mailbox after
+.B isync
+has retrieved the initial message list, the new mail will not be fetched
+until the next time
+.B isync
+is invoked.
 .SH SEE ALSO
 mutt(1), maildir(5)
 .P

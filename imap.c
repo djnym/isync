@@ -421,7 +421,10 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 
     snprintf (buf, sizeof (buf), "%d %s\r\n", ++Tag, tmp);
     if (Verbose)
+    {
+	fputs (">>> ", stdout);
 	fputs (buf, stdout);
+    }
     n = socket_write (imap->sock, buf, strlen (buf));
     if (n <= 0)
     {
@@ -880,7 +883,22 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 
 	    next_arg (&cmd);	/* * */
 	    next_arg (&cmd);	/* <msgno> */
-	    next_arg (&cmd);	/* FETCH */
+	    arg = next_arg (&cmd);	/* FETCH */
+
+	    if (strcasecmp ("FETCH", arg) != 0)
+	    {
+		/* this is likely an untagged response, such as when new
+		 * mail arrives in the middle of the session.  just skip
+		 * it for now.
+		 * 
+		 * eg.,
+		 * "* 4000 EXISTS"
+		 * "* 2 RECENT"
+		 *
+		 */
+		printf ("skipping untagged response: %s\n", arg);
+		continue;
+	    }
 
 	    while ((arg = next_arg (&cmd)) && *arg != '{')
 		;
