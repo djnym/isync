@@ -1,3 +1,27 @@
+2003-12-07 16:37  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* isyncrc.sample:
+
+	add sample CertificateFile
+
+2003-12-07 16:36  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	add trailing space to password prompt
+
+2003-12-07 16:34  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/main.c:
+
+	make imaps: on the command line adjust the port and ssl options as well
+
+2003-12-07 16:18  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* ChangeLog:
+
+	regen
+
 2003-12-07 16:15  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* debian/changelog:
