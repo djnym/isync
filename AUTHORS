@@ -1,8 +1,14 @@
 Michael Elkins <me@mutt.org>
-	* Author, Previous Lead Developer
+	* Author
 
 Oswald Buddenhagen <ossi@users.sf.net>
-	* Contributor, Current Maintainer
+	* Contributor, current maintainer
+
+Theodore Ts'o <tytso@mit.edu>
+	* Contributor, Debian package co-maintainer
+
+Nicolas Boullis <nboullis@debian.org>
+	* Debian package maintainer and minor upstream contributions
 
 Send questions and bug reports to the isync-devel@lists.sf.net mailing list.
 
