@@ -471,8 +471,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		imap->ns_shared = parse_list (cmd, 0);
 	    }
 	    else if (!strcmp ("OK", arg) || !strcmp ("BAD", arg) ||
-		     !strcmp ("NO", arg) || !strcmp ("BYE", arg) ||
-		     !strcmp ("PREAUTH", arg))
+		     !strcmp ("NO", arg) || !strcmp ("BYE", arg))
 	    {
 		parse_response_code (imap, cmd);
 	    }
