@@ -277,6 +277,31 @@ the first \fBMailbox\fR command, and then leave out the \fBUser\fR command
 in the sections for each mailbox.
 \fBisync\fR will then use the global value by default.
 ..
+.SH MAIL USER AGENT INTERACTION
+To use \fBisync\fR effectively, you need a mail client that sets the T
+(trashed) flag when it deletes a message from a maildir mailbox, instead of
+just removing it altogether. Without such a client, \fBisync\fR will refetch the
+locally deleted messages from the server since they will never get expunged.
+Mutt (starting with version 1.3.27) is known to support this. Be sure to put
+.IP "" 2
+set maildir_trash
+.PP
+in your ~/.muttrc when using Mutt.
+.br
+\fBisync\fR can be integrated into Mutt fairly easily with a few hooks:
+.IP "" 2
+.nf
+folder-hook ~A bind index $ <sync-mailbox>
+.br
+folder-hook +\fImdir\fR 'macro index $ "<sync-mailbox>!isync -e \fImdir\fR\\n"'
+.fi
+.PP
+where \fImdir\fR is the name of the local mailbox (or its \fIalias\fR).
+This works well so long as you are not modifying the IMAP mailbox outside of
+Mutt.  However, if you are using another mail program simultaneously Mutt
+will have the wrong idea of the local mailbox flags and messages will start
+disappearing from its index display (don't worry, they are still on disk).
+..
 .SH FILES
 .TP
 .B ~/.isyncrc
