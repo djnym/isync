@@ -83,7 +83,7 @@ Specifies the port on the IMAP server to connect to (default: 143)
 Specifies the name of the remote IMAP mailbox to synchronize with
 (Default: INBOX)
 .TP
-\fB-s\fR, \fB--host\fR \fIhost\fR
+\fB-s\fR, \fB--host\fR \fB[\fRimaps:\fB]\fR\fIhost\fR
 .P
 Specifies the hostname of the IMAP server
 .TP
@@ -114,7 +114,7 @@ line, up until the next
 command, apply to this mailbox only.
 ..
 .TP
-\fBHost\fR \fIname\fR
+\fBHost\fR \fB[\fRimaps:\fB]\fR\fIname\fR
 Defines the DNS name or IP address of the IMAP server.  If the hostname is
 prefixed with
 .I imaps:
@@ -159,7 +159,8 @@ command line.
 ..
 .TP
 \fBRequireSSL\fR \fIyes|no\fR
-.B isync will abort the connection if a TLS/SSL session to the IMAP
+.B isync
+will abort the connection if a TLS/SSL session to the IMAP
 server can not be established.  (Default:
 .I yes
 )
