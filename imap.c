@@ -797,7 +797,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	   * if we don't have a global password set, prompt the user for
 	   * it now.
 	   */
-	  if (!global.pass || !*global.pass)
+	  if (!global.pass)
 	  {
 	    global.pass = getpass ("Password:");
 	    if (!global.pass)
@@ -808,6 +808,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	    if (!*global.pass)
 	    {
 	      fprintf (stderr, "Skipping %s, no password", box->path);
+	      global.pass = NULL; /* force retry */
 	      break;
 	    }
 	    /*
