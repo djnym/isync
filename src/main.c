@@ -25,6 +25,7 @@
 #include "isync.h"
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdarg.h>
@@ -334,9 +335,15 @@ main (int argc, char **argv)
 	    return 1;
 	}
 	while ((de = readdir (dir))) {
+	    struct stat st;
+	    char buf[PATH_MAX];
+
 	    if (*de->d_name == '.')
 		continue;
 	    if (global.inbox && !strcmp (global.inbox, de->d_name))
+		continue;
+	    snprintf (buf, sizeof(buf), "%s/%s/cur", global.maildir, de->d_name);
+	    if (stat (buf, &st) || !S_ISDIR (st.st_mode))
 		continue;
 	    box = malloc (sizeof (config_t));
 	    memcpy (box, &global, sizeof (config_t));
