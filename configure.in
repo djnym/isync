@@ -33,8 +33,16 @@ if test "x$ob_cv_with_ssl" != xno; then
       ])
 fi
 
-AC_CHECK_LIB(db, db_create, [LIBS="$LIBS -ldb"], [AC_MSG_ERROR([Berkley DB not found.])])
-AC_CHECK_HEADER(db.h, , [AC_MSG_ERROR([Berkley DB header file not found.])])
+AC_CACHE_CHECK(for db_create in -ldb, ac_cv_db_db_create,
+	[ac_cv_db_dbcreate=no
+	AC_TRY_LINK([#include <db.h>],
+		[db_create();],[ac_cv_db_db_create=yes])])
+if test $ac_cv_db_db_create=yes; then
+	LIBS="$LIBS -ldb"
+	AC_DEFINE(HAVE_LIBDB, 1, [Define if you have libdb])
+else
+	AC_MSG_ERROR([Berkley DB not found, you must install libdb])
+fi
 
 AC_OUTPUT(Makefile src/Makefile isync.spec)
 
