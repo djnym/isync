@@ -1,6 +1,6 @@
 AC_INIT(src/isync.h)
 AM_CONFIG_HEADER(config.h)
-AM_INIT_AUTOMAKE(isync, 1.0.0alpha)
+AM_INIT_AUTOMAKE(isync, 1.0.0)
 
 AM_MAINTAINER_MODE
 
