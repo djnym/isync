@@ -281,7 +281,7 @@ maildir_open (const char *path, int flags)
 	    strfcpy (buf, p->file, sizeof (buf));
 	    key.dptr = p->file;
 	    s = strchr (key.dptr, ':');
-	    key.dsize = s ? s - key.dptr : strlen (key.dptr);
+	    key.dsize = s ? (size_t) (s - key.dptr) : strlen (key.dptr);
 	    key = dbm_fetch (m->db, key);
 	    if (key.dptr)
 	    {
@@ -318,35 +318,35 @@ maildir_open (const char *path, int flags)
 int
 maildir_expunge (mailbox_t * mbox, int dead)
 {
-	message_t **cur = &mbox->msgs;
-	message_t *tmp;
-	char *s;
-	datum key;
-	char path[_POSIX_PATH_MAX];
+    message_t **cur = &mbox->msgs;
+    message_t *tmp;
+    char *s;
+    datum key;
+    char path[_POSIX_PATH_MAX];
 
-	while (*cur)
+    while (*cur)
+    {
+	if ((dead == 0 && (*cur)->flags & D_DELETED) ||
+	    (dead && (*cur)->dead))
 	{
-		if ((dead == 0 && (*cur)->flags & D_DELETED) ||
-				(dead && (*cur)->dead))
-		{
-			tmp = *cur;
-			snprintf (path, sizeof (path), "%s/%s/%s",
-					mbox->path, tmp->new ? "new" : "cur", tmp->file);
-			if (unlink (path))
-				perror (path);
-			/* remove the message from the UID map */
-			key.dptr = tmp->file;
-			s = strchr (key.dptr, ':');
-			key.dsize = s ? s - key.dptr : strlen (key.dptr);
-			dbm_delete (mbox->db, key);
-			*cur = (*cur)->next;
-			free (tmp->file);
-			free (tmp);
-		}
-		else
-			cur = &(*cur)->next;
+	    tmp = *cur;
+	    snprintf (path, sizeof (path), "%s/%s/%s",
+		      mbox->path, tmp->new ? "new" : "cur", tmp->file);
+	    if (unlink (path))
+		perror (path);
+	    /* remove the message from the UID map */
+	    key.dptr = tmp->file;
+	    s = strchr (key.dptr, ':');
+	    key.dsize = s ? (size_t) (s - key.dptr) : strlen (key.dptr);
+	    dbm_delete (mbox->db, key);
+	    *cur = (*cur)->next;
+	    free (tmp->file);
+	    free (tmp);
 	}
-	return 0;
+	else
+	    cur = &(*cur)->next;
+    }
+    return 0;
 }
 
 int
@@ -371,12 +371,12 @@ maildir_update_maxuid (mailbox_t * mbox)
     len = write (fd, buf, strlen (buf));
     if (len == (size_t) - 1)
     {
-	    perror ("write");
-	    ret = -1;
+	perror ("write");
+	ret = -1;
     }
 
     if (close (fd))
-	    ret = -1;
+	ret = -1;
 
     return ret;
 }

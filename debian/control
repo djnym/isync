@@ -1,0 +1,23 @@
+Source: isync
+Section: unknown
+Priority: optional
+Maintainer: Michael Elkins <me@mutt.org>
+Build-Depends: debhelper (>> 3.0.0)
+Standards-Version: 3.5.2
+
+Package: isync
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: Synchronize a local maildir with a remote IMAP4 mailbox
+ A command line application which synchronizes a local maildir-style
+ mailbox with a remote IMAP4 mailbox, suitable for use in
+ IMAP-disconnected mode. Multiple copies of the remote IMAP4 mailbox
+ can be maintained, and all flags are synchronized.
+ .
+ Features:
+  * Fast mode for fetching new mail only
+  * Supports imaps: (port 993) TLS/SSL connections
+  * Supports STARTTLS (RFC2595) for confidentiality
+  * Supports NAMESPACE (RFC2342)
+  * Supports CRAM-MD5 (RFC2095) for authentication
+

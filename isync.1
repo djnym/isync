@@ -323,6 +323,9 @@ It is currently impossible to unset the \\Flagged attribute of a message
 once it is set.  It has to be manually unset everywhere since isync
 doesn't have enough information to know which was the last status of the
 message.
+.P
+The ndbm database created for each mailbox is not portable across different
+architectures.  It currently stores the UID in host byte order.
 .SH SEE ALSO
 mutt(1), maildir(5)
 .P

@@ -40,7 +40,8 @@ find_msg (message_t * list, unsigned int uid)
     return 0;
 }
 
-static int set_uid (DBM *db, const char *f, unsigned int uid)
+static int
+set_uid (DBM * db, const char *f, unsigned int uid)
 {
     char *s;
     datum key, val;
@@ -48,7 +49,7 @@ static int set_uid (DBM *db, const char *f, unsigned int uid)
     key.dptr = (void *) f;
     s = strchr (f, ':');
     key.dsize = s ? (size_t) (s - key.dptr) : strlen (f);
-    val.dptr = (void*) &uid;
+    val.dptr = (void *) &uid;
     val.dsize = sizeof (uid);
     dbm_store (db, key, val, DBM_REPLACE);
     return 0;
@@ -176,8 +177,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    if (imap_copy_message (imap, cur->uid,
 				   imap->box->copy_deleted_to))
 	    {
-		fprintf (stderr, "ERROR: unable to copy deleted message to \"%s\"\n",
-			imap->box->copy_deleted_to);
+		fprintf (stderr,
+			 "ERROR: unable to copy deleted message to \"%s\"\n",
+			 imap->box->copy_deleted_to);
 		return -1;
 	    }
 	}
