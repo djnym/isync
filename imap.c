@@ -559,7 +559,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 {
     int ret;
     int s;
-    struct sockaddr_in sin;
+    struct sockaddr_in addr;
     struct hostent *he;
     int reuse = 0;
 #if HAVE_LIBSSL
@@ -612,9 +612,9 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
     {
 	/* open connection to IMAP server */
 
-	memset (&sin, 0, sizeof (sin));
-	sin.sin_port = htons (box->port);
-	sin.sin_family = AF_INET;
+	memset (&addr, 0, sizeof (addr));
+	addr.sin_port = htons (box->port);
+	addr.sin_family = AF_INET;
 
 	printf ("Resolving %s... ", box->host);
 	fflush (stdout);
@@ -626,14 +626,14 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 	}
 	puts ("ok");
 
-	sin.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
+	addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
 
 	s = socket (PF_INET, SOCK_STREAM, 0);
 
-	printf ("Connecting to %s:%hu... ", inet_ntoa (sin.sin_addr),
-		ntohs (sin.sin_port));
+	printf ("Connecting to %s:%hu... ", inet_ntoa (addr.sin_addr),
+		ntohs (addr.sin_port));
 	fflush (stdout);
-	if (connect (s, (struct sockaddr *) &sin, sizeof (sin)))
+	if (connect (s, (struct sockaddr *) &addr, sizeof (addr)))
 	{
 	    perror ("connect");
 	    exit (1);

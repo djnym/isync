@@ -150,6 +150,7 @@ imap_t;
 /* flags for sync_mailbox */
 #define	SYNC_DELETE	(1<<0)	/* delete local that don't exist on server */
 #define SYNC_EXPUNGE	(1<<1)	/* don't fetch deleted messages */
+#define SYNC_QUIET	(1<<2)	/* only display critical errors */
 
 extern config_t global;
 extern config_t *boxes;
