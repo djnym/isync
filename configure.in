@@ -11,6 +11,7 @@ AC_ARG_WITH(ssl-dir, [  --with-ssl-dir=DIR	location where openssl is insalled],
 	else
 		AC_MSG_ERROR(can't find OpenSSL in $withval)
 	fi])
+AC_REPLACE_FUNCS(strndup)
 AC_CHECK_FUNCS(getopt_long)
 AC_CHECK_LIB(socket,socket)
 AC_CHECK_LIB(nsl,inet_ntoa)

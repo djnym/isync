@@ -5,7 +5,7 @@
 |_|___/\__, |_| |_|\___|
        |___/            
 isync - IMAP4 to maildir mailbox synchronization program
-http://www.sigpipe.org/isync/
+http://www.sigpipe.org:8080/isync/
 
 Author: Michael Elkins <me@mutt.org>
 
