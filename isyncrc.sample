@@ -1,0 +1,28 @@
+# Global configuration section
+#   Values here are used as defaults for any following Mailbox section that
+#   doesn't specify it.
+
+# my default username, if different from the local username
+User me
+#Port	143
+#Box	INBOX
+
+###
+### work mailbox
+###
+
+Mailbox /home/me/Mail/work
+Host	work.host.com
+Pass	xxxxxxxx
+# define a shortcut so I can just use "isync work" from the command line
+Alias	work
+
+###
+### personal mailbox
+###
+
+Mailbox /home/me/Mail/personal
+Host host.play.com
+# use a non-default port for this connection
+Port 6789
+Alias personal

@@ -1,0 +1,184 @@
+.ig
+\" isync - IMAP4 to maildir mailbox synchronizer
+\" Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
+\"
+\"  This program is free software; you can redistribute it and/or modify
+\"  it under the terms of the GNU General Public License as published by
+\"  the Free Software Foundation; either version 2 of the License, or
+\"  (at your option) any later version.
+\"
+\"  This program is distributed in the hope that it will be useful,
+\"  but WITHOUT ANY WARRANTY; without even the implied warranty of
+\"  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\"  GNU General Public License for more details.
+\"
+\"  You should have received a copy of the GNU General Public License
+\"  along with this program; if not, write to the Free Software
+\"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+..
+.TH isync 1 "2000 Dec 20"
+..
+.SH NAME
+isync - synchronize IMAP4 and maildir mailboxes
+..
+.SH SYNOPSIS
+.B isync
+[
+.I options...
+]
+.I file
+..
+.SH DESCRIPTION
+.B isync
+is a command line application which synchronizes a local maildir-style
+mailbox with a remote IMAP4 mailbox, suitable for use in IMAP-disconnected
+mode.  Multiple copies of the remote IMAP4 mailbox can be maintained, and
+all flags are synchronized.
+..
+.SH OPTIONS
+.TP
+\fB-c\fR, \fB--config\fR \fIfile\fR
+Read configuration from
+.I file
+By default, configuration is read from ~/.isyncrc if it exists.
+.TP
+.B -d, --delete
+Causes
+.B isync
+to delete messages from the local maildir mailbox which do not exist on the
+IMAP server.  By default,
+.I dead
+messages are
+.B not
+deleted.
+.TP
+.B -e, --expunge
+Causes
+.B isync
+to permanently remove all messages marked for deletion in both the local
+maildir mailbox and the remote IMAP mailbox.  By default, messages are
+.B not
+expunged.
+.TP
+.B -f, --fast
+Causes
+.B isync
+to skip the step of synchronzing message flags between the local maildir
+mailbox and the IMAP mailbox.  Only new messages existing on the server will
+be fetched into the local mailbox.
+.B NOTE:
+This command works by checking the \\Recent flag on messages in the IMAP
+mailbox.  If you access the IMAP mailbox from multiple locations, the
+\\Recent flag will be lost between sessions, so you must do a full
+synchronization to fetch the messages which do not exist in the local
+mailbox.
+.TP
+.B -h, --help
+Displays a summary of command line options
+.TP
+\fB-p\fR, \fB--port\fR \fIport\fR
+Specifies the port on the IMAP server to connect to (default: 143)
+.TP
+\fB-r\fR, \fB--remote\fR \fIbox\fR
+Specifies the name of the remote IMAP mailbox to synchronize with
+(Default: INBOX)
+.TP
+\fB-s\fR, \fB--host\fR \fIhost\fR
+.P
+Specifies the hostname of the IMAP server
+.TP
+\fB-u\fR, \fB--user\fR \fIuser\fR
+Specifies the login name to access the IMAP server (default: $USER)
+.TP
+.B -v, --version
+Displays
+.B isync
+version information
+.TP
+.B -V, --verbose
+Enables
+.I verbose
+mode, which disables the IMAP network traffic.
+..
+.SH CONFIGURATION
+.B isync
+reads
+.I ~/.isyncrc
+to load default configuration data.  Each line of the configuration file
+consists of a command.  The following commands are understood:
+.TP
+\fBMailbox\fR \fIpath\fR
+Defines a local maildir mailbox.  All configuration commands following this
+line, up until the next
+.I Mailbox
+command, apply to this mailbox only.
+..
+.TP
+\fBHost\fR \fIname\fR
+Defines the DNS name or IP address of the IMAP server
+..
+.TP
+\fBPort\fR \fIport\fR
+Defines the TCP port number on the IMAP server to use (Default: 143)
+..
+.TP
+\fBBox\fR \fImailbox\fR
+Defines the name of the remote IMAP mailbox associated with the local
+maildir mailbox (Default: INBOX)
+..
+.TP
+\fBUser\fR \fIusername\fR
+Defines the login name on the IMAP server (Default: current user)
+..
+.TP
+\fBPass\fR \fIpassword\fR
+Defines the password for
+.I username
+on the IMAP server.  Note that this option is
+.B NOT
+required.  If no password is specified in the configuration file,
+.B isync
+will prompt you for it.
+..
+.TP
+\fBAlias\fR \fIstring\fR
+Defines an alias for the mailbox which can be used as a shortcut on the
+command line.
+.P
+Configuration commands that appear prior to the first
+.B Mailbox
+command are considered to be
+.I global
+options which are used as defaults when those specific options are not
+specifically set for a defined Mailbox.  For example, if you use the same
+login name for several IMAP servers, you can put a
+.B User
+command before the first
+.B Mailbox
+command, and then leave out the
+.B User
+command in the sections for each mailbox.
+.B isync
+will then use the global value by default.
+..
+.SH FILES
+.TP
+.B ~/.isyncrc
+Default configuration file
+..
+.SH SEE ALSO
+mutt(1), maildir(5)
+.P
+Up to date information on
+.B isync
+can be found at
+http://www.sigpipe.org/isync/.
+..
+.SH AUTHOR
+Written by Michael R. Elkins <me@mutt.org>.
+..
+.SH BUGS
+SSL is currently not used when connecting to the IMAP server.  A future
+version of
+.B isync
+is expected to support this.

@@ -1,0 +1,28 @@
+ _                      
+(_)___ _   _ _ __   ___ 
+| / __| | | | '_ \ / __|
+| \__ \ |_| | | | | (__ 
+|_|___/\__, |_| |_|\___|
+       |___/            
+isync - IMAP4 to maildir mailbox synchronization program
+http://www.sigpipe.org/isync/
+
+Author: Michael Elkins <me@mutt.org>
+
+``isync'' is a command line application which synchronizes a local
+maildir-style mailbox with a remote IMAP4 mailbox, suitable for use in
+IMAP-disconnected mode.  Multiple copies of the remote IMAP4 mailbox can be
+maintained, and all flags are synchronized.
+
+``isync'' has been tested with the following IMAP servers:
+
+	Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
+
+* INSTALLING
+
+	./configure
+	make install
+
+* HELP
+
+	Please see the man page for complete documentation.

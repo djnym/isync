@@ -1,0 +1,9 @@
+AC_INIT(isync.h)
+AM_INIT_AUTOMAKE(isync,0.1)
+AM_PROG_CC_STDC
+if test $CC = gcc; then
+	CFLAGS="$CFLAGS -pipe"
+fi
+AC_CHECK_FUNCS(getopt_long)
+CFLAGS="$CFLAGS -W -Wall -pedantic -Wmissing-prototypes -Wmissing-declarations"
+AC_OUTPUT(Makefile)
