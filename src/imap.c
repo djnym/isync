@@ -1329,11 +1329,9 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
       {
 	arg = next_arg (&s);
 	if (!arg)
-	{
 	  fprintf (stderr, "IMAP error: incomplete SEARCH response\n");
-	  return -1;
-	}
-	uid = atoi (arg);
+	else
+	  uid = atoi (arg);
       }
     }
     else if (atoi (arg) != (int) Tag)
