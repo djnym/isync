@@ -104,7 +104,8 @@ usage (int code)
 {
     fputs (
 PACKAGE " " VERSION " IMAP4 to maildir synchronizer\n"
-"Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>\n"
+"Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>\n"
+"Copyright (C) 2002-2003 Oswald Buddenhagen <ossi@users.sf.net>\n"
 "usage:\n"
 " " PACKAGE " [ flags ] mailbox [mailbox ...]\n"
 " " PACKAGE " [ flags ] -a\n"
@@ -115,7 +116,7 @@ PACKAGE " " VERSION " IMAP4 to maildir synchronizer\n"
 "  -R, --create-remote	create remote imap mailbox if nonexistent\n"
 "  -C, --create		create both local and remote mailboxes if nonexistent\n"
 "  -d, --delete		delete local msgs that don't exist on the server\n"
-"  -e, --expunge		expunge	deleted messages from the server\n"
+"  -e, --expunge		expunge	deleted messages\n"
 "  -f, --fast		only fetch new messages\n"
 "  -r, --remote BOX	remote mailbox\n"
 "  -F, --folder DIR	remote IMAP folder containing mailboxes\n"
@@ -182,6 +183,7 @@ int
 main (int argc, char **argv)
 {
     int i;
+    int ret = 1;
     config_t *box = 0;
     mailbox_t *mail = 0;
     imap_t *imap = 0;
@@ -354,8 +356,9 @@ main (int argc, char **argv)
     {
 	for (box = boxes; box; box = box->next)
 	    puts (box->path);
-	exit (0);
+	return 0;
     }
+    ret = 0;
     for (box = boxes; (all && box) || (!all && argv[optind]); optind++)
     {
 	if (!all)
@@ -388,6 +391,7 @@ main (int argc, char **argv)
 	    if (!mail)
 	    {
 		fprintf (stderr, "%s: unable to open mailbox\n", box->path);
+		ret = 1;
 		break;
 	    }
 
@@ -396,6 +400,7 @@ main (int argc, char **argv)
 	    {
 		fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",
 			 box->path);
+		ret = 1;
 		break;
 	    }
 
@@ -408,6 +413,7 @@ main (int argc, char **argv)
 				    * what the problem was.
 				    */
 		imap = NULL;	/* context no longer valid */
+		ret = 1;
 		break;
 	    }
 
@@ -422,19 +428,26 @@ main (int argc, char **argv)
 		    {
 			imap_close (imap);
 			imap = NULL;
+			ret = 1;
 			break;
 		    }
 		    info ("Expunging %d messages from local mailbox\n",
 			  mail->deleted);
-		    if (maildir_expunge (mail, 0))
+		    if (maildir_expunge (mail, 0)) {
+			ret = 1;
 			break;
+		    }
 		}
 		/* remove messages deleted from server.  this can safely be an
 		 * `else' clause since dead messages are marked as deleted by
 		 * sync_mailbox.
 		 */
-		else if (delete)
-		    maildir_expunge (mail, 1);
+		else if (delete) {
+		    if (maildir_expunge (mail, 1)) {
+			ret = 1;
+			break;
+		    }
+		}
 	    }
 
 	} while (0);
@@ -456,9 +469,5 @@ main (int argc, char **argv)
   bork:
     free_config ();
 
-#if DEBUG
-    debug_cleanup ();
-#endif
-
-    exit (0);
+    return ret;
 }
