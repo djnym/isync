@@ -23,6 +23,7 @@
 
 #if HAVE_LIBSSL
 
+#include <string.h>
 #include <openssl/hmac.h>
 
 #define ENCODED_SIZE(n)	(4*((n+2)/3))

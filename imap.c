@@ -696,12 +696,18 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 		if ((ret = verify_cert (imap->sock->ssl)))
 		    break;
 
+		/* to conform to RFC2595 we need to forget all information
+		 * retrieved from CAPABILITY invocations before STARTTLS.
+		 */
+		imap->have_namespace = 0;
+		imap->have_cram = 0;
+		imap->have_starttls = 0;
+
 		imap->sock->use_ssl = 1;
 		puts ("SSL support enabled");
 
-		if (box->use_imaps)
-		    if ((ret = imap_exec (imap, "CAPABILITY")))
-			break;
+		if ((ret = imap_exec (imap, "CAPABILITY")))
+		    break;
 	    }
 #else
 	    if ((ret = imap_exec (imap, "CAPABILITY")))

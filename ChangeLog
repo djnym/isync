@@ -1,4 +1,120 @@
+2001-02-14  Michael Elkins  <me@sigipe.org>
+
+	* config.c, imap.c, isync.1, main.c, sync.c:
+	patch from Daniel Resare <noa@metamatrix.se>:
+	1 giving a path to a nonexistant rc-file with the -c argument dumps core
+
+	  The patch adds a check to ensure that the given rc-file is accessible
+
+	2 the error messages given from failed openssl calls are bogus
+
+	  The handles the error from SSL_connect () correctly. The bug is
+	  understndable since the error handling in openssl is quite obfuscated.
+	  Good news is that the documentation manapges has been greatly updated in
+	  the latest version (0.9.6). See in particular err(3), ERR_get_error(3)
+	  and SSL_get_error(3).
+
+	  Please note that possible SSL_ERROR_SSL type errors from SSL_read() and
+	  SSL_write() is not handled. This should also be fixed.
+
+	3 connecting using the STARTTLS command with an imap server that is
+	  configured only to accept the TLSv1 protocol gives an error because isync
+	  sends an SSLv2 Hello message for backwards compability. (This is the case
+	  with the uw-imap 2000 that ships with redhat-7.0)
+	  I've read RFC2595 several times to see if it says something about
+	  compability SSL2/SSL3 hello messages but can't find anything. IMHO the
+	  correct thing to do is change the default to not use SSL2/3 compability
+	  hello when using the STARTTLS command but use it if the imaps port is
+	  used. The patch implements this change
+
+	4 repeated calls to SSL_CTX_set_options overwrites the old settings (the
+	  values needs to be ORed together)
+
+	  fixed in the patch
+
+	patch from me@mutt.org:
+		\Recent messages were put in the cur/ directory instead of new/
+
+		give error message when the LOGIN command fails
+
+2001-02-01  Michael Elkins  <me@sigipe.org>
+
+	* imap.c: patch from Daniel Resare <noa@metamatrix.se>
+		- don't initialize ssl support if none of use_sslv* is enabled
+
+2001-01-26  Michael Elkins  <me@sigipe.org>
+
+	* imap.c, isync.h:
+	include <sys/types.h> for off_t
+
+	patch from "lorenzo martignoni" <lorenzo.martignoni@technologist.com>
+		- fixed uploading of message to IMAP server
+
+2001-01-24  Michael Elkins  <me@sigipe.org>
+
+	* config.c, cram.c, imap.c, isync.1, list.c, maildir.c, main.c, sync.c:
+	fixed cram compilation error under bsd
+
+	updated man page
+
+2001-01-16  Michael Elkins  <me@sigipe.org>
+
+	* TODO, config.c, imap.c, isync.1, isync.h, main.c:
+	added support for tilde (~) expansion in the `Mailbox' and `CertificateFile'
+	configuration directives
+
+	added `Maildir' configuration command to specify the default location of the
+	user's mailboxes.  If a relative path is used in a `Mailbox' command, this
+	path is used as a prefix.
+
+2001-01-11  Michael Elkins  <me@sigipe.org>
+
+	* configure.in, imap.c, isync.h:
+	set imap->prefix to be the namespace prefix
+
+	update version to 0.5
+
+	fixed compilation warnings in imap.c
+
+	* Makefile.am, config.c, imap.c, isync.1, isync.h, main.c, sample.isyncrc, sync.c:
+	broke config code into config.c
+
+	added support for uploading local messages with no UID to the IMAP server
+
+	added Expunge configuration option
+
+	added CopyDeletedTo configuration option
+
+2001-01-09  Michael Elkins  <me@sigipe.org>
+
+	* maildir.c, sync.c:
+	always put changed messages in the cur/ subdirectory since they are no
+	longer new.
+
+	don't set \Seen implicitly for messages in the cur/ folder.  Require the S
+	flag on the message since Mutt will move Old (unread, but not recent)
+	messges into cur/.
+
+2001-01-08  Michael Elkins  <me@sigipe.org>
+
+	* Makefile.am, main.c:
+	patch from Hugo Haas <hugo@larve.net>
+		-c was not specified in the getopt*() calls
+
+		set global password to the one the user inputs and use that as the
+		default for remaining mailboxes
+
+2001-01-05  Michael Elkins  <me@sigipe.org>
+
+	* configure.in:
+	added --with-ssl-dir to specify an alternate installation of OpenSSL
+
 2000-12-31  Michael Elkins  <me@sigipe.org>
+
+	* ChangeLog, isync.spec:
+	pre 0.4 commit.
+
+	updated rpm spec file
 
 	* sync.c:
 	display how many messages were fetched from the server

@@ -114,7 +114,7 @@ read_uid (const char *path, const char *file)
     }
     ret |= do_lock (fd, F_UNLCK);
     close (fd);
-    return ret ? ret : uid;
+    return ret ? (unsigned int) ret : uid;
 
 }
 
