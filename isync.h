@@ -183,9 +183,8 @@ int imap_append_message (imap_t *, int, message_t *);
 
 mailbox_t *maildir_open (const char *, int fast);
 int maildir_expunge (mailbox_t *, int);
-int maildir_sync (mailbox_t *);
 int maildir_set_uidvalidity (mailbox_t *, unsigned int uidvalidity);
-void maildir_close (mailbox_t *);
+int maildir_close (mailbox_t *);
 
 message_t * find_msg (message_t * list, unsigned int uid);
 void free_message (message_t *);

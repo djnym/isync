@@ -316,18 +316,14 @@ main (int argc, char **argv)
 	     */
 	    else if (delete)
 		maildir_expunge (mail, 1);
-
-	    /* write changed flags back to the mailbox */
-	    if (mail->changed)
-	    {
-		if (!quiet)
-		    printf ("Committing changes to %s\n", mail->path);
-		if (maildir_sync (mail))
-		    exit (1);
-	    }
 	}
 
-	maildir_close (mail);
+	/* write changed flags back to the mailbox */
+	if (!quiet)
+	    printf ("Committing changes to %s\n", mail->path);
+
+	if (maildir_close (mail))
+	    exit (1);
 
 cleanup:
 	if (all)
