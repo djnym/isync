@@ -1,3 +1,57 @@
+2003-12-07 16:15  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* debian/changelog:
+
+	new release
+
+2003-12-07 16:09  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	bump version
+
+2003-12-02 03:53  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	echo the mailbox the password is for
+
+2003-12-02 03:52  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* TODO:
+
+	item morphed
+
+2003-11-11 04:02  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* AUTHORS:
+
+	be more explicit about maintainership, as people don't seem to get it.
+
+2003-09-02 14:06  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* isync.1:
+
+	minor additions
+
+2003-07-02 19:18  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/imap.c:
+
+	fix crash when syncing multiple mailboxes over a Tunnel
+
+2003-05-14 15:42  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* isync.1:
+
+	minor
+
+2003-05-07 02:07  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* ChangeLog:
+
+	regen
+
 2003-05-07 02:06  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* .cvsignore, Makefile.am, autogen.sh, configure.in,
