@@ -1,0 +1,33 @@
+Summary: Utility to synchronize IMAP mailboxes with local maildir folders
+Name: isync
+Version: 0.3
+Release: 1
+Copyright: GPL
+Group: Applications/Internet
+Source: http://www.sigpipe.org/isync/isync-0.3.tar.gz
+URL: http://www.sigpipe.org/isync/
+Packager: Michael Elkins <me@mutt.org>
+BuildRoot: /var/tmp/%{name}-buildroot
+
+%description
+isync is a command line utility for synchronizing a remote IMAP mailbox with a
+local maildir-style mailbox.  This is useful for working in disconnected mode,
+such as on a laptop.  Modifications made locally and remotely are synchronized
+so that no message status flags are lost.
+
+%prep
+%setup
+%build
+./configure --prefix=/usr
+make RPM_OPT_FLAGS="$RPM_OPT_FLAGS"
+
+%install
+make DESTDIR=$RPM_BUILD_ROOT install
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%files
+%doc COPYING README TODO ChangeLog
+/usr/bin/isync
+/usr/man/man1/isync.1.bz2
