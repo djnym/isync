@@ -4,7 +4,7 @@ EXTRA_DIST = debian isyncrc.sample isync.spec $(man_MANS)
 
 log:
 	@perl -p -e "s/^(\\S+)\\s+(\\S.+\\S)\\s+(\\S+)\\s*\$$/\$$1:'\$$2 <\$$3>'\\n/" < ../CVSROOT/accounts > .usermap
-	cvs2cl -U .usermap --no-wrap --separate-header
+	cvs2cl -U .usermap --no-wrap --separate-header -I ChangeLog -I NEWS -I TODO -I debian/
 	@rm -f .usermap ChangeLog.bak
 
 deb:
