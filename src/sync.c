@@ -155,6 +155,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		fd = open (path, O_RDONLY);
 		if (fd == -1)
 		{
+		    /* This can happen if the message was simply deleted (ok)
+		       or the flags changed (not ok - maildir sucks). */
 		    fprintf (stderr, "Error, unable to open %s: %s (errno %d)\n",
 			    path, strerror (errno), errno);
 		    continue;
@@ -247,8 +249,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 		    if (rename (path, newpath))
 		    {
-			    perror ("rename");
-			    return -1;
+			    perror ("Warning: cannot set flags on message");
 		    }
 		    else
 		    {
@@ -263,9 +264,6 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
     if (upload)
 	info (" %d messages.\n", upload);
-
-    info ("Fetching new messages...");
-    fflush (stdout);
 
     if (max_msgs == 0)
 	max_msgs = UINT_MAX;
@@ -351,6 +349,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		continue;
 
 	    /* give some visual feedback that something is happening */
+	    if (!fetched)
+		info ("Fetching new messages");
 	    infoc ('.');
 	    fflush (stdout);
 	    fetched++;
@@ -390,7 +390,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	}
     }
 
-    info (" %d messages\n", fetched);
+    if (fetched)
+	info (" %d messages\n", fetched);
 
     if (maildir_update_maxuid (mbox))
 	return -1;

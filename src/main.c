@@ -118,7 +118,7 @@ usage (int code)
     fputs (
 PACKAGE " " VERSION " IMAP4 to maildir synchronizer\n"
 "Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>\n"
-"Copyright (C) 2002-2003 Oswald Buddenhagen <ossi@users.sf.net>\n"
+"Copyright (C) 2002-2004 Oswald Buddenhagen <ossi@users.sf.net>\n"
 "usage:\n"
 " " PACKAGE " [ flags ] mailbox [mailbox ...]\n"
 " " PACKAGE " [ flags ] -a\n"
@@ -322,8 +322,8 @@ main (int argc, char **argv)
 
     if (!argv[optind] && !all)
     {
-	fprintf (stderr, "No mailbox specified");
-	usage (1);
+	fprintf (stderr, "No mailbox specified. Try isync -h\n");
+	return 1;
     }
 
     gethostname (Hostname, sizeof (Hostname));
