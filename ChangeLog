@@ -1,3 +1,73 @@
+2005-03-28 12:26  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	bump version
+
+2005-03-28 12:26  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_maildir.c:
+
+	fix inverted condition leading to endless loop when message is changed
+	while isync is running.
+
+2004-11-13 10:19  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/sync.c:
+
+	cope with out-of-disk-space halfways gracefully (that is, don't clobber
+	the sync state including the journal, but exit immediately).
+
+2004-10-17 18:31  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* AUTHORS:
+
+	sf.net -> sourceforge.net. otherwise the list-post is different from the
+	actual address, which makes mutt add two to addresses on list-reply ...
+
+2004-10-17 17:34  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_imap.c:
+
+	ignore user-defined flags (for now).
+	also, split off the backslash from the "core" flag names.
+
+2004-10-17 11:00  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_imap.c:
+
+	fix segfault due to wrong pointer being passed to parse_response_code.
+	inspired by Raimar Döffinger
+
+2004-10-17 10:30  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_imap.c:
+
+	remove spurious crlf during cram auth. not sure that this instance of
+	socket_write should be (re)moved, but as long as the .cont callback is
+	used only for this ...
+	investigation & patch by Mike Delaney.
+
+2004-09-24 10:45  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* Makefile.am:
+
+	install supplementary doc files.
+	REF: 38C5E3CF30C73C4984F41AE8786C852AB739@khyron.ads.cs.umass.edu
+
+2004-09-20 13:31  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_maildir.c:
+
+	use legacy flock() only on linux. at least on OS X flock aliases to
+	fcntl.
+
+2004-09-20 13:28  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: drv_imap.c, isync.h, util.c, compat/main.c:
+
+	stdarg.h at the right places
+
 2004-09-15 11:33  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* README:
