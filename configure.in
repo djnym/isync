@@ -1,5 +1,5 @@
 AC_INIT(isync.h)
-AM_INIT_AUTOMAKE(isync,0.7)
+AM_INIT_AUTOMAKE(isync,0.8)
 AM_PROG_CC_STDC
 AC_ARG_WITH(ssl-dir, [  --with-ssl-dir=DIR	location where openssl is insalled],
 	[if test -d $withval/lib; then
@@ -19,6 +19,7 @@ AC_CHECK_LIB(socket,socket)
 AC_CHECK_LIB(nsl,inet_ntoa)
 AC_CHECK_LIB(crypto,ERR_error_string)
 AC_CHECK_LIB(ssl,SSL_library_init)
+AC_CHECK_LIB(db,db_create)
 dnl test for gcc.  use the prefix so we know that gcc-3.0 is also gcc
 if test `echo $CC | sed 's/^gcc.*/gcc/'` = gcc; then
 	CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"

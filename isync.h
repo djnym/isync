@@ -1,7 +1,7 @@
 /* $Id$
  *
  * isync - IMAP4 to maildir mailbox synchronizer
- * Copyright (C) 2000 Michael R. Elkins <me@mutt.org>
+ * Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,11 +18,14 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#define DB_DBM_HSEARCH 1
+
 #include <sys/types.h>
 #include <stdarg.h>
 #if HAVE_LIBSSL
 #include <openssl/ssl.h>
 #endif
+#include <db.h>
 #include "debug.h"
 
 typedef struct
@@ -79,13 +82,13 @@ struct config
 /* struct representing local mailbox file */
 struct mailbox
 {
+    DBM *db;
     char *path;
     message_t *msgs;
+    int lockfd;
     unsigned int deleted;	/* # of deleted messages */
     unsigned int uidvalidity;
     unsigned int maxuid;	/* largest uid we know about */
-    unsigned int changed:1;
-    unsigned int maxuidchanged:1;
 };
 
 /* message dispositions */
@@ -106,7 +109,6 @@ struct message
     message_t *next;
     unsigned int processed:1;	/* message has already been evaluated */
     unsigned int new:1;		/* message is in the new/ subdir */
-    unsigned int changed:1;	/* flags changed */
     unsigned int dead:1;	/* message doesn't exist on the server */
     unsigned int wanted:1;	/* when using MaxMessages, keep this message */
 };
@@ -191,7 +193,8 @@ int imap_append_message (imap_t *, int, message_t *);
 mailbox_t *maildir_open (const char *, int flags);
 int maildir_expunge (mailbox_t *, int);
 int maildir_set_uidvalidity (mailbox_t *, unsigned int uidvalidity);
-int maildir_close (mailbox_t *);
+void maildir_close (mailbox_t *);
+int maildir_update_maxuid (mailbox_t * mbox);
 
 message_t * find_msg (message_t * list, unsigned int uid);
 void free_message (message_t *);

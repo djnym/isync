@@ -1,7 +1,7 @@
 /* $Id$
  *
  * isync - IMAP4 to maildir mailbox synchronizer
- * Copyright (C) 2000-1 Michael R. Elkins <me@mutt.org>
+ * Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ static void
 usage (void)
 {
     printf ("%s %s IMAP4 to maildir synchronizer\n", PACKAGE, VERSION);
-    puts ("Copyright (C) 2000-1 Michael R. Elkins <me@mutt.org>");
+    puts ("Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>");
     printf ("usage: %s [ flags ] mailbox [mailbox ...]\n", PACKAGE);
     puts ("  -a, --all	Synchronize all defined mailboxes");
     puts ("  -c, --config CONFIG	read an alternate config file (default: ~/.isyncrc)");
@@ -134,7 +134,7 @@ main (int argc, char **argv)
 {
     int i;
     config_t *box = 0;
-    mailbox_t *mail;
+    mailbox_t *mail = 0;
     imap_t *imap = 0;
     int expunge = 0;		/* by default, don't delete anything */
     int fast = 0;
@@ -250,6 +250,9 @@ main (int argc, char **argv)
 		if (!global.host)
 		{
 		    fprintf (stderr, "%s: no such mailbox\n", argv[optind]);
+		    /* continue is ok here because we are not handling the
+		     * `all' case.
+		     */
 		    continue;
 		}
 		global.path = argv[optind];
@@ -257,87 +260,99 @@ main (int argc, char **argv)
 	    }
 	}
 
-	if (!box->pass)
-	{
-	    /* if we don't have a global password set, prompt the user for
-	     * it now.
-	     */
-	    if (!global.pass)
+	do {
+	    if (!box->pass)
 	    {
-		global.pass = getpass ("Password:");
+		/* if we don't have a global password set, prompt the user for
+		 * it now.
+		 */
 		if (!global.pass)
 		{
-		    puts ("Aborting, no password");
-		    exit (1);
+		    global.pass = getpass ("Password:");
+		    if (!global.pass)
+		    {
+			fprintf (stderr, "Skipping %s, no password", box->path);
+			break;
+		    }
 		}
+		box->pass = strdup (global.pass);
 	    }
-	    box->pass = strdup (global.pass);
-	}
 
-	if (!quiet)
-	    printf ("Reading %s\n", box->path);
-	i = 0;
-	if (fast)
-	    i |= OPEN_FAST;
-	if (create)
-	    i |= OPEN_CREATE;
-	mail = maildir_open (box->path, i);
-	if (!mail)
-	{
-	    fprintf (stderr, "ERROR: unable to load mailbox %s\n", box->path);
-	    goto cleanup;
-	}
-
-	imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap);
-	if (!imap)
-	{
-	    fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",
-		     box->path);
-	    goto cleanup;
-	}
-
-	if (!quiet)
-	    puts ("Synchronizing");
-	i = 0;
-	if (quiet)
-	    i |= SYNC_QUIET;
-	i |= (delete || box->delete) ? SYNC_DELETE : 0;
-	i |= (expunge || box->expunge) ? SYNC_EXPUNGE : 0;
-	if (sync_mailbox (mail, imap, i, box->max_size, box->max_messages))
-	    exit (1);
-
-	if (!fast)
-	{
-	    if ((expunge || box->expunge) && (imap->deleted || mail->deleted))
+	    if (!quiet)
+		printf ("Reading %s\n", box->path);
+	    i = 0;
+	    if (fast)
+		i |= OPEN_FAST;
+	    if (create)
+		i |= OPEN_CREATE;
+	    mail = maildir_open (box->path, i);
+	    if (!mail)
 	    {
-		/* remove messages marked for deletion */
-		if (!quiet)
-		    printf ("Expunging %d messages from server\n",
-			    imap->deleted);
-		if (imap_expunge (imap))
-		    exit (1);
-		if (!quiet)
-		    printf ("Expunging %d messages from local mailbox\n",
-			    mail->deleted);
-		if (maildir_expunge (mail, 0))
-		    exit (1);
+		fprintf (stderr, "%s: unable to open mailbox\n", box->path);
+		break;
 	    }
-	    /* remove messages deleted from server.  this can safely be an
-	     * `else' clause since dead messages are marked as deleted by
-	     * sync_mailbox.
-	     */
-	    else if (delete)
-		maildir_expunge (mail, 1);
-	}
 
-	/* write changed flags back to the mailbox */
-	if (!quiet)
-	    printf ("Committing changes to %s\n", mail->path);
+	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap);
+	    if (!imap)
+	    {
+		fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",
+			 box->path);
+		break;
+	    }
 
-	if (maildir_close (mail))
-	    exit (1);
+	    if (!quiet)
+		puts ("Synchronizing");
+	    i = 0;
+	    if (quiet)
+		i |= SYNC_QUIET;
+	    i |= (delete || box->delete) ? SYNC_DELETE : 0;
+	    i |= (expunge || box->expunge) ? SYNC_EXPUNGE : 0;
+	    if (sync_mailbox (mail, imap, i, box->max_size, box->max_messages))
+	    {
+		imap_close (imap); /* Just to be safe.  Don't really know
+				    * what the problem was.
+				    */
+		break;
+	    }
 
-      cleanup:
+	    if (!fast)
+	    {
+		if ((expunge || box->expunge) &&
+		    (imap->deleted || mail->deleted))
+		{
+		    /* remove messages marked for deletion */
+		    if (!quiet)
+			printf ("Expunging %d messages from server\n",
+				imap->deleted);
+		    if (imap_expunge (imap))
+		    {
+			imap_close (imap);
+			imap = NULL;
+			break;
+		    }
+		    if (!quiet)
+			printf ("Expunging %d messages from local mailbox\n",
+				mail->deleted);
+		    if (maildir_expunge (mail, 0))
+			break;
+		}
+		/* remove messages deleted from server.  this can safely be an
+		 * `else' clause since dead messages are marked as deleted by
+		 * sync_mailbox.
+		 */
+		else if (delete)
+		    maildir_expunge (mail, 1);
+	    }
+
+	} while (0);
+
+	/* we never sync the same mailbox twice, so close it now */
+	if (mail)
+	    maildir_close (mail);
+
+	/* the imap connection is not closed so we can keep the connection
+	 * open, and there is no IMAP command for un-SELECT-ing a mailbox.
+	 */
 	if (all)
 	    box = box->next;
     }

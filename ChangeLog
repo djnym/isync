@@ -1,5 +1,8 @@
 2001-11-20  me  <me@sigpipe.org>
 
+	* ChangeLog, Makefile.am, isync.spec:
+	post 0.7-release commit
+
 	* Makefile.am, NEWS, isync.1, isync.h, maildir.c, main.c:
 	added --create/-C command line option to force creation of the local
 	maildir-style mailbox if nonexistent

@@ -1,3 +1,11 @@
+[0.8]
+
+IMPORTANT: In order to fix the problem where messages copied from one mailbox
+to another were not uploaded to the new mailbox, the way Isync stores the UID
+for each message needed to be changed.  As a result, you MUST delete all the
+messages in the local maildir box before using this version.  Otherwise it
+will upload every message to the server thinking its a new mail.
+
 [0.7]
 
 Added `MaxMessages' configuration option to allow tracking of only the most

@@ -1,7 +1,7 @@
 /* $Id$
  *
  * isync - IMAP4 to maildir mailbox synchronizer
- * Copyright (C) 2000-1 Michael R. Elkins <me@mutt.org>
+ * Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,24 @@ find_msg (message_t * list, unsigned int uid)
     for (; list; list = list->next)
 	if (list->uid == uid)
 	    return list;
+    return 0;
+}
+
+static int set_uid (DBM *db, const char *f, unsigned int uid)
+{
+    char path[_POSIX_PATH_MAX];
+    char *s;
+    datum key, val;
+
+    strfcpy (path, f, sizeof (path));
+    s = strchr (path, ':');
+    if (s)
+	*s = 0;
+    key.dptr = path;
+    key.dsize = strlen (path);
+    val.dptr = (void*) &uid;
+    val.dsize = sizeof (uid);
+    dbm_store (db, key, val, DBM_REPLACE);
     return 0;
 }
 
@@ -76,7 +94,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     if (mbox->maxuid == 0 || imap->maxuid > mbox->maxuid)
     {
 	mbox->maxuid = imap->maxuid;
-	mbox->maxuidchanged = 1;
+	if (maildir_update_maxuid (mbox))
+	    return -1;
     }
 
     /* if we are --fast mode, the mailbox wont have been loaded, so
@@ -93,7 +112,6 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    if (cur->uid == (unsigned int) -1)
 	    {
 		struct stat sb;
-		int uid;
 
 		if ((flags & SYNC_QUIET) == 0)
 		{
@@ -132,35 +150,12 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		}
 
 		cur->size = sb.st_size;
-
-		uid = imap_append_message (imap, fd, cur);
+		cur->uid = imap_append_message (imap, fd, cur);
+		/* if the server gave us back a uid, update the db */
+		if (cur->uid != (unsigned int) -1)
+		    set_uid (mbox->db, cur->file, cur->uid);
 
 		close (fd);
-
-		/* if the server gave us back a uid, rename the file so
-		 * we remember for next time
-		 */
-		if (uid != -1)
-		{
-		    strfcpy (newpath, path, sizeof (newpath));
-		    /* kill :info field */
-		    p = strchr (newpath, ':');
-		    if (p)
-			*p = 0;
-
-		    /* XXX not quite right, should really always put the
-		     * msg in "cur/", but i'm too tired right now.
-		     */
-		    snprintf (newpath + strlen (newpath),
-			      sizeof (newpath) - strlen (newpath),
-			      ",U=%d:2,%s%s%s%s", uid,
-			      (cur->flags & D_FLAGGED) ? "F" : "",
-			      (cur->flags & D_ANSWERED) ? "R" : "",
-			      (cur->flags & D_SEEN) ? "S" : "",
-			      (cur->flags & D_DELETED) ? "T" : "");
-		    if (rename (path, newpath))
-			perror ("rename");
-		}
 	    }
 	    else if (flags & SYNC_DELETE)
 	    {
@@ -187,7 +182,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    if (imap_copy_message (imap, cur->uid,
 				   imap->box->copy_deleted_to))
 	    {
-		printf ("Error, unable to copy deleted message to \"%s\"\n",
+		fprintf (stderr, "ERROR: unable to copy deleted message to \"%s\"\n",
 			imap->box->copy_deleted_to);
 		return -1;
 	    }
@@ -208,8 +203,28 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    if ((cur->flags & D_DELETED) == 0 && (tmp->flags & D_DELETED))
 		mbox->deleted++;
 	    cur->flags |= (tmp->flags & ~(D_RECENT | D_DRAFT));
-	    cur->changed = 1;
-	    mbox->changed = 1;
+
+	    /* generate old path */
+	    snprintf (path, sizeof (path), "%s/%s/%s",
+		      mbox->path, cur->new ? "new" : "cur", cur->file);
+
+	    /* truncate old flags (if present) */
+	    p = strchr (cur->file, ':');
+	    if (p)
+		*p = 0;
+
+	    /* generate new path - always put this in the cur/ directory
+	     * because its no longer new
+	     */
+	    snprintf (newpath, sizeof (newpath), "%s/cur/%s:2,%s%s%s%s",
+		      mbox->path,
+		      cur->file, (cur->flags & D_FLAGGED) ? "F" : "",
+		      (cur->flags & D_ANSWERED) ? "R" : "",
+		      (cur->flags & D_SEEN) ? "S" : "",
+		      (cur->flags & D_DELETED) ? "T" : "");
+
+	    if (rename (path, newpath))
+		perror ("rename");
 	}
     }
 
@@ -289,15 +304,15 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    for (;;)
 	    {
 		/* create new file */
-		snprintf (path, sizeof (path), "%s/tmp/%ld_%d.%d.%s,U=%d%s",
+		snprintf (path, sizeof (path), "%s/tmp/%ld_%d.%d.%s%s",
 			  mbox->path, time (0), MaildirCount++, getpid (),
-			  Hostname, cur->uid, suffix);
+			  Hostname, suffix);
 
 		if ((fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600)) > 0)
 		    break;
 		if (errno != EEXIST)
 		{
-		    perror ("open");
+		    perror (path);
 		    break;
 		}
 
@@ -336,6 +351,11 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		 */
 		if (link (path, newpath))
 		    perror ("link");
+		else
+		{
+		    /* update the db with the UID mapping for this file */
+		    set_uid (mbox->db, newpath, cur->uid);
+		}
 	    }
 
 	    /* always remove the temp file */
