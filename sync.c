@@ -152,7 +152,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 	    for (;;)
 	    {
 		/* create new file */
-		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d.UID%d%s",
+		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d,U=%d%s",
 			mbox->path, Hostname, time (0), MaildirCount++,
 			getpid (), cur->uid, suffix);
 

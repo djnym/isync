@@ -195,18 +195,20 @@ maildir_open (const char *path, int fast)
 	    p = *cur;
 	    p->file = strdup (e->d_name);
 	    p->uid = -1;
-	    p->flags = (count == 1) ? D_SEEN : 0;
+	    p->flags = 0;
 	    p->new = (count == 0);
 
 	    /* filename format is something like:
-	     * <unique-prefix>.UID<n>:2,<flags>
+	     * <unique-prefix>,U=<n>:2,<flags>
 	     * This is completely non-standard, but in order for mail
 	     * clients to understand the flags, we have to use the
 	     * standard :info as described by the qmail spec
 	     */
-	    s = strstr (p->file, "UID");
+	    s = strstr (p->file, ",U=");
 	    if (!s)
-		puts ("Warning, no uid for message");
+		s = strstr (p->file, "UID");
+	    if (!s)
+		puts ("Warning, no UID for message");
 	    else
 	    {
 		p->uid = strtol (s + 3, &s, 10);
@@ -215,9 +217,16 @@ maildir_open (const char *path, int fast)
 		    m->maxuid = p->uid;
 		    m->maxuidchanged = 1;
 		}
-		if (*s && *s != ':')
+		/* Courier-IMAP names it files
+		 * 	unique,S=<size>:info
+		 * so we need to put the UID before the size, hence here
+		 * we check for a comma as a valid terminator as well,
+		 * since the format will be
+		 * 	unique,U=<uid>,S=<size>:info
+		 */
+		if (*s && *s != ':' && *s != ',')
 		{
-		    puts ("warning, unable to parse uid");
+		    puts ("Warning, unable to parse UID");
 		    p->uid = -1;	/* reset */
 		}
 	    }
@@ -352,9 +361,11 @@ maildir_sync (mailbox_t * mbox)
 		if (p)
 		    *p = 0;
 
-		/* generate new path */
-		snprintf (path, sizeof (path), "%s/%s/%s:2,%s%s%s%s",
-			  mbox->path, (cur->flags & D_SEEN) ? "cur" : "new",
+		/* generate new path - always put this in the cur/ directory
+		 * because its no longer new
+		 */
+		snprintf (path, sizeof (path), "%s/cur/%s:2,%s%s%s%s",
+			  mbox->path,
 			  cur->file, (cur->flags & D_FLAGGED) ? "F" : "",
 			  (cur->flags & D_ANSWERED) ? "R" : "",
 			  (cur->flags & D_SEEN) ? "S" : "",
