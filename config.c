@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "isync.h"
 
 config_t *boxes = 0;

@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <time.h>
 #include "isync.h"
 
 static int

@@ -820,7 +820,7 @@ write_strip (int fd, char *buf, size_t len)
 {
     size_t start = 0;
     size_t end = 0;
-    int n;
+    ssize_t n;
 
     while (start < len)
     {
@@ -832,8 +832,17 @@ write_strip (int fd, char *buf, size_t len)
 	    perror ("write");
 	    return -1;
 	}
-	end++;
-	start = end;
+	else if ((size_t) n != end - start)
+	{
+	    /* short write, try again */
+	    start += n;
+	}
+	else
+	{
+	    /* write complete */
+	    end++;
+	    start = end;
+	}
     }
     return 0;
 }
