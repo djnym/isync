@@ -284,6 +284,9 @@ main (int argc, char **argv)
 		if (!strncasecmp ("imaps:", optarg, 6))
 		{
 		    global.use_imaps = 1;
+		    global.port = 993;
+		    global.use_sslv2 = 1;
+		    global.use_sslv3 = 1;
 		    optarg += 6;
 		}
 #endif
