@@ -410,6 +410,8 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 			imap->have_starttls = 1;
 		    else if (!strcmp ("AUTH=CRAM-MD5", arg))
 			imap->have_cram = 1;
+		    else if (!strcmp ("NAMESPACE", arg))
+			imap->have_namespace = 1;
 		}
 #endif
 	    }
@@ -607,18 +609,16 @@ imap_open (config_t * box, unsigned int minuid)
 	ret = imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user, box->pass);
     }
 
-    if (!ret)
+    /* get NAMESPACE info */
+    if (!ret && box->use_namespace && imap->have_namespace &&
+	    !imap_exec (imap, "NAMESPACE"))
     {
-	/* get NAMESPACE info */
-	if (box->use_namespace && !imap_exec (imap, "NAMESPACE"))
-	{
-	    /* XXX for now assume personal namespace */
-	    if (is_list (imap->ns_personal) &&
+	/* XXX for now assume personal namespace */
+	if (is_list (imap->ns_personal) &&
 		is_list (imap->ns_personal->child) &&
 		is_atom (imap->ns_personal->child->child))
-	    {
-		ns_prefix = imap->ns_personal->child->child->val;
-	    }
+	{
+	    ns_prefix = imap->ns_personal->child->child->val;
 	}
     }
 

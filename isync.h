@@ -130,6 +130,7 @@ typedef struct
     list_t *ns_personal;
     list_t *ns_other;
     list_t *ns_shared;
+    unsigned int have_namespace:1;
 #if HAVE_LIBSSL
     unsigned int have_cram:1;
     unsigned int have_starttls:1;
