@@ -53,7 +53,7 @@ int dotlock_unlock (int *fd)
   if (*fd != -1)
   {
     lck.l_type = F_UNLCK;
-    if (fcntl (*fd, F_SETLKW, &lck))
+    if (fcntl (*fd, F_SETLK, &lck))
       r = -1;
     close (*fd);
     *fd = -1;
@@ -71,7 +71,7 @@ int main (void)
     perror ("dotlock_lock");
     goto done;
   }
-  puts("sleeping for 5 seconds");
+  puts ("sleeping for 5 seconds");
   sleep(5);
   if (dotlock_unlock (&fd))
   {

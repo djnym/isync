@@ -633,12 +633,13 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 
       if (fork () == 0)
       {
-	if (dup2 (a[0],0) || dup2 (a[0], 1))
+	if (dup2 (a[0], 0) == -1 || dup2 (a[0], 1) == -1)
 	{
-	  _exit(127);
+	  _exit (127);
 	}
+	close (a[0]);
 	close (a[1]);
-	execl ("/bin/sh", "sh", "-c", box->tunnel);
+	execl ("/bin/sh", "sh", "-c", box->tunnel, 0);
 	_exit (127);
       }
 
@@ -796,14 +797,24 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	   * if we don't have a global password set, prompt the user for
 	   * it now.
 	   */
-	  if (!global.pass)
+	  if (!global.pass || !*global.pass)
 	  {
 	    global.pass = getpass ("Password:");
 	    if (!global.pass)
 	    {
+	      perror ("getpass");
+	      exit (1);
+	    }
+	    if (!*global.pass)
+	    {
 	      fprintf (stderr, "Skipping %s, no password", box->path);
 	      break;
 	    }
+	    /*
+	     * getpass() returns a pointer to a static buffer.  make a copy
+	     * for long term storage.
+	     */
+	    global.pass = strdup (global.pass);
 	  }
 	  box->pass = strdup (global.pass);
 	}
