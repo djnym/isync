@@ -26,7 +26,6 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
-#include <termios.h>
 #include "isync.h"
 
 #if HAVE_GETOPT_LONG

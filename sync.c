@@ -25,7 +25,6 @@
 #include <time.h>
 #include <fcntl.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include "isync.h"
 
@@ -47,10 +46,10 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
     message_t *tmp;
     char path[_POSIX_PATH_MAX];
     char newpath[_POSIX_PATH_MAX];
+    char suffix[_POSIX_PATH_MAX];
     char *p;
     int fd;
     int ret;
-    struct stat sb;
 
     if (mbox->uidvalidity != (unsigned int) -1)
     {
@@ -137,45 +136,42 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 		continue;
 	    }
 
-	    for (;;)
-	    {
-		/* create new file */
-		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d.UID%d",
-			mbox->path, Hostname, time (0), MaildirCount++,
-			getpid (), cur->uid);
+	    /* construct the flags part of the file name. */
 
-		if (stat (path, &sb))
-		{
-		    if (errno == ENOENT)
-			break;
-		}
-
-		sleep (2);
-	    }
-
-
+	    *suffix = 0;
 	    if (cur->flags)
 	    {
-		/* append flags */
-		snprintf (path + strlen (path), sizeof (path) - strlen (path),
-			  ":2,%s%s%s%s",
+		snprintf (suffix, sizeof (suffix), ":2,%s%s%s%s",
 			  (cur->flags & D_FLAGGED) ? "F" : "",
 			  (cur->flags & D_ANSWERED) ? "R" : "",
 			  (cur->flags & D_SEEN) ? "S" : "",
 			  (cur->flags & D_DELETED) ? "T" : "");
 	    }
+	    
+	    for (;;)
+	    {
+		/* create new file */
+		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d.UID%d%s",
+			mbox->path, Hostname, time (0), MaildirCount++,
+			getpid (), cur->uid, suffix);
+
+		if ((fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600)) > 0)
+		    break;
+		if (errno != EEXIST)
+		{
+		    perror ("open");
+		    break;
+		}
+
+		sleep (2);
+	    }
+
+	    if (fd < 0)
+		continue;
 
 	    /* give some visual feedback that something is happening */
 	    fputs (".", stdout);
 	    fflush (stdout);
-
-//          printf("creating %s\n", path);
-	    fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600);
-	    if (fd < 0)
-	    {
-		perror ("open");
-		continue;
-	    }
 
 	    ret = imap_fetch_message (imap, cur->uid, fd);
 
@@ -187,8 +183,6 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 
 		snprintf (newpath, sizeof (newpath), "%s/%s%s", mbox->path,
 			(cur->flags & D_SEEN) ? "cur" : "new", p);
-
-		//          printf ("moving %s to %s\n", path, newpath);
 
 		/* its ok if this fails, the next time we sync the message
 		 * will get pulled down
