@@ -1,10 +1,17 @@
 #!/usr/bin/make -f
 
+CFLAGS = -Wall -g
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+CFLAGS += -O0
+else
+CFLAGS += -O2
+endif
+
 build: build-stamp
 build-stamp:
 	dh_testdir
 	./configure --prefix=/usr --mandir=/usr/share/man
-	$(MAKE)
+	$(MAKE) CFLAGS="$(CFLAGS)"
 	touch build-stamp
 
 clean:
@@ -30,6 +37,7 @@ binary-arch: build install
 	dh_installdocs AUTHORS NEWS README TODO
 	dh_installexamples isyncrc.sample
 	dh_installman
+	dh_installdebconf
 	dh_strip
 	dh_compress
 	dh_fixperms

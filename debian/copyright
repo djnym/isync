@@ -1,16 +1,16 @@
-This package was debianized by Michael Elkins <melkins@debian> on
-Wed, 16 Jan 2002 13:36:52 -0800.
+This package was debianized by Tommi Virtanen <tv@debian.org> and is now
+maintained by Nicolas Boullis <nboullis@debian.org>.
 
-It was downloaded from http://isync.sf.net/
+It was downloaded from http://isync.sourceforge.net/
 
-Upstream author(s): Michael Elkins <me@mutt.org>
-Current upstream maintainer(s): Oswald Buddenhagen <ossi@users.sf.net>
+Upstream Author: Michael R. Elkins <me@mutt.org>,
+                 Oswald Buddenhagen <ossi@users.sf.net>
 
 Copyright:
 
  * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
- * Copyright (C) 2002 Oswald Buddenhagen <ossi@users.sf.net>
+ * Copyright (C) 2002-2003 Oswald Buddenhagen <ossi@users.sf.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,4 +25,9 @@ Copyright:
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ * As a special exception, isync may be linked with the OpenSSL library,
+ * despite that library's more restrictive license.
 
+On Debian systems, the complete text of the GNU General Public
+License can be found in /usr/share/common-licenses/GPL

@@ -1,0 +1,22 @@
+A note from isync's web site:
+
+To use this command effectively, you need a mail client that sets the T
+(trashed) flag when it deletes a message from a maildir mailbox, instead of
+just removing it altogether. Currently, only Mutt 1.3.27 supports this. Without
+such a client, isync will refetch the locally deleted messages from the server
+since they will never get expunged. Be sure to put
+
+set maildir_trash
+
+in your ~/.muttrc when using Mutt.
+
+isync can be integrated into Mutt fairly easily with a few hooks:
+
+	folder-hook ~A bind index $ <sync-mailbox>
+	folder-hook +maildir 'macro index $ "<sync-mailbox>!isync -e maildir\n"'
+
+where maildir is the name of the local mailbox (or its alias). This works well
+so long as you are not modifying the IMAP mailbox outside of Mutt. However, if
+you are using another mail program simultaneously Mutt will have the wrong idea
+of the local mailbox flags and messages will start disappearing from its index
+display (don't worry, they are still on disk).

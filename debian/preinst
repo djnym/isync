@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "upgrade" ] && dpkg --compare-versions "$2" lt "0.8"; then
+	# Do not do debconf stuff if debconf is not there.
+	# I don't want to have to pre-depend on debconf.
+	if [ -e /usr/share/debconf/confmodule ]; then
+		. /usr/share/debconf/confmodule
+		db_get isync/upgrade_0.8
+		if [ "$RET" = true ]; then
+			echo "Aborting isync upgrade at your request so you can manually resolve upgrade issue." >&2
+			exit 1
+		fi
+	else
+		echo "WARNING: Read NEWS.Debian file about manual upgrade issues from isync 0.7." >&2
+	fi
+fi
+
+#DEBHELPER#

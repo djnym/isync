@@ -1,0 +1,16 @@
+isync (0.8-1) unstable; urgency=low
+
+  IMPORTANT upgrade note:
+
+  This version includes a change to the way the UID for each message is
+  stored in the local mailbox. You need to remove all the messages in your
+  local folder if you were previously using another version of isync or else
+  you will end up with duplicate messages on your IMAP server. 
+
+  A suggested upgrade procedure is to use isync version 0.7 to synchronize
+  any local changes in isync-managed mailboxes with your IMAP server, and
+  then remove the contents of the local mailboxes, before upgrading to this
+  version. Then run isync again to pull down the mail again. You must do
+  this manually, the Debian package will not do this for you.
+
+ -- Joey Hess <joeyh@debian.org>  Tue, 29 Oct 2002 13:50:40 -0500

@@ -4,21 +4,109 @@ isync (0.9.2-1) unstable; urgency=low
 
  -- Oswald Buddenhagen <ossi@users.sf.net>  Sun, 07 Dec 2003 16:13:00 +0100
 
-isync (0.9.1-1) unstable; urgency=medium
+isync (0.9.1-3) unstable; urgency=low
 
-  * New upstream release
+  * Do not segfault when using both tunneled end non-tunneled connections,
+    thanks to Nik A. Melchior for reporting and for his patch.
+    (Closes: #220667)
+  * Save uid of messages when interrupted, thanks to Theodore Y. Ts'o for
+    reporting and for his patch. (Closes: #220346)
+  * Do not get the sizes of the messages if unneeded (if MaxSize=0).
 
- -- Oswald Buddenhagen <ossi@users.sf.net>  Wed, 07 May 2003 01:22:00 +0200
+ -- Nicolas Boullis <nboullis@debian.org>  Thu, 18 Dec 2003 00:55:04 +0100
 
-isync (0.9-1) unstable; urgency=low
+isync (0.9.1-2) unstable; urgency=low
 
-  * New upstream release
+  * Add french debconf templates translation, thanks to Christian
+    Perrier. (Closes: #218118)
 
- -- Oswald Buddenhagen <ossi@users.sf.net>  Mon, 05 May 2003 20:15:00 +0200
+ -- Nicolas Boullis <nboullis@debian.org>  Mon,  3 Nov 2003 18:50:56 +0100
+
+isync (0.9.1-1) unstable; urgency=low
+
+  * New maintainer. (Closes: #180050)
+  * New upstream release.
+    - With the new option -R, isync is now able to create non-existent
+      remote mailboxes. (Closes: #170388)
+  * Update debian/copyright to match the current copyright:
+    - Add Oswald Buddenhagen as copyright owner.
+    - Add special exception for OpenSSL.
+  * Add support for noopt in $DEB_BUILD_OPTIONS in debian/rules.
+  * Switch to po-debconf.
+  * Remove sample.isyncrc from debian/docs: no need to have it both as a
+    doc and as an example.
+  * Move package from section non-US/main (?) to mail. (Closes: #154216)
+  * Update versionned build-dependency on debhelper to >= 4.1.16.
+  * Bump Standards-Version to 3.6.1. (No change required.)
+
+ -- Nicolas Boullis <nboullis@debian.org>  Tue, 14 Oct 2003 22:02:20 +0200
+
+isync (0.8-4) unstable; urgency=low
+
+  * Orphaned the package, as I no longer use it.
+
+ -- Joey Hess <joeyh@debian.org>  Thu,  6 Feb 2003 15:46:38 -0500
+
+isync (0.8-3) unstable; urgency=low
+
+  * New upstream maintainer; updated copyright file web site address, and
+    watch file. NB: new upstream has not made any new releases yet.
+
+ -- Joey Hess <joeyh@debian.org>  Sat,  1 Feb 2003 16:03:49 -0500
+
+isync (0.8-2) unstable; urgency=low
+
+  * Only reset debconf question if user chooses to abort upgrade.
+    Closes: #167363
+  * Don't open lock files O_EXCL. As seen in upstream cvs.
+  * Description and build-deps updates.
+  * Added README.Debian with notes on mutt integration.
+
+ -- Joey Hess <joeyh@debian.org>  Fri,  1 Nov 2002 18:02:44 -0500
 
 isync (0.8-1) unstable; urgency=low
 
+  * New upstream release. Closes: #134080
+  
+  **WARNING**
+    You need to remove all the messages in your local folder if you were
+    previously using another version of isync or else you will end up with
+    duplicate messages on your IMAP server.
+
+  * Has better support for uploading locally added messages. Closes: #120272
+  * Added a debconf queston with some info about this that lets you abort the
+    upgrade.
+  * Added NEWS.Debian with same info.
+  * New maintainer.
+  * Removed upstream debianization stuff.
+  * Updated copyright file.
+  * Updated to current policy throughout.
+  * Added uscan watch file.
+  * Updated build-deps.
+  * Now that isync needs berkeley databases, go with db4, so I don't have to
+    transition from db3 later.
+  * Fix fd leak (forgot to close tmp dir in maildir). Closes: #150762
+
+ -- Joey Hess <joeyh@debian.org>  Tue, 29 Oct 2002 17:02:14 -0500
+
+isync (0.7-1) unstable; urgency=low
+
+  * New upstream version (Closes: #121312, #92051).
+  * Rumors say this might fix bugs #102255 and #120272,
+    but I have no test setup right now, so I'm leaving them open.
+  * Updated standards-version.
+
+ -- Tommi Virtanen <tv@debian.org>  Sat,  5 Jan 2002 16:13:35 +0200
+
+isync (0.5-1) unstable; urgency=low
+
+  * New upstream version (Closes: #98642).
+  * Install sample.isyncrc too (Closes: #90464).
+
+ -- Tommi Virtanen <tv@debian.org>  Sat, 23 Jun 2001 01:19:07 +0300
+
+isync (0.4-1) unstable; urgency=low
+
   * Initial Release.
 
- -- Michael Elkins <me@mutt.org>  Wed, 16 Jan 2002 13:36:52 -0800
-
+ -- Tommi Virtanen <tv@debian.org>  Sat, 10 Mar 2001 18:43:35 +0200

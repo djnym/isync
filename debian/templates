@@ -1,0 +1,21 @@
+Template: isync/upgrade_0.8
+Type: boolean
+Default: false
+_Description: Abort isync upgrade
+ You are upgrading from an older version of isync that stored the UID of
+ each message in a way that is not compatable with the new version. You
+ need to remove all the messages in local folders downloaded with the old
+ version of isync. Otherwise isync will get confused and upload duplicate
+ messages to the IMAP server.
+ .
+ A suggested upgrade procedure is to use the isync version 0.7 to
+ synchronize any local changes in isync-managed mailboxes with your IMAP
+ server (if there are any local changes to synchronise), and then remove
+ the contents of the local mailboxes, before upgrading to version 0.8 or
+ above. Then run isync again to pull down the mail again. You must do this
+ manually; the Debian package will not do this for you.
+ .
+ If you want, the upgrade of isync can be aborted to let you deal with this
+ issue. Or you can just suspend the upgrade or switch to a different
+ virtual console to take care of it. Do not continue past this point before
+ manually resolving this issue!
