@@ -374,6 +374,7 @@ maildir_clean_tmp (const char *mbox)
 			 path, strerror (errno), errno);
 	}
     }
+    closedir(dirp);
 }
 
 void
