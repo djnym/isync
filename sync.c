@@ -42,7 +42,7 @@ find_msg (message_t * list, unsigned int uid)
 
 int
 sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
-	      unsigned int max_size)
+	      unsigned int max_size, unsigned int max_msgs)
 {
     message_t *cur;
     message_t *tmp;
@@ -54,6 +54,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     int ret;
     int fetched = 0;
     int upload = 0;
+    unsigned int msg_count;
 
     if (mbox->uidvalidity > 0)
     {
@@ -113,7 +114,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 		    continue;	/* not fatal */
 		}
-		if (imap->box->max_size > 0 && sb.st_size > imap->box->max_size)
+		if (imap->box->max_size > 0
+		    && sb.st_size > imap->box->max_size)
 		{
 		    if ((flags & SYNC_QUIET) == 0)
 			printf
@@ -214,13 +216,41 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     if (upload)
 	fprintf (stdout, " %d messages.\n", upload);
 
-
     if ((flags & SYNC_QUIET) == 0)
     {
 	fputs ("Fetching new messages", stdout);
 	fflush (stdout);
     }
-    for (cur = imap->msgs; cur; cur = cur->next)
+
+    if (max_msgs == 0)
+	max_msgs = UINT_MAX;
+    else
+    {
+	/* expire messages in excess of the max-count for this mailbox.
+	 * flagged mails are considered sacrosant and not deleted.
+	 * we have already done the upload to the server, so messing with
+	 * the flags variable do not have remote side effects.
+	 */
+	for (cur = imap->msgs, msg_count = 0;
+	     cur && msg_count < max_msgs; cur = cur->next, msg_count++)
+	{
+	    tmp = find_msg (mbox->msgs, cur->uid);
+	    if (tmp)
+		tmp->wanted = 1;
+	}
+	for (cur = mbox->msgs; cur; cur = cur->next)
+	{
+	    if (!cur->wanted && !(cur->flags & D_FLAGGED))
+	    {
+		cur->flags |= D_DELETED;
+		cur->dead = 1;
+		mbox->deleted++;
+	    }
+	}
+    }
+
+    for (cur = imap->msgs, msg_count = 0;
+	 cur && msg_count < max_msgs; cur = cur->next, msg_count++)
     {
 	if (!cur->processed)
 	{
@@ -289,7 +319,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 	    if (fsync (fd))
 	    {
-	    	perror ("fsync");
+		perror ("fsync");
 		close (fd);
 	    }
 	    else if (close (fd))

@@ -189,6 +189,26 @@ This directive is only meaningful the in
 section (see below).
 ..
 .TP
+\fBMaxMessages\fR \fIcount\fR
+Sets the number of messages
+.B isync
+should keep in a mailbox.
+This is useful for mailboxes where you keep a complete archive on the
+server, but want to mirror only the last messages (for instance, for mailing
+lists.)
+The messages that were the first to arrive in the mailbox (independent of the
+actual date of the message) will automatically be deleted if you tell
+pass
+.B isync
+the delete (-d, --delete) flag.
+Messages that are flagged (marked as important) will not be automatically
+deleted.
+If
+.I count
+is 0, the maximum number of messages is
+.B unlimited  (Default: 0).
+..
+.TP
 \fBMaxSize\fR \fIbytes\fR
 Sets a threshold for the maximum message size (in bytes) for which
 .B isync

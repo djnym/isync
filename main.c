@@ -151,6 +151,7 @@ main (int argc, char **argv)
     global.user = strdup (pw->pw_name);
     global.maildir = strdup (pw->pw_dir);
     global.max_size = 0;
+    global.max_messages = 0;
     global.use_namespace = 1;
 #if HAVE_LIBSSL
     /* this will probably annoy people, but its the best default just in
@@ -291,7 +292,7 @@ main (int argc, char **argv)
 	    i |= SYNC_QUIET;
 	i |= (delete || box->delete) ? SYNC_DELETE : 0;
 	i |= (expunge || box->expunge) ? SYNC_EXPUNGE : 0;
-	if (sync_mailbox (mail, imap, i, box->max_size))
+	if (sync_mailbox (mail, imap, i, box->max_size, box->max_messages))
 	    exit (1);
 
 	if (!fast)

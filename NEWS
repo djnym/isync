@@ -1,3 +1,8 @@
+[0.7]
+
+Added `MaxMessages' configuration option to allow tracking of only the most
+recently added message in the local mailbox.
+
 [0.6]
 
 Added `Delete' configuration option to correspond to the -d command line

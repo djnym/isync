@@ -33,28 +33,10 @@
 config_t *boxes = 0;
 
 /* set defaults from the global configuration section */
-void
+static void
 config_defaults (config_t * conf)
 {
-    conf->user = global.user;
-    conf->pass = global.pass;
-    conf->port = global.port;
-    conf->box = global.box;
-    conf->host = global.host;
-    conf->max_size = global.max_size;
-    conf->copy_deleted_to = global.copy_deleted_to;
-    conf->use_namespace = global.use_namespace;
-    conf->expunge = global.expunge;
-    conf->delete = global.delete;
-    conf->poll = global.poll;
-#if HAVE_LIBSSL
-    conf->require_ssl = global.require_ssl;
-    conf->use_imaps = global.use_imaps;
-    conf->cert_file = global.cert_file;
-    conf->use_sslv2 = global.use_sslv2;
-    conf->use_sslv3 = global.use_sslv3;
-    conf->use_tlsv1 = global.use_tlsv1;
-#endif
+    memcpy (conf, &global, sizeof (config_t));
 }
 
 #ifndef HAVE_STRNDUP
@@ -231,6 +213,13 @@ load_config (const char *where)
 	    else
 		global.max_size = atol (val);
 	}
+	else if (!strcasecmp ("MaxMessages", cmd))
+	{
+	    if (*cur)
+		(*cur)->max_messages = atol (val);
+	    else
+		global.max_messages = atol (val);
+	}
 	else if (!strcasecmp ("UseNamespace", cmd))
 	{
 	    if (*cur)
@@ -259,15 +248,6 @@ load_config (const char *where)
 	    else
 		global.delete = (strcasecmp (val, "yes") == 0);
 	}
-#if 0
-	else if (!strcasecmp ("Poll", cmd))
-	{
-	    if (*cur)
-		(*cur)->poll = atoi (val);
-	    else
-		global.poll = atoi (val);
-	}
-#endif
 #if HAVE_LIBSSL
 	else if (!strcasecmp ("CertificateFile", cmd))
 	{
@@ -313,7 +293,7 @@ load_config (const char *where)
 	}
 #endif
 	else if (buf[0])
-	    printf ("%s:%d:unknown command:%s\n", path, line, cmd);
+	    printf ("%s:%d:unknown keyword:%s\n", path, line, cmd);
     }
     fclose (fp);
 }

@@ -57,7 +57,7 @@ struct config
     char *box;
     char *alias;
     char *copy_deleted_to;
-    int poll;	/* how often to poll (in seconds)  0 = OFF */
+    unsigned int max_messages;
     off_t max_size;
     config_t *next;
 #if HAVE_LIBSSL
@@ -72,6 +72,7 @@ struct config
     unsigned int use_namespace:1;
     unsigned int expunge:1;
     unsigned int delete:1;
+    unsigned int wanted:1;
 };
 
 /* struct representing local mailbox file */
@@ -106,6 +107,7 @@ struct message
     unsigned int new:1;		/* message is in the new/ subdir */
     unsigned int changed:1;	/* flags changed */
     unsigned int dead:1;	/* message doesn't exist on the server */
+    unsigned int wanted:1;	/* when using MaxMessages, keep this message */
 };
 
 /* struct used for parsing IMAP lists */
@@ -166,9 +168,8 @@ char *cram (const char *, const char *, const char *);
 
 char *next_arg (char **);
 
-int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int);
+int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int, unsigned int);
 
-void config_defaults (config_t *);
 void load_config (const char *);
 char * expand_strdup (const char *s);
 config_t *find_box (const char *);
