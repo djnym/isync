@@ -284,6 +284,10 @@ buffer_gets (buffer_t * b, char **s)
 	    {
 		b->buf[b->offset] = 0;	/* terminate the string */
 		b->offset += 2;	/* next line */
+		if (Verbose) {
+		    puts (*s);
+		    fflush (stdout);
+		}
 		return 0;
 	    }
 	}
@@ -425,8 +429,10 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     va_end (ap);
 
     snprintf (buf, sizeof (buf), "%d %s\r\n", ++Tag, tmp);
-    if (Verbose)
+    if (Verbose) {
 	printf (">>> %s", buf);
+	fflush (stdout);
+    }
     n = socket_write (imap->sock, buf, strlen (buf));
     if (n <= 0)
     {
@@ -439,8 +445,6 @@ imap_exec (imap_t * imap, const char *fmt, ...)
       next:
 	if (buffer_gets (imap->buf, &cmd))
 	    return -1;
-	if (Verbose)
-	    puts (cmd);
 
 	arg = next_arg (&cmd);
 	if (*arg == '*')
@@ -550,21 +554,23 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    }
 	    resp = cram (cmd, imap->box->user, imap->box->pass);
 
+	    if (Verbose) {
+		printf (">+> %s\n", resp);
+		fflush (stdout);
+	    }
 	    n = socket_write (imap->sock, resp, strlen (resp));
+	    free (resp);
 	    if (n <= 0)
 	    {
 		socket_perror ("write", imap->sock, n);
 		return -1;
 	    }
-	    if (Verbose)
-		puts (resp);
 	    n = socket_write (imap->sock, "\r\n", 2);
 	    if (n <= 0)
 	    {
 		socket_perror ("write", imap->sock, n);
 		return -1;
 	    }
-	    free (resp);
 	    imap->cram = 0;
 	}
 #endif
@@ -677,8 +683,6 @@ imap_connect (config_t * cfg)
         fprintf (stderr, "IMAP error: no greeting response\n");
 	goto bail;
       }
-      if (Verbose)
-        puts (rsp);
       arg = next_arg (&rsp);
       if (!arg || *arg != '*' || (arg = next_arg (&rsp)) == NULL)
       {
@@ -981,15 +985,16 @@ send_server (Socket_t * sock, const char *fmt, ...)
   va_end (ap);
 
   snprintf (cmd, sizeof (cmd), "%d %s\r\n", ++Tag, buf);
+  if (Verbose) {
+    printf (">>> %s", cmd);
+    fflush (stdout);
+  }
   n = socket_write (sock, cmd, strlen (cmd));
   if (n <= 0)
   {
     socket_perror ("write", sock, n);
     return -1;
   }
-
-  if (Verbose)
-    fputs (cmd, stdout);
 
   return 0;
 }
@@ -1009,10 +1014,6 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
   {
     if (buffer_gets (imap->buf, &cmd))
       return -1;
-
-    if (Verbose)
-      puts (cmd);
-
     if (*cmd == '*')
     {
       /* need to figure out how long the message is
@@ -1094,8 +1095,6 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
       }
 
       buffer_gets (imap->buf, &cmd);
-      if (Verbose)
-	puts (cmd);	/* last part of line */
     }
     else
     {
@@ -1224,8 +1223,6 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 
   if (buffer_gets (imap->buf, &s))
     goto bail;
-  if (Verbose)
-    puts (s);
 
   if (*s != '+')
   {
@@ -1266,9 +1263,6 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
   {
     if (buffer_gets (imap->buf, &s))
       return -1;
-
-    if (Verbose)
-      puts (s);
 
     arg = next_arg (&s);
     if (*arg == '*')
@@ -1324,9 +1318,6 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
   {
     if (buffer_gets (imap->buf, &s))
       return -1;
-
-    if (Verbose)
-      puts (s);
 
     arg = next_arg (&s);
     if (*arg == '*')

@@ -257,7 +257,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     if (upload)
 	info (" %d messages.\n", upload);
 
-    info ("Fetching new messages");
+    info ("Fetching new messages...");
     fflush (stdout);
 
     if (max_msgs == 0)
@@ -381,7 +381,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	}
     }
 
-    info ("  %d messages\n", fetched);
+    info (" %d messages\n", fetched);
 
     return 0;
 }
