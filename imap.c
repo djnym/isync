@@ -968,11 +968,8 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 		  sizeof (flagstr) - strlen (flagstr), ") ");
     }
 
-    send_server (imap->sock, "APPEND %s%s %s{%d}\r\n",
+    send_server (imap->sock, "APPEND %s%s %s{%d}",
 	      imap->prefix, imap->box->box, flagstr, msg->size + lines);
-    socket_write (imap->sock, buf, strlen (buf));
-    if (Verbose)
-	fputs (buf, stdout);
 
     if (buffer_gets (imap->buf, &s))
 	return -1;
@@ -980,7 +977,10 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 	puts (s);
 
     if (*s != '+')
+    {
+	puts ("Error, expected `+' from server (aborting)");
 	return -1;
+    }
 
     /* rewind */
     lseek (fd, 0, 0);
@@ -1002,12 +1002,12 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 		end++;
 	    if (start != end)
 		socket_write (imap->sock, buf + start, end - start);
-/*	    if (Verbose)
-	    {
-		buf[end] = 0;
-		puts (buf + start);
-	    } */
-	    socket_write (imap->sock, "\r\n", 2);
+	    /* only send a crlf if we actually hit the end of a line.  we
+	     * might be in the middle of a line in which case we don't
+	     * send one.
+	     */
+	    if (end != len)
+		socket_write (imap->sock, "\r\n", 2);
 	    start = end + 1;
 	}
 	sofar += len;
