@@ -1,3 +1,4 @@
+.autoconf_trace
 Makefile
 Makefile.in
 autom4te.cache
