@@ -174,11 +174,11 @@ static int get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd );
 
 
 static const char *Flags[] = {
-	"\\Draft",
-	"\\Flagged",
-	"\\Answered",
-	"\\Seen",
-	"\\Deleted",
+	"Draft",
+	"Flagged",
+	"Answered",
+	"Seen",
+	"Deleted",
 };
 
 #if HAVE_LIBSSL
@@ -730,16 +730,18 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 				if (is_list( tmp )) {
 					for (flags = tmp->child; flags; flags = flags->next) {
 						if (is_atom( flags )) {
-							if (!strcmp( "\\Recent", flags->val )) {
-								status |= M_RECENT;
-								goto flagok;
-							}
-							for (i = 0; i < as(Flags); i++)
-								if (!strcmp( Flags[i], flags->val )) {
-									mask |= 1 << i;
+							if (flags->val[0] == '\\') { /* ignore user-defined flags for now */
+								if (!strcmp( "Recent", flags->val + 1)) {
+									status |= M_RECENT;
 									goto flagok;
 								}
-							fprintf( stderr, "IMAP warning: unknown flag %s\n", flags->val );
+								for (i = 0; i < as(Flags); i++)
+									if (!strcmp( Flags[i], flags->val + 1 )) {
+										mask |= 1 << i;
+										goto flagok;
+									}
+								fprintf( stderr, "IMAP warning: unknown system flag %s\n", flags->val );
+							}
 						  flagok: ;
 						} else
 							fprintf( stderr, "IMAP error: unable to parse FLAGS list\n" );
@@ -1480,6 +1482,7 @@ imap_make_flags( int flags, char *buf )
 	for (i = d = 0; i < as(Flags); i++)
 		if (flags & (1 << i)) {
 			buf[d++] = ' ';
+			buf[d++] = '\\';
 			for (s = Flags[i]; *s; s++)
 				buf[d++] = *s;
 		}
