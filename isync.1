@@ -55,7 +55,7 @@ messages are
 .B not
 deleted.
 .TP
-.B -e, --expunge
+\fB-e\fR, \fB--expunge\fR
 Causes
 .B isync
 to permanently remove all messages marked for deletion in both the local
@@ -63,25 +63,27 @@ maildir mailbox and the remote IMAP mailbox.  By default, messages are
 .B not
 expunged.
 .TP
-.B -f, --fast
+\fB-f\fR, \fB--fast\fR
 Causes
 .B isync
 to skip the step of synchronzing message flags between the local maildir
 mailbox and the IMAP mailbox.  Only new messages existing on the server will
 be fetched into the local mailbox.
 .TP
-.B -h, --help
+\fB-h\fR, \fB--help\fR
 Displays a summary of command line options
 .TP
 \fB-p\fR, \fB--port\fR \fIport\fR
 Specifies the port on the IMAP server to connect to (default: 143)
+.TP
+\fB-q\fR, \fB--quiet\fR
+Supress feedback messages.
 .TP
 \fB-r\fR, \fB--remote\fR \fIbox\fR
 Specifies the name of the remote IMAP mailbox to synchronize with
 (Default: INBOX)
 .TP
 \fB-s\fR, \fB--host\fR \fB[\fRimaps:\fB]\fR\fIhost\fR
-.P
 Specifies the hostname of the IMAP server
 .TP
 \fB-u\fR, \fB--user\fR \fIuser\fR
@@ -172,10 +174,11 @@ command line option overrides this setting when set to
 Specifies the location for your mailboxes if a relative path is
 specified in a
 .I Mailbox
-command.
-(Default:
-.I ~
-)
+command (Default: \fI~\fR).
+.B NOTE:
+This directive is only meaningful the in
+.I global
+section (see below).
 ..
 .TP
 \fBMaxSize\fR \fIbytes\fR
