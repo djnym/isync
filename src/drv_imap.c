@@ -132,7 +132,7 @@ struct imap_cmd_cb {
 	char *data;
 	int dlen;
 	int uid;
-	unsigned create:1;
+	unsigned create:1, trycreate:1;
 };
 
 struct imap_cmd {
@@ -997,7 +997,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 				resp = DRV_OK;
 			else {
 				if (!strcmp( "NO", arg )) {
-					if (cmdp->cb.create && cmd && !memcmp( cmd, "[TRYCREATE]", 11 )) { /* SELECT, APPEND or UID COPY */
+					if (cmdp->cb.create && cmd && (cmdp->cb.trycreate || !memcmp( cmd, "[TRYCREATE]", 11 ))) { /* SELECT, APPEND or UID COPY */
 						p = strchr( cmdp->cmd, '"' );
 						if (!issue_imap_cmd( ctx, 0, "CREATE %.*s", strchr( p + 1, '"' ) - p + 1, p )) {
 							resp = RESP_BAD;
@@ -1421,7 +1421,8 @@ imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
 	}
 
 	memset( &cb, 0, sizeof(cb) );
-	cb.create = gctx->opts & OPEN_CREATE;
+	cb.create = (gctx->opts & OPEN_CREATE) != 0;
+	cb.trycreate = 1;
 	if ((ret = imap_exec_b( ctx, &cb, "SELECT \"%s%s\"", prefix, gctx->name )) != DRV_OK)
 		goto bail;
 
@@ -1635,7 +1636,7 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 	} else {
 		box = gctx->name;
 		prefix = !strcmp( box, "INBOX" ) ? "" : ctx->prefix;
-		cb.create = gctx->opts & OPEN_CREATE;
+		cb.create = (gctx->opts & OPEN_CREATE) != 0;
 		/*if (ctx->currentnc)
 			imap->caps = imap->rcaps & ~(1 << LITERALPLUS);*/
 	}
