@@ -475,13 +475,13 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		{
 		    if (!strcmp ("UIDPLUS", arg))
 			imap->have_uidplus = 1;
+		    else if (!strcmp ("NAMESPACE", arg))
+			imap->have_namespace = 1;
 #if HAVE_LIBSSL
 		    else if (!strcmp ("STARTTLS", arg))
 			imap->have_starttls = 1;
 		    else if (!strcmp ("AUTH=CRAM-MD5", arg))
 			imap->have_cram = 1;
-		    else if (!strcmp ("NAMESPACE", arg))
-			imap->have_namespace = 1;
 #endif
 		}
 	    }
@@ -594,17 +594,43 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     /* not reached */
 }
 
+static int
+start_tls (imap_t *imap, config_t * cfg)
+{
+	int ret;
+
+	/* initialize SSL */
+	if (init_ssl (cfg))
+		return 1;
+
+	imap->sock->ssl = SSL_new (SSLContext);
+	SSL_set_fd (imap->sock->ssl, imap->sock->fd);
+	if ((ret = SSL_connect (imap->sock->ssl)) <= 0)
+	{
+		socket_perror ("connect", imap->sock, ret);
+		return 1;
+	}
+
+	/* verify the server certificate */
+	if (verify_cert (imap->sock->ssl))
+		return 1;
+
+	imap->sock->use_ssl = 1;
+	puts ("SSL support enabled");
+	return 0;
+}
+
 imap_t *
 imap_connect (config_t * cfg)
 {
-  int s, ret;
+  int s;
   struct sockaddr_in addr;
   struct hostent *he;
   imap_t *imap;
   char *arg, *rsp;
-  int preauth = 0;
+  int preauth;
 #if HAVE_LIBSSL
-  int use_ssl = 0;
+  int use_ssl;
 #endif
     int a[2];
 
@@ -680,6 +706,15 @@ imap_connect (config_t * cfg)
       imap->sock->fd = s;
     }
 
+#if HAVE_LIBSSL
+      use_ssl = 0;
+      if (cfg->use_imaps) {
+	if (start_tls (imap, cfg))
+	  goto bail;
+	use_ssl = 1;
+      }
+#endif
+
       /* read the greeting string */
       if (buffer_gets (imap->buf, &rsp))
       {
@@ -692,6 +727,7 @@ imap_connect (config_t * cfg)
         fprintf (stderr, "IMAP error: invalid greeting response\n");
 	goto bail;
       }
+      preauth = 0;
       if (!strcmp ("PREAUTH", arg))
         preauth = 1;
       else if (strcmp ("OK", arg) != 0)
@@ -699,16 +735,13 @@ imap_connect (config_t * cfg)
         fprintf (stderr, "IMAP error: unknown greeting response\n");
 	goto bail;
       }
+      /* let's see what this puppy can do... */
+      if (imap_exec (imap, "CAPABILITY"))
+	goto bail;
 
 #if HAVE_LIBSSL
-      if (cfg->use_imaps)
-	use_ssl = 1;
-      else
+      if (!cfg->use_imaps)
       {
-	/* let's see what this puppy can do... */
-	if (imap_exec (imap, "CAPABILITY"))
-	  goto bail;
-
 	if (cfg->use_sslv2 || cfg->use_sslv3 || cfg->use_tlsv1)
 	{
 	  /* always try to select SSL support if available */
@@ -716,56 +749,32 @@ imap_connect (config_t * cfg)
 	  {
 	    if (imap_exec (imap, "STARTTLS"))
 	      goto bail;
+	    if (start_tls (imap, cfg))
+	      goto bail;
 	    use_ssl = 1;
+
+	    /* to conform to RFC2595 we need to forget all information
+	     * retrieved from CAPABILITY invocations before STARTTLS.
+	     */
+	    imap->have_uidplus = 0;
+	    imap->have_namespace = 0;
+	    imap->have_cram = 0;
+	    /* imap->have_starttls = 0; */
+	    if (imap_exec (imap, "CAPABILITY"))
+	      goto bail;
+	  }
+	  else
+	  {
+	    if (cfg->require_ssl)
+	    {
+	      fprintf (stderr, "IMAP error: SSL support not available\n");
+	      goto bail;
+	    }
+	    else
+	      fprintf (stderr, "IMAP warning: SSL support not available\n");
 	  }
 	}
       }
-
-      if (!use_ssl)
-      {
-	if (cfg->require_ssl)
-	{
-	  fprintf (stderr, "IMAP error: SSL support not available\n");
-	  goto bail;
-	}
-	else if (cfg->use_sslv2 || cfg->use_sslv3 || cfg->use_tlsv1)
-	  fprintf (stderr, "IMAP warning: SSL support not available\n");
-      }
-      else
-      {
-	/* initialize SSL */
-	if (init_ssl (cfg))
-	  goto bail;
-
-	imap->sock->ssl = SSL_new (SSLContext);
-	SSL_set_fd (imap->sock->ssl, imap->sock->fd);
-	if ((ret = SSL_connect (imap->sock->ssl)) <= 0)
-	{
-	  socket_perror ("connect", imap->sock, ret);
-	  goto bail;
-	}
-
-	/* verify the server certificate */
-	if (verify_cert (imap->sock->ssl))
-	  goto bail;
-
-	/* to conform to RFC2595 we need to forget all information
-	 * retrieved from CAPABILITY invocations before STARTTLS.
-	 */
-	imap->have_uidplus = 0;
-	imap->have_namespace = 0;
-	imap->have_cram = 0;
-	imap->have_starttls = 0;
-
-	imap->sock->use_ssl = 1;
-	puts ("SSL support enabled");
-
-	if (imap_exec (imap, "CAPABILITY"))
-	  goto bail;
-      }
-#else
-      if (imap_exec (imap, "CAPABILITY"))
-	goto bail;
 #endif
 
       if (!preauth)
