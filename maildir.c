@@ -278,7 +278,6 @@ maildir_open (const char *path, int flags)
 	    /* determine the UID for this message.  The basename (sans
 	     * flags) is used as the key in the db
 	     */
-	    strfcpy (buf, p->file, sizeof (buf));
 	    key.dptr = p->file;
 	    s = strchr (key.dptr, ':');
 	    key.dsize = s ? (size_t) (s - key.dptr) : strlen (key.dptr);

@@ -220,7 +220,17 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		      (cur->flags & D_DELETED) ? "T" : "");
 
 	    if (rename (path, newpath))
+	    {
 		perror ("rename");
+		return -1;
+	    }
+	    else
+	    {
+		    /* update the filename in the msg struct */
+		    p=strrchr(newpath,'/');
+		    free(cur->file);
+		    cur->file=strdup(p+1);
+	    }
 	}
     }
 
