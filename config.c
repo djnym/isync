@@ -237,6 +237,13 @@ load_config (const char *where)
 	    else
 		global.expunge = (strcasecmp (val, "yes") == 0);
 	}
+	else if (!strcasecmp ("Delete", cmd))
+	{
+	    if (*cur)
+		(*cur)->delete = (strcasecmp (val, "yes") == 0);
+	    else
+		global.delete = (strcasecmp (val, "yes") == 0);
+	}
 #if 0
 	else if (!strcasecmp ("Poll", cmd))
 	{
