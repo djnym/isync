@@ -24,13 +24,15 @@
 /*
  * this file contains routines to establish a mutex using a `dotlock' file
  */
+
+#include "dotlock.h"
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #if TESTING
 #include <stdio.h>
 #endif
-#include "dotlock.h"
 
 static struct flock lck = { 0, SEEK_SET, 0, 0, 0 };
 

@@ -22,6 +22,8 @@
  * despite that library's more restrictive license.
  */
 
+#include "isync.h"
+
 #include <sys/types.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,7 +35,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <dirent.h>
-#include "isync.h"
 
 int Quiet;
 

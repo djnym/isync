@@ -22,12 +22,15 @@
  * despite that library's more restrictive license.
  */
 
+#include "isync.h"
+
 #include <assert.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
@@ -36,9 +39,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #if HAVE_LIBSSL
-#include <openssl/err.h>
+# include <openssl/err.h>
 #endif
-#include "isync.h"
 
 const char *Flags[] = {
     "\\Seen",
@@ -594,6 +596,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     /* not reached */
 }
 
+#ifdef HAVE_LIBSSL
 static int
 start_tls (imap_t *imap, config_t * cfg)
 {
@@ -619,6 +622,7 @@ start_tls (imap_t *imap, config_t * cfg)
 	puts ("SSL support enabled");
 	return 0;
 }
+#endif
 
 imap_t *
 imap_connect (config_t * cfg)

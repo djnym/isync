@@ -1,6 +1,6 @@
 SUBDIRS = debian src
 man_MANS = isync.1
-EXTRA_DIST = isyncrc.sample isync.spec.in $(man_MANS)
+EXTRA_DIST = isyncrc.sample isync.spec $(man_MANS)
 DISTCLEANFILES = *~ build-stamp configure-stamp
 
 log:

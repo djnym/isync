@@ -21,11 +21,13 @@
  * despite that library's more restrictive license.
  */
 
-#include <assert.h>
-#include "isync.h"
+#include <config.h>
 
 #if HAVE_LIBSSL
 
+#include "isync.h"
+
+#include <assert.h>
 #include <string.h>
 #include <openssl/hmac.h>
 

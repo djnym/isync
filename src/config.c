@@ -22,6 +22,8 @@
  * despite that library's more restrictive license.
  */
 
+#include "isync.h"
+
 #include <unistd.h>
 #include <limits.h>
 #include <errno.h>
@@ -30,7 +32,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "isync.h"
 
 config_t *boxes = 0;
 
@@ -45,8 +46,11 @@ static char *
 my_strndup (const char *s, size_t nchars)
 {
     char *r = malloc (sizeof (char) * (nchars + 1));
-    strncpy (r, s, nchars);
-    r[nchars] = 0;
+    if (r)
+    {
+	memcpy (r, s, nchars);
+	r[nchars] = 0;
+    }
     return r;
 }
 

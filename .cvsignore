@@ -3,9 +3,13 @@ Makefile.in
 autom4te.cache
 aclocal.m4
 build-stamp
+config.h
+config.h.in
 config.cache
 config.log
 config.status
 configure
+configure.lineno
 configure-stamp
 isync.spec
+stamp-h1

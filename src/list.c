@@ -21,10 +21,11 @@
  * despite that library's more restrictive license.
  */
 
+#include "isync.h"
+
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include "isync.h"
 
 static char *
 skip_string (char *s)

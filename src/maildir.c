@@ -22,6 +22,9 @@
  * despite that library's more restrictive license.
  */
 
+#include "isync.h"
+#include "dotlock.h"
+
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,8 +35,6 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <time.h>
-#include "isync.h"
-#include "dotlock.h"
 
 /* 2,<flags> */
 static void

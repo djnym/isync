@@ -22,6 +22,10 @@
  * despite that library's more restrictive license.
  */
 
+#include <config.h>
+
+#include <sys/types.h>
+
 #if HAVE_LIBDB
 # define DB_DBM_HSEARCH 1
 # include <db.h>
@@ -29,8 +33,6 @@
 # include <ndbm.h>
 #endif
 
-#include <sys/types.h>
-#include <stdarg.h>
 #if HAVE_LIBSSL
 # include <openssl/ssl.h>
 #endif
@@ -47,9 +49,9 @@ typedef struct
 typedef struct
 {
     Socket_t *sock;
-    char buf[1024];
     int bytes;
     int offset;
+    char buf[1024];
 }
 buffer_t;
 

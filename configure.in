@@ -1,24 +1,37 @@
 AC_INIT(src/isync.h)
-AM_INIT_AUTOMAKE(isync,0.9)
+AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE(isync, 0.9.1)
 
 AM_PROG_CC_STDC
 if test "$GCC" = yes; then
-	CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"
+    CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"
 fi
 
-AC_ARG_WITH(ssl-dir, [  --with-ssl-dir=DIR	location where OpenSSL is installed],
-	[if test -d $withval/lib; then
-		LIBS="$LIBS -L$withval/lib"
-		CFLAGS="$CFLAGS -I$withval/include"
-	else
-		AC_MSG_ERROR(can't find OpenSSL in $withval)
-	fi])
-
 AC_CHECK_FUNCS(getopt_long)
-AC_CHECK_LIB(socket,socket)
-AC_CHECK_LIB(nsl,inet_ntoa)
-AC_CHECK_LIB(crypto,ERR_error_string)
-AC_CHECK_LIB(ssl,SSL_library_init)
+
+AC_CHECK_LIB(socket, socket)
+AC_CHECK_LIB(nsl, inet_ntoa)
+
+ssl=false
+AC_ARG_WITH(ssl,
+  [  --with-ssl=DIR	yes/no/OpenSSL installation root [detect]],
+  [ob_cv_with_ssl=$withval])
+if test "x$ob_cv_with_ssl" != xno; then
+    if test -d "$ob_cv_with_ssl/lib"; then
+	CPFLAGS="$CPPFLAGS -I$ob_cv_with_ssl/include"
+	LDFLAGS="$LDFLAGS -L$ob_cv_with_ssl/lib"
+    fi
+    AC_CHECK_LIB(crypto, ERR_error_string, [cryptolib=" -lcrypto"])
+    AC_CHECK_LIB(ssl, SSL_library_init, [
+	LIBS="-lssl$cryptolib $LIBS"
+	AC_DEFINE(HAVE_LIBSSL, 1, [Define if you want SSL support])
+	ssl=true
+      ],[
+	if test -n "$ob_cv_with_ssl"; then
+	    AC_MSG_ERROR([can't find OpenSSL])
+	fi
+      ])
+fi
 
 AC_CACHE_CHECK(for dbm_open, ac_cv_dbmopen,
 	[ac_cv_dbmopen=no
@@ -37,10 +50,20 @@ if test $ac_cv_dbmopen = no; then
 
 	if test $ac_cv_libdb = yes; then
 		LIBS="$LIBS -ldb"
-		AC_DEFINE(HAVE_LIBDB)
+		AC_DEFINE(HAVE_LIBDB, 1, [Define if you have libdb])
 	else
 		AC_MSG_ERROR([Could not find dbm_open(), you must install libdb])
 	fi
 fi
 
 AC_OUTPUT(Makefile src/Makefile debian/Makefile isync.spec)
+
+if $ssl; then
+    AC_MSG_RESULT([
+Using SSL
+])
+else
+    AC_MSG_RESULT([
+Not using SSL
+])
+fi
