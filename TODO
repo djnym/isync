@@ -9,8 +9,8 @@ add option to suppress upload of messages (but not deletion).
 
 add support for syncing with other: and shared: via NAMESPACE
 
-isync gets confused when new mail is delivered while in the middle of an
-IMAP session.  need to handled those asynchronous notifications properly.
+isync ignores asynchronous notifications (untagged responses), so mail 
+arriving during a fetch will not be fetched in the current run any more.
 
 add a way to automatically create and sync IMAP subfolders.
 
