@@ -1,3 +1,27 @@
+2001-11-20  me  <me@sigpipe.org>
+
+	* Makefile.am, NEWS, isync.1, isync.h, maildir.c, main.c:
+	added --create/-C command line option to force creation of the local
+	maildir-style mailbox if nonexistent
+
+	debug.h was not included in isync_SOURCES in Makefile.am
+
+2001-11-19  me  <me@sigpipe.org>
+
+	* config.c, configure.in, debug.c, debug.h, isync.h, list.c, main.c, Makefile.am, TODO:
+	added memory debugging code
+
+	fixed memory leak in free_list()
+
+	free memory associated with global settings on exit
+
+2001-11-16  me  <me@sigpipe.org>
+
+	* isync.h, sync.c, ChangeLog, cram.c, imap.c:
+	remove c++ style comments
+
+	use %lu and cast off_t to unsigned long in printf()
+
 2001-11-15  me  <me@sigpipe.org>
 
 	* NEWS, config.c, isync.1, isync.h, main.c, sync.c:

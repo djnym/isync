@@ -16,5 +16,5 @@ isync.html: isync.1
 
 rpm:
 	make dist
-	cp isync-$(VERSION).tar.gz /usr/src/RPM/SOURCES
+	cp isync-$(VERSION).tar.gz /usr/src/rpm/SOURCES
 	rpm -ba --target=i586 --clean isync.spec
