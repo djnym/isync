@@ -218,8 +218,7 @@ main (int argc, char **argv)
 
     load_config (config);
 
-    for (box = boxes; (all && box) || (!all && argv[optind]);
-	 box = box->next, optind++)
+    for (box = boxes; (all && box) || (!all && argv[optind]); optind++)
     {
 	if (!all)
 	{
@@ -261,7 +260,7 @@ main (int argc, char **argv)
 	if (!mail)
 	{
 	    fprintf (stderr, "%s: unable to load mailbox\n", box->path);
-	    continue;
+	    goto cleanup;
 	}
 
 	imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap);
@@ -269,7 +268,7 @@ main (int argc, char **argv)
 	{
 	    fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",
 		     box->path);
-	    continue;
+	    goto cleanup;
 	}
 
 	if (!quiet)
@@ -313,6 +312,10 @@ main (int argc, char **argv)
 	}
 
 	maildir_close (mail);
+
+cleanup:
+	if (all)
+	    box = box->next;
     }
 
     /* gracefully close connection to the IMAP server */
