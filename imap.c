@@ -44,7 +44,64 @@ const char *Flags[] = {
 };
 
 #if HAVE_LIBSSL
+
+#define MAX_DEPTH 1
+
 SSL_CTX *SSLContext = 0;
+
+/* this gets called when a certificate is to be verified */
+static int
+verify_cert (SSL * ssl)
+{
+    X509 *cert;
+    int err;
+    char buf[256];
+    int ret = -1;
+    BIO *bio;
+
+    cert = SSL_get_peer_certificate (ssl);
+    if (!cert)
+    {
+	puts ("Error, no server certificate");
+	return -1;
+    }
+
+    err = SSL_get_verify_result (ssl);
+    if (err == X509_V_OK)
+	return 0;
+
+    printf ("Error, can't verify certificate: %s (%d)\n",
+	    X509_verify_cert_error_string (err), err);
+
+    X509_NAME_oneline (X509_get_subject_name (cert), buf, sizeof (buf));
+    printf ("\nSubject: %s\n", buf);
+    X509_NAME_oneline (X509_get_issuer_name (cert), buf, sizeof (buf));
+    printf ("Issuer:  %s\n", buf);
+    bio = BIO_new (BIO_s_mem ());
+    ASN1_TIME_print (bio, X509_get_notBefore (cert));
+    memset (buf, 0, sizeof (buf));
+    BIO_read (bio, buf, sizeof (buf) - 1);
+    printf ("Valid from: %s\n", buf);
+    ASN1_TIME_print (bio, X509_get_notAfter (cert));
+    memset (buf, 0, sizeof (buf));
+    BIO_read (bio, buf, sizeof (buf) - 1);
+    BIO_free (bio);
+    printf ("      to:   %s\n", buf);
+
+    printf
+	("\n*** WARNING ***  There is no way to verify this certificate.  It is\n"
+	 "                 possible that a hostile attacker has replaced the\n"
+	 "                 server certificate.  Continue at your own risk!\n");
+    printf ("\nAccept this certificate anyway? [no]: ");
+    fflush (stdout);
+    if (fgets (buf, sizeof (buf), stdin) && (buf[0] == 'y' || buf[0] == 'Y'))
+    {
+	ret = 0;
+	puts ("\n*** Fine, but don't say I didn't warn you!\n");
+    }
+    return ret;
+
+}
 
 static int
 init_ssl (config_t * conf)
@@ -57,21 +114,29 @@ init_ssl (config_t * conf)
     SSL_library_init ();
     SSL_load_error_strings ();
     SSLContext = SSL_CTX_new (SSLv23_client_method ());
-    if (!SSL_CTX_load_verify_locations (SSLContext, conf->cert_file, NULL))
+    if (access (conf->cert_file, F_OK))
+    {
+	if (errno != ENOENT)
+	{
+	    perror ("access");
+	    return -1;
+	}
+	puts
+	    ("*** Warning, CertificateFile doesn't exist, can't verify server certificates");
+    }
+    else
+	if (!SSL_CTX_load_verify_locations
+	    (SSLContext, conf->cert_file, NULL))
     {
 	printf ("Error, SSL_CTX_load_verify_locations: %s\n",
 		ERR_error_string (ERR_get_error (), 0));
 	return -1;
     }
-    SSL_CTX_set_verify (SSLContext,
-			SSL_VERIFY_PEER |
-			SSL_VERIFY_FAIL_IF_NO_PEER_CERT |
-			SSL_VERIFY_CLIENT_ONCE, NULL);
-    SSL_CTX_set_verify_depth (SSLContext, 1);
+    /* we check the result of the verification after SSL_connect() */
+    SSL_CTX_set_verify (SSLContext, SSL_VERIFY_NONE, 0);
     return 0;
 }
-
-#endif
+#endif /* HAVE_LIBSSL */
 
 static int
 socket_read (Socket_t * sock, char *buf, size_t len)
@@ -446,6 +511,11 @@ imap_open (config_t * box, unsigned int minuid)
 	    printf ("Error, SSL_connect: %s\n", ERR_error_string (ret, 0));
 	    return 0;
 	}
+
+	/* verify the server certificate */
+	if (verify_cert (imap->sock->ssl))
+	    return 0;
+
 	imap->sock->use_ssl = 1;
 	puts ("SSL support enabled");
     }
@@ -484,7 +554,7 @@ imap_open (config_t * box, unsigned int minuid)
 	if (imap->count > 0)
 	{
 	    ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
-		    imap->minuid);
+			     imap->minuid);
 	}
     }
 

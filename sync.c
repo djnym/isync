@@ -51,7 +51,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
     int fd;
     int ret;
 
-    if (mbox->uidvalidity != (unsigned int) -1)
+    if (mbox->uidvalidity > 0)
     {
 	if (mbox->uidvalidity != imap->uidvalidity)
 	{
@@ -68,7 +68,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 	return -1;
     }
 
-    if (mbox->maxuid == (unsigned int) -1 || imap->maxuid > mbox->maxuid)
+    if (mbox->maxuid == 0 || imap->maxuid > mbox->maxuid)
     {
 	mbox->maxuid = imap->maxuid;
 	mbox->maxuidchanged = 1;
