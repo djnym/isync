@@ -1,4 +1,33 @@
+2002-01-28  me  <me@sigpipe.org>
+
+	* TODO, configure.in:
+	check for dbm_open() in libc and libdb
+
+2002-01-17  me  <me@sigpipe.org>
+
+	* sync.c:
+	don't bother renaming the message file if we are about to unlink() it
+
 2002-01-16  me  <me@sigpipe.org>
+
+	* AUTHORS, Makefile.am, NEWS, sync.c:
+	remove tilde backup files for distclean
+
+	fixed indentation
+
+	added full name to AUTHORS
+
+	reformated NEWS blurb for 0.8
+
+	* sync.c, maildir.c:
+	sync_mailbox() did not update the msg struct when flags were changed,
+	causing the expunge command to fail
+
+	remove bogus strfcpy() line
+
+	* ChangeLog, Makefile.am, configure.in, debian/Makefile.am:
+	added debian build files dist target so that people can use them to build
+	their own .deb packages without having to use CVS
 
 	* debian/changelog, debian/control, debian/copyright, debian/dirs, debian/docs, debian/files, debian/rules, isync.1, maildir.c, sync.c:
 	added debian build files
