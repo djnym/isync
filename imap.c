@@ -619,7 +619,10 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 	    {
 		/* initialize SSL */
 		if (init_ssl (box))
-		    return 0;
+		{
+		    ret = -1;
+		    break;
+		}
 
 		imap->sock->ssl = SSL_new (SSLContext);
 		SSL_set_fd (imap->sock->ssl, imap->sock->fd);
@@ -714,10 +717,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 
     if (ret)
     {
-	imap_exec (imap, "LOGOUT");
-	close (s);
-	free (imap->buf);
-	free (imap);
+	imap_close (imap);
 	imap = 0;
     }
 
