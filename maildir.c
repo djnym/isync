@@ -98,7 +98,7 @@ read_uid (const char *path, const char *file)
 	    perror ("open");
 	    return -1;
 	}
-	return 0;	/* doesn't exist */
+	return 0;		/* doesn't exist */
     }
     ret = do_lock (fd, F_RDLCK);
     if (!ret)
@@ -409,4 +409,13 @@ maildir_set_uidvalidity (mailbox_t * mbox, unsigned int uidvalidity)
 	    perror ("unlink");
 
     return (ret);
+}
+
+void
+maildir_close (mailbox_t * mbox)
+{
+    free (mbox->path);
+    free_message (mbox->msgs);
+    memset (mbox, 0xff, sizeof (mailbox_t));
+    free (mbox);
 }

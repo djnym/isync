@@ -49,6 +49,21 @@ const char *Flags[] = {
 
 SSL_CTX *SSLContext = 0;
 
+void
+free_message (message_t * msg)
+{
+    message_t *tmp;
+
+    while (msg)
+    {
+	tmp = msg;
+	msg = msg->next;
+	if (tmp->file)
+	    free (tmp->file);
+	free (tmp);
+    }
+}
+
 /* this gets called when a certificate is to be verified */
 static int
 verify_cert (SSL * ssl)
@@ -100,7 +115,6 @@ verify_cert (SSL * ssl)
 	puts ("\n*** Fine, but don't say I didn't warn you!\n");
     }
     return ret;
-
 }
 
 static int
@@ -304,15 +318,6 @@ parse_fetch (imap_t * imap, list_t * list)
 	}
     }
 
-#if 0
-    if (uid == 221)
-    {
-	int loop = 1;
-
-	while (loop);
-    }
-#endif
-
     cur = calloc (1, sizeof (message_t));
     cur->next = imap->msgs;
     imap->msgs = cur;
@@ -485,161 +490,227 @@ imap_exec (imap_t * imap, const char *fmt, ...)
  * mailbox.
  */
 imap_t *
-imap_open (config_t * box, unsigned int minuid)
+imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 {
     int ret;
-    imap_t *imap;
     int s;
     struct sockaddr_in sin;
     struct hostent *he;
     char *ns_prefix = "";
+    int reuse = 0;
 #if HAVE_LIBSSL
     int use_ssl = 0;
 #endif
 
+    if (imap)
+    {
+	/* determine whether or not we can reuse the existing session */
+	if (strcmp (box->host, imap->box->host) ||
+	    strcmp (box->user, imap->box->user) ||
+	    box->port != imap->box->port
 #if HAVE_LIBSSL
-    /* initialize SSL */
-    if (init_ssl (box))
-	return 0;
+	    /* ensure that security requirements are met */
+	    || (box->require_ssl ^ imap->box->require_ssl)
+	    || (box->require_cram ^ imap->box->require_cram)
 #endif
-
-    /* open connection to IMAP server */
-
-    memset (&sin, 0, sizeof (sin));
-    sin.sin_port = htons (box->port);
-    sin.sin_family = AF_INET;
-
-    printf ("Resolving %s... ", box->host);
-    fflush (stdout);
-    he = gethostbyname (box->host);
-    if (!he)
-    {
-	perror ("gethostbyname");
-	return 0;
+	    )
+	{
+	    /* can't reuse */
+	    imap_close (imap);
+	    imap = 0;
+	}
+	else
+	{
+	    reuse = 1;
+	    /* reset mailbox-specific state info */
+	    imap->recent = 0;
+	    imap->deleted = 0;
+	    imap->count = 0;
+	    imap->maxuid = 0;
+	    free_message (imap->msgs);
+	    imap->msgs = 0;
+	}
     }
-    puts ("ok");
 
-    sin.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
-
-    s = socket (PF_INET, SOCK_STREAM, 0);
-
-    printf ("Connecting to %s:%hu... ", inet_ntoa (sin.sin_addr),
-	    ntohs (sin.sin_port));
-    fflush (stdout);
-    if (connect (s, (struct sockaddr *) &sin, sizeof (sin)))
+    if (!imap)
     {
-	perror ("connect");
-	exit (1);
+	imap = calloc (1, sizeof (imap_t));
+	imap->sock = calloc (1, sizeof (Socket_t));
+	imap->buf = calloc (1, sizeof (buffer_t));
+	imap->buf->sock = imap->sock;
     }
-    puts ("ok");
 
-    imap = calloc (1, sizeof (imap_t));
-    imap->sock = calloc (1, sizeof (Socket_t));
-    imap->sock->fd = s;
-    imap->buf = calloc (1, sizeof (buffer_t));
-    imap->buf->sock = imap->sock;
     imap->box = box;
     imap->minuid = minuid;
 
-#if HAVE_LIBSSL
-    if (!box->use_imaps)
+    if (!reuse)
     {
-	/* let's see what this puppy can do... */
-	ret = imap_exec (imap, "CAPABILITY");
+	/* open connection to IMAP server */
 
-	/* always try to select SSL support if available */
-	if (imap->have_starttls && !imap_exec (imap, "STARTTLS"))
-	    use_ssl = 1;
+	memset (&sin, 0, sizeof (sin));
+	sin.sin_port = htons (box->port);
+	sin.sin_family = AF_INET;
 
-	if (!use_ssl)
+	printf ("Resolving %s... ", box->host);
+	fflush (stdout);
+	he = gethostbyname (box->host);
+	if (!he)
 	{
-	    if (box->require_ssl)
+	    perror ("gethostbyname");
+	    return 0;
+	}
+	puts ("ok");
+
+	sin.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
+
+	s = socket (PF_INET, SOCK_STREAM, 0);
+
+	printf ("Connecting to %s:%hu... ", inet_ntoa (sin.sin_addr),
+		ntohs (sin.sin_port));
+	fflush (stdout);
+	if (connect (s, (struct sockaddr *) &sin, sizeof (sin)))
+	{
+	    perror ("connect");
+	    exit (1);
+	}
+	puts ("ok");
+
+	imap->sock->fd = s;
+    }
+
+    do
+    {
+	/* if we are reusing the existing connection, we can skip the
+	 * authentication steps.
+	 */
+	if (!reuse)
+	{
+#if HAVE_LIBSSL
+	    if (!box->use_imaps)
 	    {
-		puts ("Error, SSL support not available");
-		return 0;
+		/* let's see what this puppy can do... */
+		if ((ret = imap_exec (imap, "CAPABILITY")))
+		    break;
+
+		/* always try to select SSL support if available */
+		if (imap->have_starttls)
+		{
+		    if ((ret = imap_exec (imap, "STARTTLS")))
+			break;
+		    use_ssl = 1;
+		}
+
+		if (!use_ssl)
+		{
+		    if (box->require_ssl)
+		    {
+			puts ("Error, SSL support not available");
+			ret = -1;
+			break;
+		    }
+		    else
+			puts ("Warning, SSL support not available");
+		}
 	    }
 	    else
-		puts ("Warning, SSL support not available");
-	}
-    }
-    else
-	use_ssl = 1;
+		use_ssl = 1;
 
-    if (use_ssl)
-    {
-	imap->sock->ssl = SSL_new (SSLContext);
-	SSL_set_fd (imap->sock->ssl, imap->sock->fd);
-	ret = SSL_connect (imap->sock->ssl);
-	if (ret <= 0)
-	{
-	    ret = SSL_get_error (imap->sock->ssl, ret);
-	    printf ("Error, SSL_connect: %s\n", ERR_error_string (ret, 0));
-	    return 0;
-	}
+	    if (use_ssl)
+	    {
+		/* initialize SSL */
+		if (init_ssl (box))
+		    return 0;
 
-	/* verify the server certificate */
-	if (verify_cert (imap->sock->ssl))
-	    return 0;
+		imap->sock->ssl = SSL_new (SSLContext);
+		SSL_set_fd (imap->sock->ssl, imap->sock->fd);
+		ret = SSL_connect (imap->sock->ssl);
+		if (ret <= 0)
+		{
+		    ret = SSL_get_error (imap->sock->ssl, ret);
+		    printf ("Error, SSL_connect: %s\n",
+			    ERR_error_string (ret, 0));
+		    ret = -1;
+		    break;
+		}
 
-	imap->sock->use_ssl = 1;
-	puts ("SSL support enabled");
+		/* verify the server certificate */
+		if ((ret = verify_cert (imap->sock->ssl)))
+		    break;
 
-	if (box->use_imaps)
-	    ret = imap_exec (imap, "CAPABILITY");
-    }
+		imap->sock->use_ssl = 1;
+		puts ("SSL support enabled");
+
+		if (box->use_imaps)
+		    if ((ret = imap_exec (imap, "CAPABILITY")))
+			break;
+	    }
 #else
-    ret = imap_exec (imap, "CAPABILITY");
+	    if ((ret = imap_exec (imap, "CAPABILITY")))
+		break;
 #endif
 
-    puts ("Logging in...");
+	    puts ("Logging in...");
 #if HAVE_LIBSSL
-    if (imap->have_cram)
-    {
-	puts ("Authenticating with CRAM-MD5");
-	imap->cram = 1;
-	ret = imap_exec (imap, "AUTHENTICATE CRAM-MD5");
-    }
-    else
+	    if (imap->have_cram)
+	    {
+		puts ("Authenticating with CRAM-MD5");
+		imap->cram = 1;
+		if ((ret = imap_exec (imap, "AUTHENTICATE CRAM-MD5")))
+		    break;
+	    }
+	    else if (imap->box->require_cram)
+	    {
+		puts
+		    ("Error, CRAM-MD5 authentication is not supported by server");
+		ret = -1;
+		break;
+	    }
+	    else
 #endif
-    {
+	    {
 #if HAVE_LIBSSL
-	if (!use_ssl)
+		if (!use_ssl)
 #endif
-	    puts ("*** Warning *** Password is being sent in the clear");
-	ret = imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user, box->pass);
-    }
+		    puts
+			("*** Warning *** Password is being sent in the clear");
+		if (
+		    (ret =
+		     imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user,
+				box->pass)))
+		    break;
+	    }
 
-    /* get NAMESPACE info */
-    if (!ret && box->use_namespace && imap->have_namespace &&
-	    !imap_exec (imap, "NAMESPACE"))
-    {
+	    /* get NAMESPACE info */
+	    if (box->use_namespace && imap->have_namespace)
+	    {
+		if ((ret = imap_exec (imap, "NAMESPACE")))
+		    break;
+	    }
+	}			/* !reuse */
+
 	/* XXX for now assume personal namespace */
-	if (is_list (imap->ns_personal) &&
-		is_list (imap->ns_personal->child) &&
-		is_atom (imap->ns_personal->child->child))
+	if (imap->box->use_namespace && is_list (imap->ns_personal) &&
+	    is_list (imap->ns_personal->child) &&
+	    is_atom (imap->ns_personal->child->child))
 	{
 	    ns_prefix = imap->ns_personal->child->child->val;
 	}
-    }
 
-    if (!ret)
-    {
 	fputs ("Selecting mailbox... ", stdout);
 	fflush (stdout);
-	ret = imap_exec (imap, "SELECT %s%s", ns_prefix, box->box);
-	if (!ret)
-	    printf ("%d messages, %d recent\n", imap->count, imap->recent);
-    }
+	if ((ret = imap_exec (imap, "SELECT %s%s", ns_prefix, box->box)))
+	    break;
+	printf ("%d messages, %d recent\n", imap->count, imap->recent);
 
-    if (!ret)
-    {
 	puts ("Reading IMAP mailbox index");
 	if (imap->count > 0)
 	{
-	    ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
-			     imap->minuid);
+	    if ((ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
+				  imap->minuid)))
+		break;
 	}
     }
+    while (0);
 
     if (ret)
     {
@@ -658,6 +729,12 @@ imap_close (imap_t * imap)
 {
     puts ("Closing IMAP connection");
     imap_exec (imap, "LOGOUT");
+    close (imap->sock->fd);
+    free (imap->sock);
+    free (imap->buf);
+    free_message (imap->msgs);
+    memset (imap, 0xff, sizeof (imap_t));
+    free (imap);
 }
 
 /* write a buffer stripping all \r bytes */

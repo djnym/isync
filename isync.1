@@ -16,7 +16,7 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ..
-.TH isync 1 "2000 Dec 21"
+.TH isync 1 "2000 Dec 27"
 ..
 .SH NAME
 isync - synchronize IMAP4 and maildir mailboxes
@@ -26,7 +26,10 @@ isync - synchronize IMAP4 and maildir mailboxes
 [
 .I options...
 ]
-.I file
+.I mailbox
+[
+.I mailbox ...
+]
 ..
 .SH DESCRIPTION
 .B isync
@@ -171,6 +174,15 @@ This is useful with broken IMAP servers. (Default:
 )
 ..
 .TP
+\fBRequireCRAM\fR \fIyes|no\fR
+If set to
+.I yes
+,
+.B isync
+will require that the server accept CRAM-MD5 intead of PLAIN to authenticate
+the user.
+..
+.TP
 \fBRequireSSL\fR \fIyes|no\fR
 .B isync
 will abort the connection if a TLS/SSL session to the IMAP
@@ -236,6 +248,10 @@ relies on using the message UIDs that info must be inserted into the
 filename in a way which will be interoperable with existing readers.  So
 the UID is placed in the filename of the messages in the local maildir
 mailbox rather than the :info field.
+.P
+When synchronizing multiple mailboxes on the same IMAP server, it is not
+possible to select different SSL options for each mailbox.  Only the options
+from the first mailbox are applied since the SSL session is reused.
 .SH SEE ALSO
 mutt(1), maildir(5)
 .P

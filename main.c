@@ -66,7 +66,7 @@ usage (void)
 {
     printf ("%s %s IMAP4 to maildir synchronizer\n", PACKAGE, VERSION);
     puts ("Copyright (C) 2000 Michael R. Elkins <me@mutt.org>");
-    printf ("usage: %s [ flags ] mailbox\n", PACKAGE);
+    printf ("usage: %s [ flags ] mailbox [mailbox ...]\n", PACKAGE);
     puts
 	("  -c, --config CONFIG	read an alternate config file (default: ~/.isyncrc)");
     puts
@@ -113,7 +113,7 @@ load_config (char *where)
     char buf[1024];
     struct passwd *pw;
     config_t **cur = &box;
-    char *p;
+    char *p, *q;
     int line = 0;
     FILE *fp;
 
@@ -138,15 +138,12 @@ load_config (char *where)
     {
 	if (buf[0])
 	    buf[strlen (buf) - 1] = 0;
-	line++;
-	if (buf[0] == '#')
-	    continue;
 	p = buf;
-	while (*p && !isspace ((unsigned char) *p))
-	    p++;
-	while (isspace ((unsigned char) *p))
-	    p++;
-	if (!strncasecmp ("mailbox", buf, 7))
+	q = next_arg (&p);
+	line++;
+	if (!q || *q == '#')
+	    continue;
+	if (!strncasecmp ("mailbox", q, 7))
 	{
 	    if (*cur)
 		cur = &(*cur)->next;
@@ -154,7 +151,7 @@ load_config (char *where)
 	    config_defaults (*cur);
 	    (*cur)->path = strdup (p);
 	}
-	else if (!strncasecmp ("host", buf, 4))
+	else if (!strncasecmp ("host", q, 4))
 	{
 #if HAVE_LIBSSL
 	    if (!strncasecmp ("imaps:", p, 6))
@@ -177,47 +174,47 @@ load_config (char *where)
 	    else
 		global.host = strdup (p);
 	}
-	else if (!strncasecmp ("user", buf, 4))
+	else if (!strncasecmp ("user", q, 4))
 	{
 	    if (*cur)
 		(*cur)->user = strdup (p);
 	    else
 		global.user = strdup (p);
 	}
-	else if (!strncasecmp ("pass", buf, 4))
+	else if (!strncasecmp ("pass", q, 4))
 	{
 	    if (*cur)
 		(*cur)->pass = strdup (p);
 	    else
 		global.pass = strdup (p);
 	}
-	else if (!strncasecmp ("port", buf, 4))
+	else if (!strncasecmp ("port", q, 4))
 	{
 	    if (*cur)
 		(*cur)->port = atoi (p);
 	    else
 		global.port = atoi (p);
 	}
-	else if (!strncasecmp ("box", buf, 3))
+	else if (!strncasecmp ("box", q, 3))
 	{
 	    if (*cur)
 		(*cur)->box = strdup (p);
 	    else
 		global.box = strdup (p);
 	}
-	else if (!strncasecmp ("alias", buf, 5))
+	else if (!strncasecmp ("alias", q, 5))
 	{
 	    if (*cur)
 		(*cur)->alias = strdup (p);
 	}
-	else if (!strncasecmp ("maxsize", buf, 7))
+	else if (!strncasecmp ("maxsize", q, 7))
 	{
 	    if (*cur)
 		(*cur)->max_size = atol (p);
 	    else
 		global.max_size = atol (p);
 	}
-	else if (!strncasecmp ("UseNamespace", buf, 12))
+	else if (!strncasecmp ("UseNamespace", q, 12))
 	{
 	    if (*cur)
 		(*cur)->use_namespace = (strcasecmp (p, "yes") == 0);
@@ -225,44 +222,51 @@ load_config (char *where)
 		global.use_namespace = (strcasecmp (p, "yes") == 0);
 	}
 #if HAVE_LIBSSL
-	else if (!strncasecmp ("CertificateFile", buf, 15))
+	else if (!strncasecmp ("CertificateFile", q, 15))
 	{
 	    if (*cur)
 		(*cur)->cert_file = strdup (p);
 	    else
 		global.cert_file = strdup (p);
 	}
-	else if (!strncasecmp ("RequireSSL", buf, 10))
+	else if (!strncasecmp ("RequireSSL", q, 10))
 	{
 	    if (*cur)
 		(*cur)->require_ssl = (strcasecmp (p, "yes") == 0);
 	    else
 		global.require_ssl = (strcasecmp (p, "yes") == 0);
 	}
-	else if (!strncasecmp ("UseSSLv2", buf, 8))
+	else if (!strncasecmp ("UseSSLv2", q, 8))
 	{
 	    if (*cur)
 		(*cur)->use_sslv2 = (strcasecmp (p, "yes") == 0);
 	    else
 		global.use_sslv2 = (strcasecmp (p, "yes") == 0);
 	}
-	else if (!strncasecmp ("UseSSLv3", buf, 8))
+	else if (!strncasecmp ("UseSSLv3", q, 8))
 	{
 	    if (*cur)
 		(*cur)->use_sslv3 = (strcasecmp (p, "yes") == 0);
 	    else
 		global.use_sslv3 = (strcasecmp (p, "yes") == 0);
 	}
-	else if (!strncasecmp ("UseTLSv1", buf, 8))
+	else if (!strncasecmp ("UseTLSv1", q, 8))
 	{
 	    if (*cur)
 		(*cur)->use_tlsv1 = (strcasecmp (p, "yes") == 0);
 	    else
 		global.use_tlsv1 = (strcasecmp (p, "yes") == 0);
 	}
+	else if (!strncasecmp ("RequireCRAM", q, 11))
+	{
+	    if (*cur)
+		(*cur)->require_cram = (strcasecmp (p, "yes") == 0);
+	    else
+		global.require_cram = (strcasecmp (p, "yes") == 0);
+	}
 #endif
 	else if (buf[0])
-	    printf ("%s:%d:unknown command:%s", path, line, buf);
+	    printf ("%s:%d:unknown command:%s", path, line, q);
     }
     fclose (fp);
 }
@@ -310,7 +314,7 @@ main (int argc, char **argv)
     int i;
     config_t *box;
     mailbox_t *mail;
-    imap_t *imap;
+    imap_t *imap = 0;
     int expunge = 0;		/* by default, don't delete anything */
     int fast = 0;
     int delete = 0;
@@ -389,75 +393,80 @@ main (int argc, char **argv)
 
     load_config (config);
 
-    box = find_box (argv[optind]);
-    if (!box)
+    for (; argv[optind]; optind++)
     {
-	/* if enough info is given on the command line, don't worry if
-	 * the mailbox isn't defined.
-	 */
-	if (!global.host)
+	box = find_box (argv[optind]);
+	if (!box)
 	{
-	    puts ("No such mailbox");
-	    exit (1);
-	}
-	global.path = argv[optind];
-	box = &global;
-    }
-
-    if (!box->pass)
-    {
-	char *pass = getpass ("Password:");
-
-	if (!pass)
-	{
-	    puts ("Aborting, no password");
-	    exit (1);
-	}
-	box->pass = strdup (pass);
-    }
-
-    printf ("Reading %s\n", box->path);
-    mail = maildir_open (box->path, fast);
-    if (!mail)
-    {
-	puts ("Unable to load mailbox");
-	exit (1);
-    }
-
-    imap = imap_open (box, fast ? mail->maxuid + 1 : 1);
-    if (!imap)
-	exit (1);
-
-    puts ("Synchronizing");
-    i = delete ? SYNC_DELETE : 0;
-    i |= expunge ? SYNC_EXPUNGE : 0;
-    if (sync_mailbox (mail, imap, i, box->max_size))
-	exit (1);
-
-    if (!fast)
-    {
-	if (expunge && (imap->deleted || mail->deleted))
-	{
-	    /* remove messages marked for deletion */
-	    printf ("Expunging %d messages from server\n", imap->deleted);
-	    if (imap_expunge (imap))
+	    /* if enough info is given on the command line, don't worry if
+	     * the mailbox isn't defined.
+	     */
+	    if (!global.host)
+	    {
+		puts ("No such mailbox");
 		exit (1);
-	    printf ("Expunging %d messages from local mailbox\n",
-		    mail->deleted);
-	    if (maildir_expunge (mail, 0))
+	    }
+	    global.path = argv[optind];
+	    box = &global;
+	}
+
+	if (!box->pass)
+	{
+	    char *pass = getpass ("Password:");
+
+	    if (!pass)
+	    {
+		puts ("Aborting, no password");
+		exit (1);
+	    }
+	    box->pass = strdup (pass);
+	}
+
+	printf ("Reading %s\n", box->path);
+	mail = maildir_open (box->path, fast);
+	if (!mail)
+	{
+	    puts ("Unable to load mailbox");
+	    exit (1);
+	}
+
+	imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap);
+	if (!imap)
+	    exit (1);
+
+	puts ("Synchronizing");
+	i = delete ? SYNC_DELETE : 0;
+	i |= expunge ? SYNC_EXPUNGE : 0;
+	if (sync_mailbox (mail, imap, i, box->max_size))
+	    exit (1);
+
+	if (!fast)
+	{
+	    if (expunge && (imap->deleted || mail->deleted))
+	    {
+		/* remove messages marked for deletion */
+		printf ("Expunging %d messages from server\n", imap->deleted);
+		if (imap_expunge (imap))
+		    exit (1);
+		printf ("Expunging %d messages from local mailbox\n",
+			mail->deleted);
+		if (maildir_expunge (mail, 0))
+		    exit (1);
+	    }
+	    /* remove messages deleted from server.  this can safely be an
+	     * `else' clause since dead messages are marked as deleted by
+	     * sync_mailbox.
+	     */
+	    else if (delete)
+		maildir_expunge (mail, 1);
+
+	    /* write changed flags back to the mailbox */
+	    printf ("Committing changes to %s\n", mail->path);
+	    if (maildir_sync (mail))
 		exit (1);
 	}
-	/* remove messages deleted from server.  this can safely be an
-	 * `else' clause since dead messages are marked as deleted by
-	 * sync_mailbox.
-	 */
-	else if (delete)
-	    maildir_expunge (mail, 1);
 
-	/* write changed flags back to the mailbox */
-	printf ("Committing changes to %s\n", mail->path);
-	if (maildir_sync (mail))
-	    exit (1);
+	maildir_close (mail);
     }
 
     /* gracefully close connection to the IMAP server */

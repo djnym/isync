@@ -63,6 +63,7 @@ struct config
     unsigned int use_sslv2:1;
     unsigned int use_sslv3:1;
     unsigned int use_tlsv1:1;
+    unsigned int require_cram:1;
 #endif
     unsigned int use_namespace:1;
 };
@@ -162,14 +163,16 @@ void imap_close (imap_t *);
 int imap_fetch_message (imap_t *, unsigned int, int);
 int imap_set_flags (imap_t *, unsigned int, unsigned int);
 int imap_expunge (imap_t *);
-imap_t *imap_open (config_t *, unsigned int);
+imap_t *imap_open (config_t *, unsigned int, imap_t *);
 
 mailbox_t *maildir_open (const char *, int fast);
 int maildir_expunge (mailbox_t *, int);
 int maildir_sync (mailbox_t *);
 int maildir_set_uidvalidity (mailbox_t *, unsigned int uidvalidity);
+void maildir_close (mailbox_t *);
 
 message_t * find_msg (message_t * list, unsigned int uid);
+void free_message (message_t *);
 
 /* parse an IMAP list construct */
 list_t * parse_list (char *s, char **end);
