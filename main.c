@@ -293,7 +293,7 @@ main (int argc, char **argv)
     global.port = 143;
     global.box = "INBOX";
     global.user = strdup (pw->pw_name);
-    global.max_size = 100000;
+    global.max_size = 0;
 #if HAVE_LIBSSL
     /* this will probably annoy people, but its the best default just in
      * case people forget to turn it on
@@ -373,7 +373,7 @@ main (int argc, char **argv)
     {
 	char *pass = getpass ("Password:");
 
-	if (pass)
+	if (!pass)
 	{
 	    puts ("Aborting, no password");
 	    exit (1);
