@@ -874,7 +874,7 @@ mstrcmp (const char *s1, const char *s2)
  * mailbox.
  */
 imap_t *
-imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_create)
+imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_flags)
 {
   if (imap)
   {
@@ -926,7 +926,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_create)
     info ("Selecting IMAP mailbox... ");
     fflush (stdout);
     if (imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)) {
-      if (imap_create) {
+      if (imap_flags & IMAP_CREATE) {
 	if (imap_exec (imap, "CREATE \"%s%s\"", imap->prefix, box->box))
 	  goto bail;
         if (imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box))
@@ -940,7 +940,8 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_create)
     imap->minuid = minuid;
     if (imap->count > 0)
     {
-      if (imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)", minuid))
+      if (imap_exec (imap, "UID FETCH %d:* (FLAGS%s)", minuid, 
+		     (imap_flags & IMAP_GET_SIZE) ? " RFC822.SIZE" : ""))
 	goto bail;
     }
 

@@ -171,6 +171,11 @@ imap_t;
 #define OPEN_FAST	(1<<0)	/* fast open - don't parse */
 #define OPEN_CREATE	(1<<1)	/* create mailbox if nonexistent */
 
+/* flags for imap_open */
+#define IMAP_CREATE	(1<<0)	/* Create remote mailboxes if necessary */
+#define IMAP_GET_SIZE	(1<<1)	/* Request the RFC 822 SIZE */
+
+
 extern config_t global;
 extern config_t *boxes;
 extern unsigned int Tag;

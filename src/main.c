@@ -197,7 +197,7 @@ main (int argc, char **argv)
     int list = 0;
     int o2o = 0;
     int mbox_open_mode = 0;
-    int imap_create = 0;
+    int imap_flags = 0;
 
     pw = getpwuid (getuid ());
 
@@ -240,13 +240,13 @@ main (int argc, char **argv)
 		break;
 	    case 'C':
 		mbox_open_mode |= OPEN_CREATE;
-		imap_create = 1;
+		imap_flags |= IMAP_CREATE;
 		break;
 	    case 'L':
 		mbox_open_mode |= OPEN_CREATE;
 		break;
 	    case 'R':
-		imap_create = 1;
+		imap_flags |= IMAP_CREATE;
 		break;
 	    case 'c':
 		config = optarg;
@@ -403,7 +403,9 @@ main (int argc, char **argv)
 		break;
 	    }
 
-	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap, imap_create);
+	    if (box->max_size)
+		imap_flags |= IMAP_GET_SIZE;
+	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap, imap_flags);
 	    if (!imap)
 	    {
 		fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",
