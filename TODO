@@ -1,3 +1,6 @@
+change of UIDVALIDITY shouldn't be considered fatal for the imap connection.
+maybe the error handling needs to be cleaned up in general.
+
 don't require maildir_trash. currently MaxMessages gets into the way of
 simply removing it; that is fixable with some shuffling, though.
 
@@ -13,6 +16,9 @@ thus simply becoming mailsync.
 store message flags in sync database, so _un_setting them will be properly
 synced as well.
 
+handle custom imap flags. currently, isync just fails horribly if it
+encounters some.
+
 add option to suppress upload of messages (but not deletion).
 
 add support for syncing with other: and shared: via NAMESPACE
@@ -21,5 +27,10 @@ isync ignores asynchronous notifications (untagged responses), so mail
 arriving during a fetch will not be fetched in the current run any more.
 
 add a way to automatically create and sync IMAP subfolders.
+
+possibly timestamp mails with remote arrival date.
+
+possibly recover from UIDVALIDITY change by resyncing according to message
+IDs - this is a pretty common condition with uw-imap.
 
 possibly use ^[[1m to highlight error messages.
