@@ -113,9 +113,9 @@ load_config (char *where)
     char buf[1024];
     struct passwd *pw;
     config_t **cur = &box;
-    char *p, *q;
     int line = 0;
     FILE *fp;
+    char *p, *cmd, *val;
 
     if (!where)
     {
@@ -134,29 +134,29 @@ load_config (char *where)
 	    return;
 	}
     }
+    buf[sizeof buf - 1] = 0;
     while ((fgets (buf, sizeof (buf) - 1, fp)))
     {
-	if (buf[0])
-	    buf[strlen (buf) - 1] = 0;
 	p = buf;
-	q = next_arg (&p);
+	cmd = next_arg (&p);
+	val = next_arg (&p);
 	line++;
-	if (!q || *q == '#')
+	if (!cmd || *cmd == '#')
 	    continue;
-	if (!strncasecmp ("mailbox", q, 7))
+	if (!strncasecmp ("mailbox", cmd, 7))
 	{
 	    if (*cur)
 		cur = &(*cur)->next;
 	    *cur = calloc (1, sizeof (config_t));
 	    config_defaults (*cur);
-	    (*cur)->path = strdup (p);
+	    (*cur)->path = strdup (val);
 	}
-	else if (!strncasecmp ("host", q, 4))
+	else if (!strncasecmp ("host", cmd, 4))
 	{
 #if HAVE_LIBSSL
-	    if (!strncasecmp ("imaps:", p, 6))
+	    if (!strncasecmp ("imaps:", val, 6))
 	    {
-		p += 6;
+		val += 6;
 		if (*cur)
 		{
 		    (*cur)->use_imaps = 1;
@@ -170,103 +170,103 @@ load_config (char *where)
 	    }
 #endif
 	    if (*cur)
-		(*cur)->host = strdup (p);
+		(*cur)->host = strdup (val);
 	    else
-		global.host = strdup (p);
+		global.host = strdup (val);
 	}
-	else if (!strncasecmp ("user", q, 4))
+	else if (!strncasecmp ("user", cmd, 4))
 	{
 	    if (*cur)
-		(*cur)->user = strdup (p);
+		(*cur)->user = strdup (val);
 	    else
-		global.user = strdup (p);
+		global.user = strdup (val);
 	}
-	else if (!strncasecmp ("pass", q, 4))
+	else if (!strncasecmp ("pass", cmd, 4))
 	{
 	    if (*cur)
-		(*cur)->pass = strdup (p);
+		(*cur)->pass = strdup (val);
 	    else
-		global.pass = strdup (p);
+		global.pass = strdup (val);
 	}
-	else if (!strncasecmp ("port", q, 4))
+	else if (!strncasecmp ("port", cmd, 4))
 	{
 	    if (*cur)
-		(*cur)->port = atoi (p);
+		(*cur)->port = atoi (val);
 	    else
-		global.port = atoi (p);
+		global.port = atoi (val);
 	}
-	else if (!strncasecmp ("box", q, 3))
+	else if (!strncasecmp ("box", cmd, 3))
 	{
 	    if (*cur)
-		(*cur)->box = strdup (p);
+		(*cur)->box = strdup (val);
 	    else
-		global.box = strdup (p);
+		global.box = strdup (val);
 	}
-	else if (!strncasecmp ("alias", q, 5))
+	else if (!strncasecmp ("alias", cmd, 5))
 	{
 	    if (*cur)
-		(*cur)->alias = strdup (p);
+		(*cur)->alias = strdup (val);
 	}
-	else if (!strncasecmp ("maxsize", q, 7))
+	else if (!strncasecmp ("maxsize", cmd, 7))
 	{
 	    if (*cur)
-		(*cur)->max_size = atol (p);
+		(*cur)->max_size = atol (val);
 	    else
-		global.max_size = atol (p);
+		global.max_size = atol (val);
 	}
-	else if (!strncasecmp ("UseNamespace", q, 12))
+	else if (!strncasecmp ("UseNamespace", cmd, 12))
 	{
 	    if (*cur)
-		(*cur)->use_namespace = (strcasecmp (p, "yes") == 0);
+		(*cur)->use_namespace = (strcasecmp (val, "yes") == 0);
 	    else
-		global.use_namespace = (strcasecmp (p, "yes") == 0);
+		global.use_namespace = (strcasecmp (val, "yes") == 0);
 	}
 #if HAVE_LIBSSL
-	else if (!strncasecmp ("CertificateFile", q, 15))
+	else if (!strncasecmp ("CertificateFile", cmd, 15))
 	{
 	    if (*cur)
-		(*cur)->cert_file = strdup (p);
+		(*cur)->cert_file = strdup (val);
 	    else
-		global.cert_file = strdup (p);
+		global.cert_file = strdup (val);
 	}
-	else if (!strncasecmp ("RequireSSL", q, 10))
+	else if (!strncasecmp ("RequireSSL", cmd, 10))
 	{
 	    if (*cur)
-		(*cur)->require_ssl = (strcasecmp (p, "yes") == 0);
+		(*cur)->require_ssl = (strcasecmp (val, "yes") == 0);
 	    else
-		global.require_ssl = (strcasecmp (p, "yes") == 0);
+		global.require_ssl = (strcasecmp (val, "yes") == 0);
 	}
-	else if (!strncasecmp ("UseSSLv2", q, 8))
+	else if (!strncasecmp ("UseSSLv2", cmd, 8))
 	{
 	    if (*cur)
-		(*cur)->use_sslv2 = (strcasecmp (p, "yes") == 0);
+		(*cur)->use_sslv2 = (strcasecmp (val, "yes") == 0);
 	    else
-		global.use_sslv2 = (strcasecmp (p, "yes") == 0);
+		global.use_sslv2 = (strcasecmp (val, "yes") == 0);
 	}
-	else if (!strncasecmp ("UseSSLv3", q, 8))
+	else if (!strncasecmp ("UseSSLv3", cmd, 8))
 	{
 	    if (*cur)
-		(*cur)->use_sslv3 = (strcasecmp (p, "yes") == 0);
+		(*cur)->use_sslv3 = (strcasecmp (val, "yes") == 0);
 	    else
-		global.use_sslv3 = (strcasecmp (p, "yes") == 0);
+		global.use_sslv3 = (strcasecmp (val, "yes") == 0);
 	}
-	else if (!strncasecmp ("UseTLSv1", q, 8))
+	else if (!strncasecmp ("UseTLSv1", cmd, 8))
 	{
 	    if (*cur)
-		(*cur)->use_tlsv1 = (strcasecmp (p, "yes") == 0);
+		(*cur)->use_tlsv1 = (strcasecmp (val, "yes") == 0);
 	    else
-		global.use_tlsv1 = (strcasecmp (p, "yes") == 0);
+		global.use_tlsv1 = (strcasecmp (val, "yes") == 0);
 	}
-	else if (!strncasecmp ("RequireCRAM", q, 11))
+	else if (!strncasecmp ("RequireCRAM", cmd, 11))
 	{
 	    if (*cur)
-		(*cur)->require_cram = (strcasecmp (p, "yes") == 0);
+		(*cur)->require_cram = (strcasecmp (val, "yes") == 0);
 	    else
-		global.require_cram = (strcasecmp (p, "yes") == 0);
+		global.require_cram = (strcasecmp (val, "yes") == 0);
 	}
 #endif
 	else if (buf[0])
-	    printf ("%s:%d:unknown command:%s", path, line, q);
+	    printf ("%s:%d:unknown command:%s", path, line, cmd);
     }
     fclose (fp);
 }
