@@ -198,9 +198,6 @@ maildir_open (const char *path, int flags)
     if (read_uid (m->path, "isyncmaxuid", &m->maxuid) == -1)
 	goto err;
 
-    if (flags & OPEN_FAST)
-	return m;
-
     snprintf (buf, sizeof (buf), "%s/isyncuidmap", m->path);
     m->db = dbm_open (buf, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
     if (m->db == NULL)
@@ -208,6 +205,9 @@ maildir_open (const char *path, int flags)
 	fputs ("ERROR: unable to open UID db\n", stderr);
 	goto err;
     }
+
+    if (flags & OPEN_FAST)
+	return m;
 
     cur = &m->msgs;
     for (; count < 2; count++)

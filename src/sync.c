@@ -94,8 +94,6 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     if (mbox->maxuid == 0 || imap->maxuid > mbox->maxuid)
     {
 	mbox->maxuid = imap->maxuid;
-	if (maildir_update_maxuid (mbox))
-	    return -1;
     }
 
     /* if we are --fast mode, the mailbox wont have been loaded, so
@@ -153,11 +151,13 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 		cur->size = sb.st_size;
 		cur->uid = imap_append_message (imap, fd, cur);
-		/* if the server gave us back a uid, update the db */
 		if (cur->uid != (unsigned int) -1) {
+		    /* update the db */
 		    set_uid (mbox->db, cur->file, cur->uid);
 		    if (!cur->uid)
 			printf("warning: no uid for new messge %s\n", cur->file);
+		    else if (cur->uid > mbox->maxuid)
+		    	mbox->maxuid = cur->uid;
 		}
 
 		close (fd);
@@ -373,6 +373,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		{
 		    /* update the db with the UID mapping for this file */
 		    set_uid (mbox->db, p + 1, cur->uid);
+		    if (cur->uid > mbox->maxuid)
+		    	mbox->maxuid = cur->uid;
 		}
 	    }
 
@@ -382,6 +384,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     }
 
     info (" %d messages\n", fetched);
+
+    if (maildir_update_maxuid (mbox))
+	return -1;
 
     return 0;
 }
