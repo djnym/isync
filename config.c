@@ -24,6 +24,7 @@
 #include <pwd.h>
 #include <sys/types.h>
 #include <string.h>
+#include <stdlib.h>
 #include "isync.h"
 
 static config_t *box = 0;

@@ -222,6 +222,9 @@ socket_perror (const char *func, Socket_t *sock, int ret)
 	}
 	return;
     }
+#else
+    (void) sock;
+    (void) ret;
 #endif
     perror (func);
 }
