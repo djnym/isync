@@ -5,7 +5,7 @@ EXTRA_DIST=sample.isyncrc $(man_MANS)
 INCLUDES=$(RPM_OPT_FLAGS)
 
 log:
-	rcs2log -h sigipe.org | sed 's;/home/cvs/isync/;;g' > ChangeLog
+	rcs2log -h sigpipe.org | sed 's;/home/cvs/isync/;;g' > ChangeLog
 
 isync.html: isync.1
 	groff -Thtml -man isync.1 > isync.html

@@ -1,4 +1,91 @@
-2001-06-12  me  <me@sigipe.org>
+2001-10-03  me  <me@sigpipe.org>
+
+	* TODO, maildir.c:
+	added code to clean the tmp directory in a maildir to comply with
+	maildir(5)
+
+	* config.c:
+	forgot to add code to parse the `Delete' option
+
+	* main.c:
+	forgot conditional #if HAVE_LIBSSL around setting of .use_imaps in main()
+	from command line arguments
+
+	* main.c: update Copyright printed by --help
+
+	add compile time option list to --help output
+
+	* NEWS, TODO, config.c, isync.1, isync.h, main.c, sample.isyncrc, sync.c:
+	added `Delete' configuration option to force -d option
+
+	sync_mailbox() didn't consider MaxSize == 0 to mean "unlimited".
+
+	load_config() needs to print a newline in its error messages since
+	next_arg() kills the newline of the line that was read out of the config
+	file.
+
+	* TODO: update TODO list with action items
+
+	* imap.c, sync.c:
+	fixed maildir message filenames to comply with the maildir(5) specification.
+
+	fixed write_strip() and imap_fetch_message() to check the return code of
+	write() and fsync() to comply with maildir(5) spec.
+
+2001-10-02  me  <me@sigpipe.org>
+
+	* main.c:
+	the `Expunge' config directive didn't work since only the -e command line
+	argument was consulted.
+
+	* config.c, imap.c, isync.h:
+	we should issue a CAPABILITY even if we aren't going to use ssl/tls so that
+	cram-md5 auth still works.
+
+2001-07-18  me  <me@sigpipe.org>
+
+	* config.c:
+	find_box() should attempt to expand all filenames if none of the other
+	methods found a match.
+
+	* isync.h, maildir.c, config.c:
+	fixed to not expand filenames until they are used inside of maildir_open(),
+	so that aliases are not required for simple filenames.
+	[re: http://bugs.debian.org/102255]
+
+2001-06-22  me  <me@sigpipe.org>
+
+	* main.c: --host option didn't check for imaps: prefix
+
+2001-06-21  me  <me@sigpipe.org>
+
+	* main.c:
+	fixed core when specifying multiple mailboxes on the command line
+
+2001-06-18  me  <me@sigpipe.org>
+
+	* isync.1, TODO, configure.in, imap.c:
+	handle untagged responses in imap_fetch_message() so that it doesn't bomb
+	out if new mail arrives while in the process of downloading
+
+	noted in BUGS section of man page that if new mail arrives after the initial
+	message list has been retrieved from the IMAP server, that new mail will not
+	be fetched until the next invocation of isync.
+
+	* config.c, imap.c, isync.h, main.c:
+	isync should continue to process additional mailboxes even if there is an
+	error with a previous mailbox.
+
+	added -a (--all) flag to synchronize all mailboxes defined in ~/.isyncrc
+
+2001-06-13  me  <me@sigpipe.org>
+
+	* NEWS: post 0.5-release commit
+
+	* ChangeLog, smtppush:
+	updated ChangeLog.  removed smtppush binary.
+
+2001-06-12  me  <me@sigpipe.org>
 
 	* Makefile, config.cache, config.log, config.status:
 	auto generated files should not be part of the CVS tree
@@ -14,19 +101,19 @@
 	* COPYING, INSTALL, Makefile.am, config.log, configure, configure.in, install-sh, main.c, missing, mkinstalldirs, AUTHORS, Makefile.in, README:
 	initial import
 
-2001-02-28  me  <me@sigipe.org>
+2001-02-28  me  <me@sigpipe.org>
 
 	* config.c, imap.c:
 	fixed compiler warnings under Solaris 2.7
 
-2001-02-19  me  <me@sigipe.org>
+2001-02-19  me  <me@sigpipe.org>
 
 	* ChangeLog, cram.c, imap.c, maildir.c:
 	rfc2595 compliance patch from Daniel Resare <noa@metamatrix.se>
 		- CAPABILITY should be reissued after starting TLS since the
 		  previous call was not protected
 
-2001-02-14  me  <me@sigipe.org>
+2001-02-14  me  <me@sigpipe.org>
 
 	* config.c, imap.c, isync.1, main.c, sync.c:
 	patch from Daniel Resare <noa@metamatrix.se>:
@@ -65,12 +152,12 @@
 
 		give error message when the LOGIN command fails
 
-2001-02-01  me  <me@sigipe.org>
+2001-02-01  me  <me@sigpipe.org>
 
 	* imap.c: patch from Daniel Resare <noa@metamatrix.se>
 		- don't initialize ssl support if none of use_sslv* is enabled
 
-2001-01-26  me  <me@sigipe.org>
+2001-01-26  me  <me@sigpipe.org>
 
 	* imap.c, isync.h:
 	include <sys/types.h> for off_t
@@ -78,14 +165,14 @@
 	patch from "lorenzo martignoni" <lorenzo.martignoni@technologist.com>
 		- fixed uploading of message to IMAP server
 
-2001-01-24  me  <me@sigipe.org>
+2001-01-24  me  <me@sigpipe.org>
 
 	* config.c, cram.c, imap.c, isync.1, list.c, maildir.c, main.c, sync.c:
 	fixed cram compilation error under bsd
 
 	updated man page
 
-2001-01-16  me  <me@sigipe.org>
+2001-01-16  me  <me@sigpipe.org>
 
 	* TODO, config.c, imap.c, isync.1, isync.h, main.c:
 	added support for tilde (~) expansion in the `Mailbox' and `CertificateFile'
@@ -95,7 +182,7 @@
 	user's mailboxes.  If a relative path is used in a `Mailbox' command, this
 	path is used as a prefix.
 
-2001-01-11  me  <me@sigipe.org>
+2001-01-11  me  <me@sigpipe.org>
 
 	* configure.in, imap.c, isync.h:
 	set imap->prefix to be the namespace prefix
@@ -113,7 +200,7 @@
 
 	added CopyDeletedTo configuration option
 
-2001-01-09  me  <me@sigipe.org>
+2001-01-09  me  <me@sigpipe.org>
 
 	* maildir.c, sync.c:
 	always put changed messages in the cur/ subdirectory since they are no
@@ -123,7 +210,7 @@
 	flag on the message since Mutt will move Old (unread, but not recent)
 	messges into cur/.
 
-2001-01-08  me  <me@sigipe.org>
+2001-01-08  me  <me@sigpipe.org>
 
 	* Makefile.am, main.c:
 	patch from Hugo Haas <hugo@larve.net>
@@ -132,12 +219,12 @@
 		set global password to the one the user inputs and use that as the
 		default for remaining mailboxes
 
-2001-01-05  me  <me@sigipe.org>
+2001-01-05  me  <me@sigpipe.org>
 
 	* configure.in:
 	added --with-ssl-dir to specify an alternate installation of OpenSSL
 
-2000-12-31  me  <me@sigipe.org>
+2000-12-31  me  <me@sigpipe.org>
 
 	* ChangeLog, isync.spec:
 	pre 0.4 commit.
@@ -151,12 +238,12 @@
 	fixed compilation error with no libssl support ("lorenzo martignoni"
 	<lorenzo.martignoni@technologist.com>)
 
-2000-12-28  me  <me@sigipe.org>
+2000-12-28  me  <me@sigpipe.org>
 
 	* main.c:
 	fixed config parser to accept arbitrary whitespace
 
-2000-12-27  me  <me@sigipe.org>
+2000-12-27  me  <me@sigpipe.org>
 
 	* imap.c:
 	use imap_close to terminate a connection in imap_open()
@@ -169,7 +256,7 @@
 
 	don't initialize ssl unless we are going to use it.
 
-2000-12-23  me  <me@sigipe.org>
+2000-12-23  me  <me@sigpipe.org>
 
 	* imap.c, isync.h:
 	don't use NAMESPACE unless the server supports it
@@ -179,7 +266,7 @@
 
 	parse server capability string to determine if STARTTLS is available
 
-2000-12-22  me  <me@sigipe.org>
+2000-12-22  me  <me@sigpipe.org>
 
 	* README, imap.c, isync.1, isync.h, main.c:
 	isync-brokenservers.diff (Jeremy Katz <katzj@linuxpower.org>)
@@ -207,7 +294,7 @@
 	fixed --fast to work robustly without relying on the \Recent flag in
 	messages
 
-2000-12-21  me  <me@sigipe.org>
+2000-12-21  me  <me@sigpipe.org>
 
 	* imap.c, isync.h, maildir.c, sync.c:
 	RFC822.PEEK is obsolete in RFC2060.  Use BODY.PEEK[] instead, which does
@@ -268,7 +355,7 @@
 
 	local messages with updated flags were not corrected renamed
 
-2000-12-20  me  <me@sigipe.org>
+2000-12-20  me  <me@sigpipe.org>
 
 	* ChangeLog, Makefile.am:
 	updated ChangeLog
