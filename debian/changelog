@@ -2,7 +2,7 @@ isync (0.9-1) unstable; urgency=low
 
   * New upstream release
 
- -- Michael Elkins <me@mutt.org>  Tue, 18 Jun 2002 17:36:21 -0700
+ -- Oswald Buddenhagen <ossi@users.sf.net>  Wed, 26 Mar 2003 04:12:00 +0100
 
 isync (0.8-1) unstable; urgency=low
 
