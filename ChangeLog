@@ -1,3 +1,68 @@
+2000-12-31  Michael Elkins  <me@sigipe.org>
+
+	* sync.c:
+	display how many messages were fetched from the server
+
+	* imap.c:
+	fixed compilation error with no libssl support ("lorenzo martignoni"
+	<lorenzo.martignoni@technologist.com>)
+
+2000-12-28  Michael Elkins  <me@sigipe.org>
+
+	* main.c:
+	fixed config parser to accept arbitrary whitespace
+
+2000-12-27  Michael Elkins  <me@sigipe.org>
+
+	* imap.c:
+	use imap_close to terminate a connection in imap_open()
+
+	* imap.c, isync.1, isync.h, maildir.c, main.c:
+	allow leading whitespace in config files
+
+	now possible to sync multiple mailboxes by specifying multiple aliases on
+	the command line.  IMAP connections are reused if possible.
+
+	don't initialize ssl unless we are going to use it.
+
+2000-12-23  Michael Elkins  <me@sigipe.org>
+
+	* imap.c, isync.h:
+	don't use NAMESPACE unless the server supports it
+
+	* Makefile.am, README, cram.c, imap.c, isync.h:
+	added CRAM-MD5 authentication support.
+
+	parse server capability string to determine if STARTTLS is available
+
+2000-12-22  Michael Elkins  <me@sigipe.org>
+
+	* README, imap.c, isync.1, isync.h, main.c:
+	isync-brokenservers.diff (Jeremy Katz <katzj@linuxpower.org>)
+	adds support for disabling NAMESPACE, and disable various flavors of TLS/SSL
+	for use with some broken IMAP servers.
+
+	* imap.c, sync.c:
+	prompt user if they wish to continue if the server's X.509 certificate can't
+	be verified.
+
+	sync_mailbox should consider uid == 0 to be "unknown"
+
+	* main.c, sync.c:
+	fixed sync_mailbox() to correctly write new messages to the local maildir
+	box (Thomas Roessler <roessler@does-not-exist.org>)
+
+	* main.c: set default MaxSize to 0 (unlimited)
+
+	invert test for password being set after getpass() call (Magnus Jonsson
+	<bigfoot@acc.umu.se>)
+
+	* ChangeLog, NEWS, configure.in, imap.c, isync.1, isync.h, maildir.c, main.c, sample.isyncrc, sync.c:
+	added MaxSize configuration variable
+
+	fixed --fast to work robustly without relying on the \Recent flag in
+	messages
+
 2000-12-21  Michael Elkins  <me@sigipe.org>
 
 	* imap.c, isync.h, maildir.c, sync.c:

@@ -1,10 +1,10 @@
 Summary: Utility to synchronize IMAP mailboxes with local maildir folders
 Name: isync
-Version: 0.3
+Version: 0.4
 Release: 1
 Copyright: GPL
 Group: Applications/Internet
-Source: http://www.sigpipe.org/isync/isync-0.3.tar.gz
+Source: http://www.sigpipe.org/isync/isync-0.4.tar.gz
 URL: http://www.sigpipe.org/isync/
 Packager: Michael Elkins <me@mutt.org>
 BuildRoot: /var/tmp/%{name}-buildroot
