@@ -850,7 +850,7 @@ imap_connect (config_t * cfg)
     } /* !preauth */
 
       /* get NAMESPACE info */
-      if (cfg->use_namespace && imap->have_namespace)
+      if (!global.folder && cfg->use_namespace && imap->have_namespace)
       {
 	if (imap_exec (imap, "NAMESPACE"))
 	  goto bail;
