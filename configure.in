@@ -66,7 +66,7 @@ if test "x$ob_cv_with_ssl" != xno; then
       AC_MSG_ERROR([OpenSSL libs and/or includes were not found where specified])
     fi
   else
-    AC_DEFINE(HAVE_SSL, 1, [if you have the OpenSSL libraries])
+    AC_DEFINE(HAVE_LIBSSL, 1, [if you have the OpenSSL libraries])
     CPPFLAGS="$CPPFLAGS $SSL_CPPFLAGS"
     LDFLAGS="$LDFLAGS $SSL_LDFLAGS"
   fi
