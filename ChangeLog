@@ -1,3 +1,51 @@
+2003-05-07 02:06  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* .cvsignore, Makefile.am, autogen.sh, configure.in,
+	debian/changelog, src/config.c, src/cram.c, src/dotlock.c,
+	src/imap.c, src/isync.h, src/list.c, src/maildir.c, src/main.c,
+	src/sync.c:
+
+	- make it work without SSL
+	- switch from -Ds in Makefile to config.h
+	- small header cleaup
+
+2003-05-07 02:04  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* isync.spec.in:
+
+	make it actually work
+
+2003-05-06 04:18  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* ChangeLog:
+
+	regen
+
+2003-05-06 04:17  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* Makefile.am, debian/Makefile.am:
+
+	minors
+
+2003-05-06 04:16  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* NEWS:
+
+	update
+
+2003-05-06 04:15  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* README:
+
+	i'm bored :)
+
+2003-05-05 19:58  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/: config.c, isync.h, main.c:
+
+	don't free any config strings - who cares for a few bytes?
+	this fixes some crashes at exit.
+
 2003-05-05 19:17  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* Makefile.am:
