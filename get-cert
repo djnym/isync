@@ -21,10 +21,29 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+if [ $# != 1 ]; then
+	echo "Usage: $0 <host>" >&2
+	exit 1
+fi
+
 HOST=$1
-TMPFILE=/tmp/get-cert.$$
-ERRFILE=/tmp/get-cert-err.$$
-CERTFILE=/tmp/cert.$$
+
+seed=`date '+%s'`
+try=0
+while :; do
+	TMPDIR=/tmp/get-cert.$$.$seed
+	mkdir $TMPDIR 2> /dev/null && break
+	if [ $try = 1000 ]; then
+		echo "Cannot create temporary directory." >&2
+		exit 1
+	fi
+	try=`expr $try + 1`
+	seed=`expr \( \( $seed \* 1103515245 \) + 12345 \) % 2147483648`
+done
+
+TMPFILE=$TMPDIR/get-cert
+ERRFILE=$TMPDIR/get-cert-err
+CERTFILE=$TMPDIR/cert
 
 echo QUIT | openssl s_client -connect $HOST:993 -showcerts \
 	> $TMPFILE 2> $ERRFILE
@@ -36,7 +55,8 @@ if test -s $CERTFILE ; then
 	cat $CERTFILE
 	echo -----END CERTIFICATE-----
 else
-	echo "Couldn't retrieve certificate.  Openssl reported the following errors"
+	echo "Couldn't retrieve certificate.  openssl reported the following errors:"
 	cat $ERRFILE
 fi
-/bin/rm -f $TMPFILE $ERRFILE $CERTFILE
+
+rm -r $TMPDIR
