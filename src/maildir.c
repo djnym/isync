@@ -255,7 +255,7 @@ maildir_open (const char *path, int flags)
 	    ret = m->db->get (m->db, 0, &key, &value, 0);
 	    if (ret == DB_NOTFOUND) {
 		/* Every locally generated message triggers this ... */
-		/*printf ("Warning, no UID for message %.*s\n",
+		/*warn ("Warning: no UID for message %.*s\n",
 			key.size, p->file);*/
 	    } else if (ret) {
 		fprintf (stderr, "Unexpected error (%d) from db_get(%.*s)\n", 
@@ -389,7 +389,7 @@ maildir_clean_tmp (const char *mbox)
 	    /* this should happen infrequently enough that it won't be
 	     * bothersome to the user to display when it occurs.
 	     */
-	    printf ("Warning: removing stale file %s\n", path);
+	    info ("Notice: removing stale file %s\n", path);
 	    if (unlink (path))
 		fprintf (stderr,
 			 "maildir_clean_tmp: unlink: %s: %s (errno %d)\n",

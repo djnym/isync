@@ -184,6 +184,7 @@ extern int Verbose, Quiet;
 
 extern void info (const char *, ...);
 extern void infoc (char);
+extern void warn (const char *, ...);
 
 #if HAVE_LIBSSL
 extern SSL_CTX *SSLContext;

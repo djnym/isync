@@ -145,15 +145,14 @@ init_ssl (config_t * conf)
 
     SSLContext = SSL_CTX_new (method);
 
-    if (access (conf->cert_file, F_OK))
+    if (access (conf->cert_file, R_OK))
     {
 	if (errno != ENOENT)
 	{
 	    perror ("access");
 	    return -1;
 	}
-	fprintf (stderr, 
-	    "*** Warning, CertificateFile doesn't exist, can't verify server certificates\n");
+	warn ("*** Warning: CertificateFile doesn't exist, can't verify server certificates\n");
     }
     else
 	if (!SSL_CTX_load_verify_locations
@@ -775,7 +774,7 @@ imap_connect (config_t * cfg)
 	      goto bail;
 	    }
 	    else
-	      fprintf (stderr, "IMAP warning: SSL support not available\n");
+	      warn ("IMAP warning: SSL support not available\n");
 	  }
 	}
       }
@@ -836,7 +835,7 @@ imap_connect (config_t * cfg)
 #if HAVE_LIBSSL
 	  if (!use_ssl)
 #endif
-	    fprintf (stderr, "*** IMAP Warning *** Password is being sent in the clear\n");
+	    warn ("*** IMAP Warning *** Password is being sent in the clear\n");
 	  if (imap_exec (imap, "LOGIN \"%s\" \"%s\"", cfg->user, cfg->pass))
 	  {
 	    fprintf (stderr, "IMAP error: LOGIN failed\n");

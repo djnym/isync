@@ -148,8 +148,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		if (imap->box->max_size > 0
 		    && sb.st_size > imap->box->max_size)
 		{
-		    info ("Warning, local message is too large (%lu), skipping...\n",
-			  (unsigned long) sb.st_size);
+		    info ("Local message %s is too large (%lu), skipping...\n",
+			  cur->file, (unsigned long) sb.st_size);
 		    continue;
 		}
 		fd = open (path, O_RDONLY);
@@ -166,7 +166,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		    /* update the db */
 		    set_uid (mbox->db, cur->file, cur->uid);
 		    if (!cur->uid)
-			printf("warning: no uid for new messge %s\n", cur->file);
+			warn ("Warning: no UID for new messge %s\n", cur->file);
 		    else if (cur->uid > mbox->maxuid)
 		    	mbox->maxuid = cur->uid;
 		}
@@ -187,7 +187,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	     * exist on the server, warn that such messages exist.
 	     */
 	    else
-		info ("Warning, uid %u doesn't exist on server\n", cur->uid);
+		info ("Local message %u doesn't exist on server\n", cur->uid);
 	    continue;
 	}
 	tmp->processed = 1;
@@ -312,8 +312,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 	    if (max_size && cur->size > max_size)
 	    {
-		info ("Warning, message skipped because it is too big (%u)\n",
-		      cur->size);
+		info ("Remote message %u skipped because it is too big (%u)\n",
+		      cur->uid, cur->size);
 		continue;
 	    }
 

@@ -59,6 +59,19 @@ infoc (char c)
 	putchar (c);
 }
 
+void
+warn (const char *msg, ...)
+{
+  va_list va;
+
+  if (Quiet < 2)
+  {
+    va_start (va, msg);
+    vfprintf (stderr, msg, va);
+    va_end (va);
+  }
+}
+
 #if HAVE_GETOPT_LONG
 # define _GNU_SOURCE
 # include <getopt.h>
@@ -265,7 +278,7 @@ main (int argc, char **argv)
 		global.port = atoi (optarg);
 		break;
 	    case 'q':
-		Quiet = 1;
+		Quiet++;
 		Verbose = 0;
 		break;
 	    case 'r':
