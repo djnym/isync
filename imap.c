@@ -820,12 +820,18 @@ write_strip (int fd, char *buf, size_t len)
 {
     size_t start = 0;
     size_t end = 0;
+    int n;
 
     while (start < len)
     {
 	while (end < len && buf[end] != '\r')
 	    end++;
-	write (fd, buf + start, end - start);
+	n = write (fd, buf + start, end - start);
+	if (n == -1)
+	{
+	    perror ("write");
+	    return -1;
+	}
 	end++;
 	start = end;
     }
@@ -910,7 +916,6 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 		return -1;
 	    }
 	    bytes = strtol (arg + 1, 0, 10);
-//          printf ("receiving %d byte message\n", bytes);
 
 	    /* dump whats left over in the input buffer */
 	    n = imap->buf->bytes - imap->buf->offset;
@@ -924,11 +929,13 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 	    /* ick.  we have to strip out the \r\n line endings, so
 	     * i can't just dump the raw bytes to disk.
 	     */
-	    write_strip (fd, imap->buf->buf + imap->buf->offset, n);
+	    if (write_strip (fd, imap->buf->buf + imap->buf->offset, n))
+	    {
+		/* write failed, message is not delivered */
+		return -1;
+	    }
 
 	    bytes -= n;
-
-//          printf ("wrote %d buffered bytes\n", n);
 
 	    /* mark that we used part of the buffer */
 	    imap->buf->offset += n;
@@ -942,8 +949,11 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 		n = socket_read (imap->sock, buf, n);
 		if (n > 0)
 		{
-//                  printf("imap_fetch_message:%d:read %d bytes\n", __LINE__, n);
-		    write_strip (fd, buf, n);
+		    if (write_strip (fd, buf, n))
+		    {
+			/* write failed */
+			return -1;
+		    }
 		    bytes -= n;
 		}
 		else
@@ -952,8 +962,6 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 		    return -1;
 		}
 	    }
-
-//          puts ("finished fetching msg");
 
 	    buffer_gets (imap->buf, &cmd);
 	    if (Verbose)

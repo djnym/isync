@@ -243,9 +243,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    for (;;)
 	    {
 		/* create new file */
-		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d,U=%d%s",
-			  mbox->path, Hostname, time (0), MaildirCount++,
-			  getpid (), cur->uid, suffix);
+		snprintf (path, sizeof (path), "%s/tmp/%ld_%d.%d.%s,U=%d%s",
+			  mbox->path, time (0), MaildirCount++, getpid (),
+			  Hostname, cur->uid, suffix);
 
 		if ((fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600)) > 0)
 		    break;
@@ -268,7 +268,12 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 	    ret = imap_fetch_message (imap, cur->uid, fd);
 
-	    if (close (fd))
+	    if (fsync (fd))
+	    {
+	    	perror ("fsync");
+		close (fd);
+	    }
+	    else if (close (fd))
 		perror ("close");
 	    else if (!ret)
 	    {
