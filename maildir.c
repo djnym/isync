@@ -136,25 +136,30 @@ maildir_open (const char *path, int fast)
     char *s;
     int count = 0;
 
-    /* check to make sure this looks like a valid maildir box */
-    snprintf (buf, sizeof (buf), "%s/new", path);
-    if (access (buf, F_OK))
-    {
-	perror ("access");
-	return 0;
-    }
-    snprintf (buf, sizeof (buf), "%s/cur", path);
-    if (access (buf, F_OK))
-    {
-	perror ("access");
-	return 0;
-    }
-
     m = calloc (1, sizeof (mailbox_t));
-    m->path = strdup (path);
+    /* filename expansion happens here, not in the config parser */
+    m->path = expand_strdup (path);
+
+    /* check to make sure this looks like a valid maildir box */
+    snprintf (buf, sizeof (buf), "%s/new", m->path);
+    if (access (buf, F_OK))
+    {
+	free (m->path);
+	free (m);
+	perror ("access");
+	return 0;
+    }
+    snprintf (buf, sizeof (buf), "%s/cur", m->path);
+    if (access (buf, F_OK))
+    {
+	free (m->path);
+	free (m);
+	perror ("access");
+	return 0;
+    }
 
     /* check for the uidvalidity value */
-    m->uidvalidity = read_uid (path, "isyncuidvalidity");
+    m->uidvalidity = read_uid (m->path, "isyncuidvalidity");
     if (m->uidvalidity == (unsigned int) -1)
     {
 	free (m->path);
@@ -163,7 +168,7 @@ maildir_open (const char *path, int fast)
     }
 
     /* load the current maxuid */
-    if ((m->maxuid = read_uid (path, "isyncmaxuid")) == (unsigned int) -1)
+    if ((m->maxuid = read_uid (m->path, "isyncmaxuid")) == (unsigned int) -1)
     {
 	free (m->path);
 	free (m);
@@ -177,7 +182,7 @@ maildir_open (const char *path, int fast)
     for (; count < 2; count++)
     {
 	/* read the msgs from the new subdir */
-	snprintf (buf, sizeof (buf), "%s/%s", path,
+	snprintf (buf, sizeof (buf), "%s/%s", m->path,
 		  (count == 0) ? "new" : "cur");
 	d = opendir (buf);
 	if (!d)

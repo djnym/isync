@@ -167,6 +167,7 @@ int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int);
 
 void config_defaults (config_t *);
 void load_config (const char *);
+char * expand_strdup (const char *s);
 config_t *find_box (const char *);
 
 void imap_close (imap_t *);

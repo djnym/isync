@@ -18,6 +18,8 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#define _GNU_SOURCE 1
+
 #include <unistd.h>
 #include <limits.h>
 #include <errno.h>
@@ -52,13 +54,12 @@ config_defaults (config_t * conf)
 #endif
 }
 
-/* `s' is destroyed by this call */
-static char *
-expand_strdup (char *s)
+char *
+expand_strdup (const char *s)
 {
     char path[_POSIX_PATH_MAX];
     struct passwd *pw;
-    char *p;
+    const char *p;
 
     if (*s == '~')
     {
@@ -71,10 +72,15 @@ expand_strdup (char *s)
 	}
 	else
 	{
+	    char *user;
+
 	    p = strchr (s, '/');
 	    if (p)
-		*p++ = 0;
-	    pw = getpwnam (s);
+		user = strndup (s, (int)(p - s));
+	    else
+		user = strdup (s);
+	    pw = getpwnam (user);
+	    free (user);
 	}
 	if (!pw)
 	    return 0;
@@ -83,7 +89,8 @@ expand_strdup (char *s)
     }
     else if (*s != '/')
     {
-	snprintf (path, sizeof (path), "%s/%s", global.maildir, s);
+	snprintf (path, sizeof (path), "%s/%s",
+		  global.maildir ? global.maildir : "", s);
 	s = path;
     }
     return strdup (s);
@@ -131,7 +138,8 @@ load_config (const char *where)
 		cur = &(*cur)->next;
 	    *cur = calloc (1, sizeof (config_t));
 	    config_defaults (*cur);
-	    (*cur)->path = expand_strdup (val);
+	    /* not expanded at this point */
+	    (*cur)->path = strdup (val);
 	}
 	else if (!strncasecmp ("maildir", cmd, 7))
 	{
