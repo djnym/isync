@@ -341,9 +341,9 @@ main (int argc, char **argv)
 #endif
 
 #if HAVE_GETOPT_LONG
-    while ((i = getopt_long (argc, argv, "defhp:u:r:s:vV", Opts, NULL)) != -1)
+    while ((i = getopt_long (argc, argv, "c:defhp:u:r:s:vV", Opts, NULL)) != -1)
 #else
-    while ((i = getopt (argc, argv, "defhp:u:r:s:vV")) != -1)
+    while ((i = getopt (argc, argv, "c:defhp:u:r:s:vV")) != -1)
 #endif
     {
 	switch (i)
@@ -412,14 +412,19 @@ main (int argc, char **argv)
 
 	if (!box->pass)
 	{
-	    char *pass = getpass ("Password:");
-
-	    if (!pass)
+	    /* if we don't have a global password set, prompt the user for
+	     * it now.
+	     */
+	    if (!global.pass)
 	    {
-		puts ("Aborting, no password");
-		exit (1);
+		global.pass = getpass ("Password:");
+		if (!global.pass)
+		{
+		    puts ("Aborting, no password");
+		    exit (1);
+		}
 	    }
-	    box->pass = strdup (pass);
+	    box->pass = strdup (global.pass);
 	}
 
 	printf ("Reading %s\n", box->path);

@@ -2,7 +2,7 @@ bin_PROGRAMS=isync
 isync_SOURCES=main.c imap.c sync.c maildir.c isync.h list.c cram.c
 man_MANS=isync.1
 EXTRA_DIST=sample.isyncrc $(man_MANS)
-CPPFLAGS=$(RPM_OPT_FLAGS)
+INCLUDES=$(RPM_OPT_FLAGS)
 
 log:
 	rcs2log -h sigipe.org | sed 's;/home/cvs/isync/;;g' > ChangeLog
