@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+PACKAGE=isync
+
 CFLAGS = -Wall -g
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 CFLAGS += -O0
@@ -8,13 +10,14 @@ CFLAGS += -O2
 endif
 
 build: build-stamp
-build-stamp:
+build-stamp: patch-stamp
 	dh_testdir
 	./configure --prefix=/usr --mandir=/usr/share/man
 	$(MAKE) CFLAGS="$(CFLAGS)"
 	touch build-stamp
 
-clean:
+clean: clean1 unpatch
+clean1:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
@@ -48,4 +51,6 @@ binary-arch: build install
 	dh_builddeb
 
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install
+.PHONY: build clean binary-indep binary-arch binary install clean1
+
+include /usr/share/dpatch/dpatch.make

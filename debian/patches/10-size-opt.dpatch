@@ -1,0 +1,81 @@
+#! /bin/sh -e
+## 10-size-opt.dpatch by Nicolas Boullis <nboullis@debian.org> 
+##
+## DP: This patch from Nicolas Boullis <nboullis@debian.org> optimizes isync
+## DP: by not fetching the sizes of messages if they are unneeded (i.e., if
+## DP: MaxSize is not specified in the config file).
+
+[ -f debian/patches/00patch-opts ] && . debian/patches/00patch-opts
+patch_opts="${patch_opts:--f --no-backup-if-mismatch}"
+
+if [ $# -ne 1 ]; then
+    echo >&2 "`basename $0`: script expects -patch|-unpatch as argument"
+    exit 1
+fi
+case "$1" in
+       -patch) patch $patch_opts -p1 < $0;;
+       -unpatch) patch $patch_opts -p1 -R < $0;;
+	*)
+		echo >&2 "`basename $0`: script expects -patch|-unpatch as argument"
+		exit 1;;
+esac
+
+exit 0
+@DPATCH@
+
+===================================================================
+RCS file: isync-0.9.2/src/RCS/isync.h,v
+retrieving revision 1.1
+diff -u -r1.1 isync-0.9.2/src/isync.h
+--- isync-0.9.2/src/isync.h	2004/01/09 23:06:52	1.1
++++ isync-0.9.2/src/isync.h	2004/01/09 23:07:08
+@@ -205,7 +205,7 @@
+ int imap_set_flags (imap_t *, unsigned int, unsigned int);
+ int imap_expunge (imap_t *);
+ imap_t *imap_connect (config_t *);
+-imap_t *imap_open (config_t *, unsigned int, imap_t *, int);
++imap_t *imap_open (config_t *, unsigned int, imap_t *, int, int);
+ int imap_append_message (imap_t *, int, message_t *);
+ int imap_list (imap_t *);
+ 
+===================================================================
+RCS file: isync-0.9.2/src/RCS/imap.c,v
+retrieving revision 1.1
+diff -u -r1.1 isync-0.9.2/src/imap.c
+--- isync-0.9.2/src/imap.c	2004/01/09 23:08:20	1.1
++++ isync-0.9.2/src/imap.c	2004/01/09 23:09:54
+@@ -874,7 +874,8 @@
+  * mailbox.
+  */
+ imap_t *
+-imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_create)
++imap_open (config_t * box, unsigned int minuid, imap_t * imap, 
++	   int imap_create, int get_size)
+ {
+   if (imap)
+   {
+@@ -940,7 +941,8 @@
+     imap->minuid = minuid;
+     if (imap->count > 0)
+     {
+-      if (imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)", minuid))
++      if (imap_exec (imap, "UID FETCH %d:* (FLAGS%s)", minuid, 
++		     get_size ? " RFC822.SIZE" : ""))
+ 	goto bail;
+     }
+ 
+===================================================================
+RCS file: isync-0.9.2/src/RCS/main.c,v
+retrieving revision 1.1
+diff -u -r1.1 isync-0.9.2/src/main.c
+--- isync-0.9.2/src/main.c	2004/01/09 23:08:20	1.1
++++ isync-0.9.2/src/main.c	2004/01/09 23:08:31
+@@ -396,7 +396,7 @@
+ 		break;
+ 	    }
+ 
+-	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap, imap_create);
++	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap, imap_create, box->max_size!=0);
+ 	    if (!imap)
+ 	    {
+ 		fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",

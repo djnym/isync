@@ -1,0 +1,146 @@
+#! /bin/sh -e
+## 20-cleanup.dpatch by Theodore Ts'o <tytso@mit.edu>
+##
+## DP: Make sure the database store and the imap database is closed
+## DP: if isync is aborted.
+
+[ -f debian/patches/00patch-opts ] && . debian/patches/00patch-opts
+patch_opts="${patch_opts:--f --no-backup-if-mismatch}"
+
+if [ $# -ne 1 ]; then
+    echo >&2 "`basename $0`: script expects -patch|-unpatch as argument"
+    exit 1
+fi
+case "$1" in
+       -patch) patch $patch_opts -p1 < $0;;
+       -unpatch) patch $patch_opts -p1 -R < $0;;
+	*)
+		echo >&2 "`basename $0`: script expects -patch|-unpatch as argument"
+		exit 1;;
+esac
+
+exit 0
+@DPATCH@
+
+Problem description:
+
+>> If isync dies in the middle of synchronization, or the network
+>> connection breaks while it is synchronizing a mailbox, new messages
+>> which are downloaded from the IMAP server do not have their UID saved
+>> to the maildir directory.  This is REALLY, REALLY BAD, because it
+>> means that on the next isync, the downloaded messages are re-uploaded
+>> to the imap server, resulting in duplicate messages in the IMAP store.
+>> 
+>> This takes means the network download takes longer, and if the network
+>> connection is unrealible, it means it's more likely the the IMAP
+>> connection will break, resulting in more duplicate messages being
+>> uploaded to the servers.  (The first time, 14 messages were uploaded
+>> to the server.  The second time I re-isynced, 65 messages were
+>> uploaded to the server, resulting in some 79 duplicate messages that I
+>> had to manually weed out.  Grr, grr, grr, grr.)
+
+Problem solution:
+
+Actually, I managed to figure out the solution a while ago, and got
+hung up trying to figure out the right way to submit the patches back
+to upstream (there's no mailing list that I can find; so do you just
+communicate directly with the developers).  Anyway, I got busy and I
+never had a chance to send the patches a while ago.
+
+This patch is not the best, but it does seem to work.  Perhaps a
+better approach would be to use the more advanced API's available with
+berkdb, so you can actually force a sync to the db/dbm files after
+the mail message has been downloaded.  Fundamentally, that's the
+problem.  The id has been added to the db file, but the changes don't
+get forced out to disk, so in the case of an abnormal termination of
+the program, the id's never get written to disk. 
+
+The patch enclosed below solves the problem by establishing a signal
+handler, which cleans up in the case of the user typing ^C (after the
+network connection has gone away, say because your GSM phone's GPRS
+connection has gotten flakey, for example).  However, it doesn't solve
+the problem in case of an abrupt system crash.  In order to address
+that problem, the overall program interfaces would have to be changed
+to use the newer berkdb interfaces directly, but that would mean
+dropping compatibility with the ancient dbm interface.  Personally, I
+don't think that to be any great loss, but the changes would be much
+more invasive, and would require agreement with the upstream
+maintainer that this is the right way to go.
+
+Also, for bonus points, perhaps there should be an inactivity timer so
+that isync can automatically figure out when the network connection
+has gone away, and can do a clean shutdown and exit automatically,
+instead of requiring the user to type ^C.  
+
+						- Ted
+
+
+Patched files: src/main.c
+===================================================================
+RCS file: isync-0.9.2/src/RCS/main.c,v
+retrieving revision 1.3
+diff -u -r1.3 isync-0.9.2/src/main.c
+--- isync-0.9.2/src/main.c	2004/01/10 01:13:38	1.3
++++ isync-0.9.2/src/main.c	2004/01/10 01:14:34
+@@ -35,6 +35,7 @@
+ #include <string.h>
+ #include <ctype.h>
+ #include <dirent.h>
++#include <signal.h>
+ 
+ int Quiet;
+ 
+@@ -92,6 +93,22 @@
+ unsigned int Tag = 0;
+ char Hostname[256];
+ int Verbose = 0;
++mailbox_t *CleanupMail = 0;
++imap_t *CleanupImap = 0;
++int CleanupValid = 0;
++
++static void signal_exit(int sig)
++{
++	info("Abort received\n");
++	if (CleanupValid) {
++	    info("Aborting, cleaning up\n");
++	    if (CleanupMail) 
++		    maildir_close (CleanupMail);
++	    if (CleanupImap)
++		    imap_close (CleanupImap);
++	}
++	exit (1);
++}
+ 
+ static void
+ version (void)
+@@ -319,6 +336,10 @@
+ 	usage (1);
+     }
+ 
++    signal(SIGTERM, signal_exit);
++    signal(SIGHUP, signal_exit);
++    signal(SIGINT, signal_exit);
++
+     gethostname (Hostname, sizeof (Hostname));
+ 
+     load_config (config, &o2o);
+@@ -410,6 +431,9 @@
+ 		ret = 1;
+ 		break;
+ 	    }
++	    CleanupValid = 1;
++	    CleanupMail = mail;
++	    CleanupImap = imap;
+ 
+ 	    info ("Synchronizing\n");
+ 	    i = (delete || box->delete) ? SYNC_DELETE : 0;
+@@ -460,6 +484,8 @@
+ 
+ 	} while (0);
+ 
++	CleanupValid = 0;
++
+ 	/* we never sync the same mailbox twice, so close it now */
+ 	if (mail)
+ 	    maildir_close (mail);
+
