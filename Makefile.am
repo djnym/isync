@@ -4,10 +4,11 @@ EXTRA_DIST = isyncrc.sample isync.spec.in $(man_MANS)
 DISTCLEANFILES = *~ build-stamp configure-stamp
 
 log:
-	rcs2log -u "me	Michael Elkins	me@sigpipe.org" \
-		-u "melkins	Michael Elkins	me@sigpipe.org" \
-		-u "ossi	Oswald Buddenhagen	ossi@users.sf.net" \
-	    -l 79 > ChangeLog
+	@echo "me:'Michael Elkins <me@sigpipe.org>'" > .usermap
+	@echo "melkins:'Michael Elkins <me@sigpipe.org>'" >> .usermap
+	@echo "ossi:'Oswald Buddenhagen <ossi@users.sf.net>'" >> .usermap
+	cvs2cl -U .usermap --no-wrap --separate-header
+	@rm .usermap
 
 rpm:
 	make dist
