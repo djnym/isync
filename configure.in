@@ -4,6 +4,13 @@ AM_PROG_CC_STDC
 if test $CC = gcc; then
 	CFLAGS="$CFLAGS -pipe"
 fi
+AC_ARG_WITH(ssl-dir, [  --with-ssl-dir=DIR	location where openssl is insalled],
+	[if test -d $withval/lib; then
+		LIBS="$LIBS -L$withval/lib"
+		CFLAGS="$CFLAGS -I$withval/include"
+	else
+		AC_MSG_ERROR(can't find OpenSSL in $withval)
+	fi])
 AC_CHECK_FUNCS(getopt_long)
 AC_CHECK_LIB(socket,socket)
 AC_CHECK_LIB(nsl,inet_ntoa)
