@@ -44,9 +44,9 @@ isync executable still exists; it is a compatibility wrapper around mbsync.
 
     Courier 1.4.3 is known to be buggy, version 1.7.3 works fine.
 
-    c-client (UW-IMAP, Pine) is mostly fine, but tends to change UIDVALIDITY
-    pretty often when used with unix/mbox mailboxes, making isync refuse
-    synchronization.
+    c-client (UW-IMAP, Pine) is mostly fine, but versions less than 2004a.352
+    tend to change UIDVALIDITY pretty often when used with unix/mbox mailboxes,
+    making isync refuse synchronization.
     The "cure" is to simply copy the new UIDVALIDITY from the affected
     mailbox to mbsync's state file. This is a Bad Hack (TM), but it works -
     use at your own risk (if the UIDVALIDITY change was genuine, this will
