@@ -279,11 +279,9 @@ maildir_open (const char *path, int flags)
 	     * flags) is used as the key in the db
 	     */
 	    strfcpy (buf, p->file, sizeof (buf));
-	    s = strchr (p->file, ':');
-	    if (s)
-		*s = 0;
-	    key.dptr = buf;
-	    key.dsize = strlen (buf);
+	    key.dptr = p->file;
+	    s = strchr (key.dptr, ':');
+	    key.dsize = s ? s - key.dptr : strlen (key.dptr);
 	    key = dbm_fetch (m->db, key);
 	    if (key.dptr)
 	    {
@@ -320,28 +318,35 @@ maildir_open (const char *path, int flags)
 int
 maildir_expunge (mailbox_t * mbox, int dead)
 {
-    message_t **cur = &mbox->msgs;
-    message_t *tmp;
-    char path[_POSIX_PATH_MAX];
+	message_t **cur = &mbox->msgs;
+	message_t *tmp;
+	char *s;
+	datum key;
+	char path[_POSIX_PATH_MAX];
 
-    while (*cur)
-    {
-	if ((dead == 0 && (*cur)->flags & D_DELETED) ||
-	    (dead && (*cur)->dead))
+	while (*cur)
 	{
-	    tmp = *cur;
-	    *cur = (*cur)->next;
-	    snprintf (path, sizeof (path), "%s/%s/%s",
-		      mbox->path, tmp->new ? "new" : "cur", tmp->file);
-	    if (unlink (path))
-		perror ("unlink");
-	    free (tmp->file);
-	    free (tmp);
+		if ((dead == 0 && (*cur)->flags & D_DELETED) ||
+				(dead && (*cur)->dead))
+		{
+			tmp = *cur;
+			snprintf (path, sizeof (path), "%s/%s/%s",
+					mbox->path, tmp->new ? "new" : "cur", tmp->file);
+			if (unlink (path))
+				perror (path);
+			/* remove the message from the UID map */
+			key.dptr = tmp->file;
+			s = strchr (key.dptr, ':');
+			key.dsize = s ? s - key.dptr : strlen (key.dptr);
+			dbm_delete (mbox->db, key);
+			*cur = (*cur)->next;
+			free (tmp->file);
+			free (tmp);
+		}
+		else
+			cur = &(*cur)->next;
 	}
-	else
-	    cur = &(*cur)->next;
-    }
-    return 0;
+	return 0;
 }
 
 int
@@ -350,60 +355,28 @@ maildir_update_maxuid (mailbox_t * mbox)
     int fd;
     char buf[64];
     size_t len;
-    unsigned int uid;
     char path[_POSIX_PATH_MAX];
     int ret = 0;
 
     snprintf (path, sizeof (path), "%s/isyncmaxuid", mbox->path);
-    fd = open (path, O_RDWR | O_CREAT, 0600);
+    fd = open (path, O_WRONLY | O_CREAT, 0600);
     if (fd == -1)
     {
 	perror ("open");
 	return -1;
     }
 
-    /* lock the file */
-    if (do_lock (fd, F_WRLCK))
+    /* write out the file */
+    snprintf (buf, sizeof (buf), "%u\n", mbox->maxuid);
+    len = write (fd, buf, strlen (buf));
+    if (len == (size_t) - 1)
     {
-	close (fd);
-	return -1;
-    }
-
-    /* read the file again just to make sure it wasn't updated while
-     * we were doing something else
-     */
-    len = read (fd, buf, sizeof (buf) - 1);
-    buf[len] = 0;
-    uid = atol (buf);
-    if (uid > mbox->maxuid)
-    {
-	fputs ("ERROR: maxuid is now higher (fatal)\n", stderr);
-	ret = -1;
-    }
-
-    if (!ret)
-    {
-	/* rewind */
-	lseek (fd, 0, SEEK_SET);
-
-	/* write out the file */
-	snprintf (buf, sizeof (buf), "%u\n", mbox->maxuid);
-	len = write (fd, buf, strlen (buf));
-	if (len == (size_t) - 1)
-	{
 	    perror ("write");
 	    ret = -1;
-	}
-	else
-	{
-	    ret = ftruncate (fd, len);
-	    if (ret)
-		perror ("ftruncate");
-	}
     }
 
-    ret |= do_lock (fd, F_UNLCK);
-    ret |= close (fd);
+    if (close (fd))
+	    ret = -1;
 
     return ret;
 }

@@ -42,16 +42,12 @@ find_msg (message_t * list, unsigned int uid)
 
 static int set_uid (DBM *db, const char *f, unsigned int uid)
 {
-    char path[_POSIX_PATH_MAX];
     char *s;
     datum key, val;
 
-    strfcpy (path, f, sizeof (path));
-    s = strchr (path, ':');
-    if (s)
-	*s = 0;
-    key.dptr = path;
-    key.dsize = strlen (path);
+    key.dptr = (void *) f;
+    s = strchr (f, ':');
+    key.dsize = s ? (size_t) (s - key.dptr) : strlen (f);
     val.dptr = (void*) &uid;
     val.dsize = sizeof (uid);
     dbm_store (db, key, val, DBM_REPLACE);
@@ -81,13 +77,13 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    /* if the UIDVALIDITY value has changed, it means all our
 	     * local UIDs are invalid, so we can't sync.
 	     */
-	    puts ("Error, UIDVALIDITY changed on server (fatal)");
+	    fputs ("ERROR: UIDVALIDITY changed on server (fatal)\n", stderr);
 	    return -1;
 	}
     }
     else if (maildir_set_uidvalidity (mbox, imap->uidvalidity))
     {
-	puts ("Error, unable to store UIDVALIDITY");
+	fputs ("ERROR: unable to store UIDVALIDITY\n", stderr);
 	return -1;
     }
 
@@ -127,9 +123,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 			  cur->new ? "new" : "cur", cur->file);
 		if (stat (path, &sb))
 		{
-		    printf ("Error, unable to stat %s: %s (errno %d)\n",
-			    path, strerror (errno), errno);
-
+		    perror (path);
 		    continue;	/* not fatal */
 		}
 		if (imap->box->max_size > 0
@@ -354,7 +348,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		else
 		{
 		    /* update the db with the UID mapping for this file */
-		    set_uid (mbox->db, newpath, cur->uid);
+		    set_uid (mbox->db, p + 1, cur->uid);
 		}
 	    }
 
