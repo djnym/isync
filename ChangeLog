@@ -1,4 +1,32 @@
-2001-02-14  Michael Elkins  <me@sigipe.org>
+2001-06-12  me  <me@sigipe.org>
+
+	* Makefile, config.cache, config.log, config.status:
+	auto generated files should not be part of the CVS tree
+
+	* Makefile, config.cache, config.status, smtppush:
+	New file.
+
+	* Makefile, config.cache, config.status, smtppush:
+	initial import
+
+	* config.log: New file.
+
+	* COPYING, INSTALL, Makefile.am, config.log, configure, configure.in, install-sh, main.c, missing, mkinstalldirs, AUTHORS, Makefile.in, README:
+	initial import
+
+2001-02-28  me  <me@sigipe.org>
+
+	* config.c, imap.c:
+	fixed compiler warnings under Solaris 2.7
+
+2001-02-19  me  <me@sigipe.org>
+
+	* ChangeLog, cram.c, imap.c, maildir.c:
+	rfc2595 compliance patch from Daniel Resare <noa@metamatrix.se>
+		- CAPABILITY should be reissued after starting TLS since the
+		  previous call was not protected
+
+2001-02-14  me  <me@sigipe.org>
 
 	* config.c, imap.c, isync.1, main.c, sync.c:
 	patch from Daniel Resare <noa@metamatrix.se>:
@@ -37,12 +65,12 @@
 
 		give error message when the LOGIN command fails
 
-2001-02-01  Michael Elkins  <me@sigipe.org>
+2001-02-01  me  <me@sigipe.org>
 
 	* imap.c: patch from Daniel Resare <noa@metamatrix.se>
 		- don't initialize ssl support if none of use_sslv* is enabled
 
-2001-01-26  Michael Elkins  <me@sigipe.org>
+2001-01-26  me  <me@sigipe.org>
 
 	* imap.c, isync.h:
 	include <sys/types.h> for off_t
@@ -50,14 +78,14 @@
 	patch from "lorenzo martignoni" <lorenzo.martignoni@technologist.com>
 		- fixed uploading of message to IMAP server
 
-2001-01-24  Michael Elkins  <me@sigipe.org>
+2001-01-24  me  <me@sigipe.org>
 
 	* config.c, cram.c, imap.c, isync.1, list.c, maildir.c, main.c, sync.c:
 	fixed cram compilation error under bsd
 
 	updated man page
 
-2001-01-16  Michael Elkins  <me@sigipe.org>
+2001-01-16  me  <me@sigipe.org>
 
 	* TODO, config.c, imap.c, isync.1, isync.h, main.c:
 	added support for tilde (~) expansion in the `Mailbox' and `CertificateFile'
@@ -67,7 +95,7 @@
 	user's mailboxes.  If a relative path is used in a `Mailbox' command, this
 	path is used as a prefix.
 
-2001-01-11  Michael Elkins  <me@sigipe.org>
+2001-01-11  me  <me@sigipe.org>
 
 	* configure.in, imap.c, isync.h:
 	set imap->prefix to be the namespace prefix
@@ -85,7 +113,7 @@
 
 	added CopyDeletedTo configuration option
 
-2001-01-09  Michael Elkins  <me@sigipe.org>
+2001-01-09  me  <me@sigipe.org>
 
 	* maildir.c, sync.c:
 	always put changed messages in the cur/ subdirectory since they are no
@@ -95,7 +123,7 @@
 	flag on the message since Mutt will move Old (unread, but not recent)
 	messges into cur/.
 
-2001-01-08  Michael Elkins  <me@sigipe.org>
+2001-01-08  me  <me@sigipe.org>
 
 	* Makefile.am, main.c:
 	patch from Hugo Haas <hugo@larve.net>
@@ -104,12 +132,12 @@
 		set global password to the one the user inputs and use that as the
 		default for remaining mailboxes
 
-2001-01-05  Michael Elkins  <me@sigipe.org>
+2001-01-05  me  <me@sigipe.org>
 
 	* configure.in:
 	added --with-ssl-dir to specify an alternate installation of OpenSSL
 
-2000-12-31  Michael Elkins  <me@sigipe.org>
+2000-12-31  me  <me@sigipe.org>
 
 	* ChangeLog, isync.spec:
 	pre 0.4 commit.
@@ -123,12 +151,12 @@
 	fixed compilation error with no libssl support ("lorenzo martignoni"
 	<lorenzo.martignoni@technologist.com>)
 
-2000-12-28  Michael Elkins  <me@sigipe.org>
+2000-12-28  me  <me@sigipe.org>
 
 	* main.c:
 	fixed config parser to accept arbitrary whitespace
 
-2000-12-27  Michael Elkins  <me@sigipe.org>
+2000-12-27  me  <me@sigipe.org>
 
 	* imap.c:
 	use imap_close to terminate a connection in imap_open()
@@ -141,7 +169,7 @@
 
 	don't initialize ssl unless we are going to use it.
 
-2000-12-23  Michael Elkins  <me@sigipe.org>
+2000-12-23  me  <me@sigipe.org>
 
 	* imap.c, isync.h:
 	don't use NAMESPACE unless the server supports it
@@ -151,7 +179,7 @@
 
 	parse server capability string to determine if STARTTLS is available
 
-2000-12-22  Michael Elkins  <me@sigipe.org>
+2000-12-22  me  <me@sigipe.org>
 
 	* README, imap.c, isync.1, isync.h, main.c:
 	isync-brokenservers.diff (Jeremy Katz <katzj@linuxpower.org>)
@@ -179,7 +207,7 @@
 	fixed --fast to work robustly without relying on the \Recent flag in
 	messages
 
-2000-12-21  Michael Elkins  <me@sigipe.org>
+2000-12-21  me  <me@sigipe.org>
 
 	* imap.c, isync.h, maildir.c, sync.c:
 	RFC822.PEEK is obsolete in RFC2060.  Use BODY.PEEK[] instead, which does
@@ -240,7 +268,7 @@
 
 	local messages with updated flags were not corrected renamed
 
-2000-12-20  Michael Elkins  <me@sigipe.org>
+2000-12-20  me  <me@sigipe.org>
 
 	* ChangeLog, Makefile.am:
 	updated ChangeLog
