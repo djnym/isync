@@ -153,7 +153,7 @@ free_list (list_t * list)
     {
 	tmp = list;
 	list = list->next;
-	if (is_list (list))
+	if (is_list (tmp))
 	    free_list (tmp->child);
 	else if (is_atom (tmp))
 	    free (tmp->val);

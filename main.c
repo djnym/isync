@@ -334,5 +334,11 @@ cleanup:
     /* gracefully close connection to the IMAP server */
     imap_close (imap);
 
+    free_config ();
+
+#if DEBUG
+    debug_cleanup ();
+#endif
+
     exit (0);
 }

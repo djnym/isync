@@ -23,6 +23,7 @@
 #if HAVE_LIBSSL
 #include <openssl/ssl.h>
 #endif
+#include "debug.h"
 
 typedef struct
 {
@@ -173,6 +174,7 @@ int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int, unsigned int);
 void load_config (const char *);
 char * expand_strdup (const char *s);
 config_t *find_box (const char *);
+void free_config (void);
 
 void imap_close (imap_t *);
 int imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox);

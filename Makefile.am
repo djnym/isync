@@ -1,5 +1,8 @@
 bin_PROGRAMS=isync
 isync_SOURCES=main.c imap.c sync.c maildir.c isync.h list.c cram.c config.c
+isync_LDADD=@DEBUGOBJ@
+isync_DEPENDENCIES=@DEBUGOBJ@
+EXTRA_isync_SOURCES=debug.c
 man_MANS=isync.1
 EXTRA_DIST=sample.isyncrc $(man_MANS)
 INCLUDES=$(RPM_OPT_FLAGS)

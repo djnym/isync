@@ -18,8 +18,6 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#define _GNU_SOURCE 1
-
 #include <unistd.h>
 #include <limits.h>
 #include <errno.h>
@@ -39,16 +37,14 @@ config_defaults (config_t * conf)
     memcpy (conf, &global, sizeof (config_t));
 }
 
-#ifndef HAVE_STRNDUP
 static char *
-strndup (const char *s, size_t nchars)
+my_strndup (const char *s, size_t nchars)
 {
     char *r = malloc (sizeof (char) * (nchars + 1));
     strncpy (r, s, nchars);
     r[nchars] = 0;
     return r;
 }
-#endif /* ! HAVE_STRNDUP */
 
 char *
 expand_strdup (const char *s)
@@ -73,7 +69,7 @@ expand_strdup (const char *s)
 	    p = strchr (s, '/');
 	    if (p)
 	    {
-		user = strndup (s, (int)(p - s));
+		user = my_strndup (s, (int)(p - s));
 		p++;
 	    }
 	    else
@@ -323,4 +319,13 @@ find_box (const char *s)
 	}
     }
     return 0;
+}
+
+void
+free_config (void)
+{
+    free (global.user);
+    free (global.maildir);
+    free (global.host);
+    free (global.pass);
 }
