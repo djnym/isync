@@ -119,6 +119,13 @@ load_config( const char *path, config_t ***stor )
 			cfg = **stor = nfmalloc( sizeof(config_t) );
 			*stor = &cfg->next;
 			memcpy( cfg, &global, sizeof(config_t) );
+			if (val[0] == '~' && val[1] == '/')
+				val += 2;
+			else {
+				int l = strlen( Home );
+				if (!memcmp( val, Home, l ) && val[l] == '/')
+					val += l + 1;
+			}
 			/* not expanded at this point */
 			cfg->path = nfstrdup( val );
 		} else if (!strcasecmp( "OneToOne", cmd )) {
