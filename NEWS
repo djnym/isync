@@ -1,3 +1,17 @@
+[0.5]
+
+Updated SSL support.
+
+Added CRAM authentication support.
+
+Added MailDir configuration option to specify the default location of local
+mailboxes when relative paths are used.
+
+Added support for uploading local messages to the IMAP server.
+
+Added CopyDeletedTo configuration option to cause isync to move deleted
+messages to a particular mailbox on the server when they are expunged.
+
 [0.4]
 
 Added MaxSize configuration option to limit downloading of new messages from
