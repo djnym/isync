@@ -1,5 +1,5 @@
 AC_INIT(isync.h)
-AM_INIT_AUTOMAKE(isync,0.8)
+AM_INIT_AUTOMAKE(isync,0.9)
 AM_PROG_CC_STDC
 AC_ARG_WITH(ssl-dir, [  --with-ssl-dir=DIR	location where openssl is insalled],
 	[if test -d $withval/lib; then

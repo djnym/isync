@@ -230,6 +230,13 @@ load_config (const char *where)
 	    else
 		global.copy_deleted_to = strdup (val);
 	}
+	else if (!strcasecmp ("Tunnel", cmd))
+	{
+	    if (*cur)
+		(*cur)->tunnel = strdup (val);
+	    else
+		global.tunnel = strdup (val);
+	}
 	else if (!strcasecmp ("Expunge", cmd))
 	{
 	    if (*cur)

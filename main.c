@@ -292,7 +292,7 @@ main (int argc, char **argv)
 		break;
 	    }
 
-	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap);
+	    imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap, 0);
 	    if (!imap)
 	    {
 		fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",

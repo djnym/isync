@@ -40,3 +40,13 @@ Host host.play.com
 # use a non-default port for this connection
 Port 6789
 Alias personal
+
+
+###
+### Remote mailbox over a SSH tunnel
+###
+
+Mailbox /home/me/Mail/remote
+Host host.remote.com
+Tunnel "ssh -q host.remote.com /usr/sbin/imapd"
+Alias remote

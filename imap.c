@@ -179,7 +179,7 @@ socket_read (Socket_t * sock, char *buf, size_t len)
     if (sock->use_ssl)
 	return SSL_read (sock->ssl, buf, len);
 #endif
-    return read (sock->fd, buf, len);
+    return read (sock->rdfd, buf, len);
 }
 
 static int
@@ -189,7 +189,7 @@ socket_write (Socket_t * sock, char *buf, size_t len)
     if (sock->use_ssl)
 	return SSL_write (sock->ssl, buf, len);
 #endif
-    return write (sock->fd, buf, len);
+    return write (sock->wrfd, buf, len);
 }
 
 static void
@@ -455,8 +455,8 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		imap->ns_shared = parse_list (cmd, 0);
 	    }
 	    else if (!strcmp ("OK", arg) || !strcmp ("BAD", arg) ||
-		     !strcmp ("NO", arg) || !strcmp ("PREAUTH", arg) ||
-		     !strcmp ("BYE", arg))
+		     !strcmp ("NO", arg) || !strcmp ("BYE", arg) ||
+		     !strcmp ("PREAUTH", arg))
 	    {
 		parse_response_code (imap, cmd);
 	    }
@@ -554,635 +554,708 @@ imap_exec (imap_t * imap, const char *fmt, ...)
  * mailbox.
  */
 imap_t *
-imap_open (config_t * box, unsigned int minuid, imap_t * imap)
+imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 {
-    int ret;
-    int s;
-    struct sockaddr_in addr;
-    struct hostent *he;
-    int reuse = 0;
+  int ret;
+  int s;
+  struct sockaddr_in addr;
+  struct hostent *he;
+  char *arg, *rsp;
+  int reuse = 0;
+  int preauth = 0;
 #if HAVE_LIBSSL
-    int use_ssl = 0;
+  int use_ssl = 0;
 #endif
 
-    if (imap)
-    {
-	/* determine whether or not we can reuse the existing session */
-	if (strcmp (box->host, imap->box->host) ||
-	    strcmp (box->user, imap->box->user) ||
-	    box->port != imap->box->port
+  if (imap)
+  {
+    /* determine whether or not we can reuse the existing session */
+    if (strcmp (box->host, imap->box->host) ||
+	strcmp (box->user, imap->box->user) ||
+	box->port != imap->box->port
 #if HAVE_LIBSSL
-	    /* ensure that security requirements are met */
-	    || (box->require_ssl ^ imap->box->require_ssl)
-	    || (box->require_cram ^ imap->box->require_cram)
+	/* ensure that security requirements are met */
+	|| (box->require_ssl ^ imap->box->require_ssl)
+	|| (box->require_cram ^ imap->box->require_cram)
 #endif
-	    )
-	{
-	    /* can't reuse */
-	    imap_close (imap);
-	    imap = 0;
-	}
-	else
-	{
-	    reuse = 1;
-	    /* reset mailbox-specific state info */
-	    imap->recent = 0;
-	    imap->deleted = 0;
-	    imap->count = 0;
-	    imap->maxuid = 0;
-	    free_message (imap->msgs);
-	    imap->msgs = 0;
-	}
-    }
-
-    if (!imap)
+       )
     {
-	imap = calloc (1, sizeof (imap_t));
-	imap->sock = calloc (1, sizeof (Socket_t));
-	imap->buf = calloc (1, sizeof (buffer_t));
-	imap->buf->sock = imap->sock;
+      /* can't reuse */
+      imap_close (imap);
+      imap = 0;
+    }
+    else
+    {
+      reuse = 1;
+      /* reset mailbox-specific state info */
+      imap->recent = 0;
+      imap->deleted = 0;
+      imap->count = 0;
+      imap->maxuid = 0;
+      free_message (imap->msgs);
+      imap->msgs = 0;
+    }
+  }
+
+  if (!imap)
+  {
+    imap = calloc (1, sizeof (imap_t));
+    imap->sock = calloc (1, sizeof (Socket_t));
+    imap->buf = calloc (1, sizeof (buffer_t));
+    imap->buf->sock = imap->sock;
+  }
+
+  imap->box = box;
+  imap->minuid = minuid;
+  imap->prefix = "";
+
+  if (!reuse)
+  {
+    /* open connection to IMAP server */
+
+    if (box->tunnel)
+    {
+      int a[2];
+      int b[2];
+
+      printf ("Executing: %s...", box->tunnel);
+      fflush (stdout);
+
+      if (pipe (a))
+      {
+      }
+      if (pipe (b))
+      {
+      }
+
+      if (fork () == 0)
+      {
+	if (dup2 (a[0],0))
+	{
+	  _exit(127);
+	}
+	close (a[1]);
+	if (dup2 (b[1],1))
+	{
+	  _exit (127);
+	}
+	close (b[0]);
+	execl ("/bin/sh","sh","-c", box->tunnel);
+	_exit (127);
+      }
+
+      close (a[0]);
+      close (b[1]);
+
+      imap->sock->rdfd = b[0];
+      imap->sock->wrfd = a[1];
+
+      puts ("ok");
+    }
+    else
+    {
+      memset (&addr, 0, sizeof (addr));
+      addr.sin_port = htons (box->port);
+      addr.sin_family = AF_INET;
+
+      printf ("Resolving %s... ", box->host);
+      fflush (stdout);
+      he = gethostbyname (box->host);
+      if (!he)
+      {
+	perror ("gethostbyname");
+	return 0;
+      }
+      puts ("ok");
+
+      addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
+
+      s = socket (PF_INET, SOCK_STREAM, 0);
+
+      printf ("Connecting to %s:%hu... ", inet_ntoa (addr.sin_addr),
+	      ntohs (addr.sin_port));
+      fflush (stdout);
+      if (connect (s, (struct sockaddr *) &addr, sizeof (addr)))
+      {
+	perror ("connect");
+	exit (1);
+      }
+      puts ("ok");
+
+      imap->sock->rdfd = s;
+      imap->sock->wrfd = s;
+    }
+  }
+
+  do
+  {
+    /* read the greeting string */
+    if (buffer_gets (imap->buf, &rsp))
+    {
+      puts ("Error, no greeting response");
+      ret = -1;
+      break;
+    }
+    if (Verbose)
+      puts (rsp);
+    arg = next_arg (&rsp);
+    if (!arg || *arg != '*' || (arg = next_arg (&rsp)) == NULL)
+    {
+      puts ("Error, invalid greeting response");
+      ret = -1;
+      break;
+    }
+    if (!strcmp ("PREAUTH", arg))
+      preauth = 1;
+    else if (strcmp ("OK", arg) != 0)
+    {
+      puts ("Error, unknown greeting response");
+      ret = -1;
+      break;
     }
 
-    imap->box = box;
-    imap->minuid = minuid;
-    imap->prefix = "";
-
+    /* if we are reusing the existing connection, we can skip the
+     * authentication steps.
+     */
     if (!reuse)
     {
-	/* open connection to IMAP server */
+#if HAVE_LIBSSL
+      if (box->use_imaps)
+	use_ssl = 1;
+      else
+      {
+	/* let's see what this puppy can do... */
+	if ((ret = imap_exec (imap, "CAPABILITY")))
+	  break;
 
-	memset (&addr, 0, sizeof (addr));
-	addr.sin_port = htons (box->port);
-	addr.sin_family = AF_INET;
-
-	printf ("Resolving %s... ", box->host);
-	fflush (stdout);
-	he = gethostbyname (box->host);
-	if (!he)
+	if (box->use_sslv2 || box->use_sslv3 || box->use_tlsv1)
 	{
-	    perror ("gethostbyname");
-	    return 0;
+	  /* always try to select SSL support if available */
+	  if (imap->have_starttls)
+	  {
+	    if ((ret = imap_exec (imap, "STARTTLS")))
+	      break;
+	    use_ssl = 1;
+	  }
 	}
-	puts ("ok");
+      }
 
-	addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
-
-	s = socket (PF_INET, SOCK_STREAM, 0);
-
-	printf ("Connecting to %s:%hu... ", inet_ntoa (addr.sin_addr),
-		ntohs (addr.sin_port));
-	fflush (stdout);
-	if (connect (s, (struct sockaddr *) &addr, sizeof (addr)))
+      if (!use_ssl)
+      {
+	if (box->require_ssl)
 	{
-	    perror ("connect");
-	    exit (1);
+	  puts ("Error, SSL support not available");
+	  ret = -1;
+	  break;
 	}
-	puts ("ok");
+	else
+	  puts ("Warning, SSL support not available");
+      }
+      else
+      {
+	/* initialize SSL */
+	if (init_ssl (box))
+	{
+	  ret = -1;
+	  break;
+	}
 
-	imap->sock->fd = s;
-    }
+	imap->sock->ssl = SSL_new (SSLContext);
+	SSL_set_fd (imap->sock->ssl, imap->sock->rdfd);
+	ret = SSL_connect (imap->sock->ssl);
+	if (ret <= 0)
+	{
+	  socket_perror ("connect", imap->sock, ret);
+	  break;
+	}
 
-    do
-    {
-	/* if we are reusing the existing connection, we can skip the
-	 * authentication steps.
+	/* verify the server certificate */
+	if ((ret = verify_cert (imap->sock->ssl)))
+	  break;
+
+	/* to conform to RFC2595 we need to forget all information
+	 * retrieved from CAPABILITY invocations before STARTTLS.
 	 */
-	if (!reuse)
-	{
-#if HAVE_LIBSSL
-	    if (box->use_imaps)
-		use_ssl = 1;
-	    else
-	    {
-		/* let's see what this puppy can do... */
-		if ((ret = imap_exec (imap, "CAPABILITY")))
-		    break;
+	imap->have_namespace = 0;
+	imap->have_cram = 0;
+	imap->have_starttls = 0;
 
-		if (box->use_sslv2 || box->use_sslv3 || box->use_tlsv1)
-		{
-		    /* always try to select SSL support if available */
-		    if (imap->have_starttls)
-		    {
-			if ((ret = imap_exec (imap, "STARTTLS")))
-			    break;
-			use_ssl = 1;
-		    }
-		}
-	    }
+	imap->sock->use_ssl = 1;
+	puts ("SSL support enabled");
 
-	    if (!use_ssl)
-	    {
-		if (box->require_ssl)
-		{
-		    puts ("Error, SSL support not available");
-		    ret = -1;
-		    break;
-		}
-		else
-		    puts ("Warning, SSL support not available");
-	    }
-	    else
-	    {
-		/* initialize SSL */
-		if (init_ssl (box))
-		{
-		    ret = -1;
-		    break;
-		}
-
-		imap->sock->ssl = SSL_new (SSLContext);
-		SSL_set_fd (imap->sock->ssl, imap->sock->fd);
-		ret = SSL_connect (imap->sock->ssl);
-		if (ret <= 0)
-		{
-		    socket_perror ("connect", imap->sock, ret);
-		    break;
-		}
-
-		/* verify the server certificate */
-		if ((ret = verify_cert (imap->sock->ssl)))
-		    break;
-
-		/* to conform to RFC2595 we need to forget all information
-		 * retrieved from CAPABILITY invocations before STARTTLS.
-		 */
-		imap->have_namespace = 0;
-		imap->have_cram = 0;
-		imap->have_starttls = 0;
-
-		imap->sock->use_ssl = 1;
-		puts ("SSL support enabled");
-
-		if ((ret = imap_exec (imap, "CAPABILITY")))
-		    break;
-	    }
+	if ((ret = imap_exec (imap, "CAPABILITY")))
+	  break;
+      }
 #else
-	    if ((ret = imap_exec (imap, "CAPABILITY")))
-		break;
+      if ((ret = imap_exec (imap, "CAPABILITY")))
+	break;
 #endif
 
-	    puts ("Logging in...");
+      if (!preauth)
+      {
+	puts ("Logging in...");
 #if HAVE_LIBSSL
-	    if (imap->have_cram)
-	    {
-		puts ("Authenticating with CRAM-MD5");
-		imap->cram = 1;
-		if ((ret = imap_exec (imap, "AUTHENTICATE CRAM-MD5")))
-		    break;
-	    }
-	    else if (imap->box->require_cram)
-	    {
-		puts
-		    ("Error, CRAM-MD5 authentication is not supported by server");
-		ret = -1;
-		break;
-	    }
-	    else
-#endif
-	    {
-#if HAVE_LIBSSL
-		if (!use_ssl)
-#endif
-		    puts
-			("*** Warning *** Password is being sent in the clear");
-		if (
-		    (ret =
-		     imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user,
-				box->pass)))
-		{
-		    puts ("Error, LOGIN failed");
-		    break;
-		}
-	    }
-
-	    /* get NAMESPACE info */
-	    if (box->use_namespace && imap->have_namespace)
-	    {
-		if ((ret = imap_exec (imap, "NAMESPACE")))
-		    break;
-	    }
-	}			/* !reuse */
-
-	/* XXX for now assume personal namespace */
-	if (imap->box->use_namespace && is_list (imap->ns_personal) &&
-	    is_list (imap->ns_personal->child) &&
-	    is_atom (imap->ns_personal->child->child))
+	if (imap->have_cram)
 	{
-	    imap->prefix = imap->ns_personal->child->child->val;
-	}
-
-	fputs ("Selecting mailbox... ", stdout);
-	fflush (stdout);
-	if (
-	    (ret =
-	     imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)))
+	  puts ("Authenticating with CRAM-MD5");
+	  imap->cram = 1;
+	  if ((ret = imap_exec (imap, "AUTHENTICATE CRAM-MD5")))
 	    break;
-	printf ("%d messages, %d recent\n", imap->count, imap->recent);
-
-	puts ("Reading IMAP mailbox index");
-	if (imap->count > 0)
-	{
-	    if ((ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
-				  imap->minuid)))
-		break;
 	}
-    }
-    while (0);
+	else if (imap->box->require_cram)
+	{
+	  puts
+	    ("Error, CRAM-MD5 authentication is not supported by server");
+	  ret = -1;
+	  break;
+	}
+	else
+#endif
+	{
+#if HAVE_LIBSSL
+	  if (!use_ssl)
+#endif
+	    puts
+	      ("*** Warning *** Password is being sent in the clear");
+	  if (
+	      (ret =
+	       imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user,
+			  box->pass)))
+	  {
+	    puts ("Error, LOGIN failed");
+	    break;
+	  }
+	}
+      }
 
-    if (ret)
+      /* get NAMESPACE info */
+      if (box->use_namespace && imap->have_namespace)
+      {
+	if ((ret = imap_exec (imap, "NAMESPACE")))
+	  break;
+      }
+    }			/* !reuse */
+
+    /* XXX for now assume personal namespace */
+    if (imap->box->use_namespace && is_list (imap->ns_personal) &&
+	is_list (imap->ns_personal->child) &&
+	is_atom (imap->ns_personal->child->child))
     {
-	imap_close (imap);
-	imap = 0;
+      imap->prefix = imap->ns_personal->child->child->val;
     }
 
-    return imap;
+    fputs ("Selecting mailbox... ", stdout);
+    fflush (stdout);
+    if ((ret = imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)))
+      break;
+    printf ("%d messages, %d recent\n", imap->count, imap->recent);
+
+    puts ("Reading IMAP mailbox index");
+    if (imap->count > 0)
+    {
+      if ((ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
+			    imap->minuid)))
+	break;
+    }
+  }
+  while (0);
+
+  if (ret)
+  {
+    imap_close (imap);
+    imap = 0;
+  }
+
+  return imap;
 }
 
 void
 imap_close (imap_t * imap)
 {
-    if (imap)
-    {
-	imap_exec (imap, "LOGOUT");
-	close (imap->sock->fd);
-	free (imap->sock);
-	free (imap->buf);
-	free_message (imap->msgs);
-	memset (imap, 0xff, sizeof (imap_t));
-	free (imap);
-    }
+  if (imap)
+  {
+    imap_exec (imap, "LOGOUT");
+    close (imap->sock->rdfd);
+    if (imap->sock->rdfd != imap->sock->wrfd)
+      close (imap->sock->wrfd);
+    free (imap->sock);
+    free (imap->buf);
+    free_message (imap->msgs);
+    memset (imap, 0xff, sizeof (imap_t));
+    free (imap);
+  }
 }
 
 /* write a buffer stripping all \r bytes */
 static int
 write_strip (int fd, char *buf, size_t len)
 {
-    size_t start = 0;
-    size_t end = 0;
-    ssize_t n;
+  size_t start = 0;
+  size_t end = 0;
+  ssize_t n;
 
-    while (start < len)
+  while (start < len)
+  {
+    while (end < len && buf[end] != '\r')
+      end++;
+    n = write (fd, buf + start, end - start);
+    if (n == -1)
     {
-	while (end < len && buf[end] != '\r')
-	    end++;
-	n = write (fd, buf + start, end - start);
-	if (n == -1)
-	{
-	    perror ("write");
-	    return -1;
-	}
-	else if ((size_t) n != end - start)
-	{
-	    /* short write, try again */
-	    start += n;
-	}
-	else
-	{
-	    /* write complete */
-	    end++;
-	    start = end;
-	}
+      perror ("write");
+      return -1;
     }
-    return 0;
+    else if ((size_t) n != end - start)
+    {
+      /* short write, try again */
+      start += n;
+    }
+    else
+    {
+      /* write complete */
+      end++;
+      start = end;
+    }
+  }
+  return 0;
 }
 
 static int
 send_server (Socket_t * sock, const char *fmt, ...)
 {
-    char buf[128];
-    char cmd[128];
-    va_list ap;
-    int n;
+  char buf[128];
+  char cmd[128];
+  va_list ap;
+  int n;
 
-    va_start (ap, fmt);
-    vsnprintf (buf, sizeof (buf), fmt, ap);
-    va_end (ap);
+  va_start (ap, fmt);
+  vsnprintf (buf, sizeof (buf), fmt, ap);
+  va_end (ap);
 
-    snprintf (cmd, sizeof (cmd), "%d %s\r\n", ++Tag, buf);
-    n = socket_write (sock, cmd, strlen (cmd));
-    if (n <= 0)
-    {
-	socket_perror ("write", sock, n);
-	return -1;
-    }
+  snprintf (cmd, sizeof (cmd), "%d %s\r\n", ++Tag, buf);
+  n = socket_write (sock, cmd, strlen (cmd));
+  if (n <= 0)
+  {
+    socket_perror ("write", sock, n);
+    return -1;
+  }
 
-    if (Verbose)
-	fputs (cmd, stdout);
+  if (Verbose)
+    fputs (cmd, stdout);
 
-    return 0;
+  return 0;
 }
 
 int
 imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 {
-    char *cmd;
-    char *arg;
-    size_t bytes;
-    size_t n;
-    char buf[1024];
+  char *cmd;
+  char *arg;
+  size_t bytes;
+  size_t n;
+  char buf[1024];
 
-    send_server (imap->sock, "UID FETCH %d BODY.PEEK[]", uid);
+  send_server (imap->sock, "UID FETCH %d BODY.PEEK[]", uid);
 
-    for (;;)
+  for (;;)
+  {
+    if (buffer_gets (imap->buf, &cmd))
+      return -1;
+
+    if (Verbose)
+      puts (cmd);
+
+    if (*cmd == '*')
     {
-	if (buffer_gets (imap->buf, &cmd))
-	    return -1;
+      /* need to figure out how long the message is
+       * * <msgno> FETCH (RFC822 {<size>}
+       */
 
-	if (Verbose)
-	    puts (cmd);
+      next_arg (&cmd);	/* * */
+      next_arg (&cmd);	/* <msgno> */
+      arg = next_arg (&cmd);	/* FETCH */
 
-	if (*cmd == '*')
+      if (strcasecmp ("FETCH", arg) != 0)
+      {
+	/* this is likely an untagged response, such as when new
+	 * mail arrives in the middle of the session.  just skip
+	 * it for now.
+	 * 
+	 * eg.,
+	 * "* 4000 EXISTS"
+	 * "* 2 RECENT"
+	 *
+	 */
+	printf ("skipping untagged response: %s\n", arg);
+	continue;
+      }
+
+      while ((arg = next_arg (&cmd)) && *arg != '{')
+	;
+      if (!arg)
+      {
+	puts ("parse error getting size");
+	return -1;
+      }
+      bytes = strtol (arg + 1, 0, 10);
+
+      /* dump whats left over in the input buffer */
+      n = imap->buf->bytes - imap->buf->offset;
+
+      if (n > bytes)
+      {
+	/* the entire message fit in the buffer */
+	n = bytes;
+      }
+
+      /* ick.  we have to strip out the \r\n line endings, so
+       * i can't just dump the raw bytes to disk.
+       */
+      if (write_strip (fd, imap->buf->buf + imap->buf->offset, n))
+      {
+	/* write failed, message is not delivered */
+	return -1;
+      }
+
+      bytes -= n;
+
+      /* mark that we used part of the buffer */
+      imap->buf->offset += n;
+
+      /* now read the rest of the message */
+      while (bytes > 0)
+      {
+	n = bytes;
+	if (n > sizeof (buf))
+	  n = sizeof (buf);
+	n = socket_read (imap->sock, buf, n);
+	if (n > 0)
 	{
-	    /* need to figure out how long the message is
-	     * * <msgno> FETCH (RFC822 {<size>}
-	     */
-
-	    next_arg (&cmd);	/* * */
-	    next_arg (&cmd);	/* <msgno> */
-	    arg = next_arg (&cmd);	/* FETCH */
-
-	    if (strcasecmp ("FETCH", arg) != 0)
-	    {
-		/* this is likely an untagged response, such as when new
-		 * mail arrives in the middle of the session.  just skip
-		 * it for now.
-		 * 
-		 * eg.,
-		 * "* 4000 EXISTS"
-		 * "* 2 RECENT"
-		 *
-		 */
-		printf ("skipping untagged response: %s\n", arg);
-		continue;
-	    }
-
-	    while ((arg = next_arg (&cmd)) && *arg != '{')
-		;
-	    if (!arg)
-	    {
-		puts ("parse error getting size");
-		return -1;
-	    }
-	    bytes = strtol (arg + 1, 0, 10);
-
-	    /* dump whats left over in the input buffer */
-	    n = imap->buf->bytes - imap->buf->offset;
-
-	    if (n > bytes)
-	    {
-		/* the entire message fit in the buffer */
-		n = bytes;
-	    }
-
-	    /* ick.  we have to strip out the \r\n line endings, so
-	     * i can't just dump the raw bytes to disk.
-	     */
-	    if (write_strip (fd, imap->buf->buf + imap->buf->offset, n))
-	    {
-		/* write failed, message is not delivered */
-		return -1;
-	    }
-
-	    bytes -= n;
-
-	    /* mark that we used part of the buffer */
-	    imap->buf->offset += n;
-
-	    /* now read the rest of the message */
-	    while (bytes > 0)
-	    {
-		n = bytes;
-		if (n > sizeof (buf))
-		    n = sizeof (buf);
-		n = socket_read (imap->sock, buf, n);
-		if (n > 0)
-		{
-		    if (write_strip (fd, buf, n))
-		    {
-			/* write failed */
-			return -1;
-		    }
-		    bytes -= n;
-		}
-		else
-		{
-		    socket_perror ("read", imap->sock, n);
-		    return -1;
-		}
-	    }
-
-	    buffer_gets (imap->buf, &cmd);
-	    if (Verbose)
-		puts (cmd);	/* last part of line */
+	  if (write_strip (fd, buf, n))
+	  {
+	    /* write failed */
+	    return -1;
+	  }
+	  bytes -= n;
 	}
 	else
 	{
-	    arg = next_arg (&cmd);
-	    if (!arg || (size_t) atoi (arg) != Tag)
-	    {
-		puts ("wrong tag");
-		return -1;
-	    }
-	    arg = next_arg (&cmd);
-	    if (!strcmp ("OK", arg))
-		return 0;
-	    return -1;
+	  socket_perror ("read", imap->sock, n);
+	  return -1;
 	}
+      }
+
+      buffer_gets (imap->buf, &cmd);
+      if (Verbose)
+	puts (cmd);	/* last part of line */
     }
-    /* not reached */
+    else
+    {
+      arg = next_arg (&cmd);
+      if (!arg || (size_t) atoi (arg) != Tag)
+      {
+	puts ("wrong tag");
+	return -1;
+      }
+      arg = next_arg (&cmd);
+      if (!strcmp ("OK", arg))
+	return 0;
+      return -1;
+    }
+  }
+  /* not reached */
 }
 
 /* add flags to existing flags */
 int
 imap_set_flags (imap_t * imap, unsigned int uid, unsigned int flags)
 {
-    char buf[256];
-    int i;
+  char buf[256];
+  int i;
 
-    buf[0] = 0;
-    for (i = 0; i < D_MAX; i++)
-    {
-	if (flags & (1 << i))
-	    snprintf (buf + strlen (buf),
-		      sizeof (buf) - strlen (buf), "%s%s",
-		      (buf[0] != 0) ? " " : "", Flags[i]);
-    }
+  buf[0] = 0;
+  for (i = 0; i < D_MAX; i++)
+  {
+    if (flags & (1 << i))
+      snprintf (buf + strlen (buf),
+		sizeof (buf) - strlen (buf), "%s%s",
+		(buf[0] != 0) ? " " : "", Flags[i]);
+  }
 
-    return imap_exec (imap, "UID STORE %d +FLAGS.SILENT (%s)", uid, buf);
+  return imap_exec (imap, "UID STORE %d +FLAGS.SILENT (%s)", uid, buf);
 }
 
 int
 imap_expunge (imap_t * imap)
 {
-    return imap_exec (imap, "EXPUNGE");
+  return imap_exec (imap, "EXPUNGE");
 }
 
 int
 imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox)
 {
-    return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, imap->prefix,
-		      mailbox);
+  return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, imap->prefix,
+		    mailbox);
 }
 
 int
 imap_append_message (imap_t * imap, int fd, message_t * msg)
 {
-    char buf[1024];
-    size_t len;
-    size_t sofar = 0;
-    int lines = 0;
-    char flagstr[128];
-    char *s;
-    size_t i;
-    size_t start, end;
-    char *arg;
+  char buf[1024];
+  size_t len;
+  size_t sofar = 0;
+  int lines = 0;
+  char flagstr[128];
+  char *s;
+  size_t i;
+  size_t start, end;
+  char *arg;
 
-    /* ugh, we need to count the number of newlines */
-    while (sofar < msg->size)
+  /* ugh, we need to count the number of newlines */
+  while (sofar < msg->size)
+  {
+    len = msg->size - sofar;
+    if (len > sizeof (buf))
+      len = sizeof (buf);
+    len = read (fd, buf, len);
+    if (len == (size_t) - 1)
     {
-	len = msg->size - sofar;
-	if (len > sizeof (buf))
-	    len = sizeof (buf);
-	len = read (fd, buf, len);
-	if (len == (size_t) - 1)
-	{
-	    perror ("read");
-	    return -1;
-	}
-	for (i = 0; i < len; i++)
-	    if (buf[i] == '\n')
-		lines++;
-	sofar += len;
+      perror ("read");
+      return -1;
     }
+    for (i = 0; i < len; i++)
+      if (buf[i] == '\n')
+	lines++;
+    sofar += len;
+  }
 
-    flagstr[0] = 0;
-    if (msg->flags)
+  flagstr[0] = 0;
+  if (msg->flags)
+  {
+    strcpy (flagstr, "(");
+    if (msg->flags & D_DELETED)
+      snprintf (flagstr + strlen (flagstr),
+		sizeof (flagstr) - strlen (flagstr), "%s\\Deleted",
+		flagstr[1] ? " " : "");
+    if (msg->flags & D_ANSWERED)
+      snprintf (flagstr + strlen (flagstr),
+		sizeof (flagstr) - strlen (flagstr), "%s\\Answered",
+		flagstr[1] ? " " : "");
+    if (msg->flags & D_SEEN)
+      snprintf (flagstr + strlen (flagstr),
+		sizeof (flagstr) - strlen (flagstr), "%s\\Seen",
+		flagstr[1] ? " " : "");
+    if (msg->flags & D_FLAGGED)
+      snprintf (flagstr + strlen (flagstr),
+		sizeof (flagstr) - strlen (flagstr), "%s\\Flagged",
+		flagstr[1] ? " " : "");
+    if (msg->flags & D_DRAFT)
+      snprintf (flagstr + strlen (flagstr),
+		sizeof (flagstr) - strlen (flagstr), "%s\\Draft",
+		flagstr[1] ? " " : "");
+    snprintf (flagstr + strlen (flagstr),
+	      sizeof (flagstr) - strlen (flagstr), ") ");
+  }
+
+  send_server (imap->sock, "APPEND %s%s %s{%d}",
+	       imap->prefix, imap->box->box, flagstr, msg->size + lines);
+
+  if (buffer_gets (imap->buf, &s))
+    return -1;
+  if (Verbose)
+    puts (s);
+
+  if (*s != '+')
+  {
+    puts ("Error, expected `+' from server (aborting)");
+    return -1;
+  }
+
+  /* rewind */
+  lseek (fd, 0, 0);
+
+  sofar = 0;
+  while (sofar < msg->size)
+  {
+    len = msg->size - sofar;
+    if (len > sizeof (buf))
+      len = sizeof (buf);
+    len = read (fd, buf, len);
+    if (len == (size_t) - 1)
+      return -1;
+    start = 0;
+    while (start < len)
     {
-	strcpy (flagstr, "(");
-	if (msg->flags & D_DELETED)
-	    snprintf (flagstr + strlen (flagstr),
-		      sizeof (flagstr) - strlen (flagstr), "%s\\Deleted",
-		      flagstr[1] ? " " : "");
-	if (msg->flags & D_ANSWERED)
-	    snprintf (flagstr + strlen (flagstr),
-		      sizeof (flagstr) - strlen (flagstr), "%s\\Answered",
-		      flagstr[1] ? " " : "");
-	if (msg->flags & D_SEEN)
-	    snprintf (flagstr + strlen (flagstr),
-		      sizeof (flagstr) - strlen (flagstr), "%s\\Seen",
-		      flagstr[1] ? " " : "");
-	if (msg->flags & D_FLAGGED)
-	    snprintf (flagstr + strlen (flagstr),
-		      sizeof (flagstr) - strlen (flagstr), "%s\\Flagged",
-		      flagstr[1] ? " " : "");
-	if (msg->flags & D_DRAFT)
-	    snprintf (flagstr + strlen (flagstr),
-		      sizeof (flagstr) - strlen (flagstr), "%s\\Draft",
-		      flagstr[1] ? " " : "");
-	snprintf (flagstr + strlen (flagstr),
-		  sizeof (flagstr) - strlen (flagstr), ") ");
+      end = start;
+      while (end < len && buf[end] != '\n')
+	end++;
+      if (start != end)
+	socket_write (imap->sock, buf + start, end - start);
+      /* only send a crlf if we actually hit the end of a line.  we
+       * might be in the middle of a line in which case we don't
+       * send one.
+       */
+      if (end != len)
+	socket_write (imap->sock, "\r\n", 2);
+      start = end + 1;
     }
+    sofar += len;
+  }
+  socket_write (imap->sock, "\r\n", 2);
 
-    send_server (imap->sock, "APPEND %s%s %s{%d}",
-		 imap->prefix, imap->box->box, flagstr, msg->size + lines);
-
+  for (;;)
+  {
     if (buffer_gets (imap->buf, &s))
-	return -1;
+      return -1;
+
     if (Verbose)
-	puts (s);
+      puts (s);
 
-    if (*s != '+')
+    arg = next_arg (&s);
+    if (*arg == '*')
     {
-	puts ("Error, expected `+' from server (aborting)");
+      /* XXX just ignore it for now */
+    }
+    else if (atoi (arg) != (int) Tag)
+    {
+      puts ("wrong tag");
+      return -1;
+    }
+    else
+    {
+      int uid;
+
+      arg = next_arg (&s);
+      if (strcmp (arg, "OK"))
 	return -1;
+      arg = next_arg (&s);
+      if (*arg != '[')
+	break;
+      arg++;
+      if (strcasecmp ("APPENDUID", arg))
+      {
+	puts ("Error, expected APPENDUID");
+	break;
+      }
+      arg = next_arg (&s);
+      if (!arg)
+	break;
+      if (atoi (arg) != (int) imap->uidvalidity)
+      {
+	puts ("Error, UIDVALIDITY doesn't match APPENDUID");
+	return -1;
+      }
+      arg = next_arg (&s);
+      if (!arg)
+	break;
+      uid = strtol (arg, &s, 10);
+      if (*s != ']')
+      {
+	/* parse error */
+	break;
+      }
+      return uid;
     }
+  }
 
-    /* rewind */
-    lseek (fd, 0, 0);
-
-    sofar = 0;
-    while (sofar < msg->size)
-    {
-	len = msg->size - sofar;
-	if (len > sizeof (buf))
-	    len = sizeof (buf);
-	len = read (fd, buf, len);
-	if (len == (size_t) - 1)
-	    return -1;
-	start = 0;
-	while (start < len)
-	{
-	    end = start;
-	    while (end < len && buf[end] != '\n')
-		end++;
-	    if (start != end)
-		socket_write (imap->sock, buf + start, end - start);
-	    /* only send a crlf if we actually hit the end of a line.  we
-	     * might be in the middle of a line in which case we don't
-	     * send one.
-	     */
-	    if (end != len)
-		socket_write (imap->sock, "\r\n", 2);
-	    start = end + 1;
-	}
-	sofar += len;
-    }
-    socket_write (imap->sock, "\r\n", 2);
-
-    for (;;)
-    {
-	if (buffer_gets (imap->buf, &s))
-	    return -1;
-
-	if (Verbose)
-	    puts (s);
-
-	arg = next_arg (&s);
-	if (*arg == '*')
-	{
-	    /* XXX just ignore it for now */
-	}
-	else if (atoi (arg) != (int) Tag)
-	{
-	    puts ("wrong tag");
-	    return -1;
-	}
-	else
-	{
-	    int uid;
-
-	    arg = next_arg (&s);
-	    if (strcmp (arg, "OK"))
-		return -1;
-	    arg = next_arg (&s);
-	    if (*arg != '[')
-		break;
-	    arg++;
-	    if (strcasecmp ("APPENDUID", arg))
-	    {
-		puts ("Error, expected APPENDUID");
-		break;
-	    }
-	    arg = next_arg (&s);
-	    if (!arg)
-		break;
-	    if (atoi (arg) != (int) imap->uidvalidity)
-	    {
-		puts ("Error, UIDVALIDITY doesn't match APPENDUID");
-		return -1;
-	    }
-	    arg = next_arg (&s);
-	    if (!arg)
-		break;
-	    uid = strtol (arg, &s, 10);
-	    if (*s != ']')
-	    {
-		/* parse error */
-		break;
-	    }
-	    return uid;
-	}
-    }
-
-    return 0;
+  return 0;
 }

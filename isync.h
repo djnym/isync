@@ -30,7 +30,8 @@
 
 typedef struct
 {
-    int fd;
+    int rdfd;	/* read filedes */
+    int wrfd;	/* write filedes */
 #if HAVE_LIBSSL
     SSL *ssl;
     unsigned int use_ssl:1;
@@ -61,6 +62,7 @@ struct config
     char *box;
     char *alias;
     char *copy_deleted_to;
+    char *tunnel;
     unsigned int max_messages;
     off_t max_size;
     config_t *next;
@@ -119,7 +121,8 @@ typedef struct _list list_t;
 #define NIL	(void*)0x1
 #define LIST	(void*)0x2
 
-struct _list {
+struct _list
+{
     char *val;
     list_t *next;
     list_t *child;
@@ -187,7 +190,7 @@ int imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox);
 int imap_fetch_message (imap_t *, unsigned int, int);
 int imap_set_flags (imap_t *, unsigned int, unsigned int);
 int imap_expunge (imap_t *);
-imap_t *imap_open (config_t *, unsigned int, imap_t *);
+imap_t *imap_open (config_t *, unsigned int, imap_t *, int);
 int imap_append_message (imap_t *, int, message_t *);
 
 mailbox_t *maildir_open (const char *, int flags);

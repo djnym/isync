@@ -16,7 +16,7 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ..
-.TH isync 1 "2002 Jan 16"
+.TH isync 1 "2002 Apr 19"
 ..
 .SH NAME
 isync - synchronize IMAP4 and maildir mailboxes
@@ -223,6 +223,11 @@ large attachments.  If
 is 0, the maximum file size is
 .B unlimited.
 ..
+.TP
+\fBTunnel\fR \fIcommand\fR
+Specify a command to run to establish a connection rather than opening a TCP
+socket.  This allows you to run an IMAP session over an SSH tunnel, for
+example.
 .TP
 \fBUseNamespace\fR \fIyes|no\fR
 Selects whether
