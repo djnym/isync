@@ -147,49 +147,49 @@ load_config (char *where)
 	    p++;
 	while (isspace (*p))
 	    p++;
-	if (!strncmp ("mailbox", buf, 7))
+	if (!strncasecmp ("mailbox", buf, 7))
 	{
 	    if (*cur)
 		cur = &(*cur)->next;
 	    *cur = calloc (1, sizeof (config_t));
 	    (*cur)->path = strdup (p);
 	}
-	else if (!strncmp ("host", buf, 4))
+	else if (!strncasecmp ("host", buf, 4))
 	{
 	    if (*cur)
 		(*cur)->host = strdup (p);
 	    else
 		global.host = strdup (p);
 	}
-	else if (!strncmp ("user", buf, 4))
+	else if (!strncasecmp ("user", buf, 4))
 	{
 	    if (*cur)
 		(*cur)->user = strdup (p);
 	    else
 		global.user = strdup (p);
 	}
-	else if (!strncmp ("pass", buf, 4))
+	else if (!strncasecmp ("pass", buf, 4))
 	{
 	    if (*cur)
 		(*cur)->pass = strdup (p);
 	    else
 		global.pass = strdup (p);
 	}
-	else if (!strncmp ("port", buf, 4))
+	else if (!strncasecmp ("port", buf, 4))
 	{
 	    if (*cur)
 		(*cur)->port = atoi (p);
 	    else
 		global.port = atoi (p);
 	}
-	else if (!strncmp ("box", buf, 3))
+	else if (!strncasecmp ("box", buf, 3))
 	{
 	    if (*cur)
 		(*cur)->box = strdup (p);
 	    else
 		global.box = strdup (p);
 	}
-	else if (!strncmp ("alias", buf, 5))
+	else if (!strncasecmp ("alias", buf, 5))
 	{
 	    if (*cur)
 		(*cur)->alias = strdup (p);

@@ -1,4 +1,20 @@
+2000-12-21  Michael Elkins  <me@sigipe.org>
+
+	* imap.c, isync.h, maildir.c, main.c, sync.c:
+	don't fetch deleted messages when expunging
+
+	display number of messages that are to be deleted
+
+	flags for \Recent messages were not properly fetched
+
+	local messages with updated flags were not corrected renamed
+
 2000-12-20  Michael Elkins  <me@sigipe.org>
+
+	* ChangeLog, Makefile.am:
+	updated ChangeLog
+
+	added log: rule in Makefile.am
 
 	* configure: forgot to remove configure script
 

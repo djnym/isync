@@ -1,5 +1,5 @@
 AC_INIT(isync.h)
-AM_INIT_AUTOMAKE(isync,0.1)
+AM_INIT_AUTOMAKE(isync,0.2)
 AM_PROG_CC_STDC
 if test $CC = gcc; then
 	CFLAGS="$CFLAGS -pipe"
