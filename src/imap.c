@@ -505,6 +505,8 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		if (memcmp (arg, global.folder, l))
 		    goto next;
 		arg += l;
+		if (!memcmp (arg + strlen (arg) - 5, ".lock", 5))
+		    goto next;
 		for (box = boxes; box; box = box->next)
 		    if (!strcmp (box->box, arg))
 			goto next;
