@@ -1,3 +1,12 @@
+don't require maildir_trash
+
+refactor mailbox support.
+put sync info outside the mailbox itself.
+
+store flags in sync info.
+
+add option to suppress upload of messages (but not deletion).
+
 add support for syncing with other: and shared: via NAMESPACE
 
 isync gets confused when new mail is delivered while in the middle of an
@@ -5,3 +14,4 @@ IMAP session.  need to handled those asynchronous notifications properly.
 
 add a way to automatically create and sync IMAP subfolders.
 
+possibly use ^[[1m to highlight error messages.
