@@ -3,6 +3,8 @@
 Added `Delete' configuration option to correspond to the -d command line
 option.
 
+Added -a (--all) command line option to synchronize all mailboxes.
+
 [0.5]
 
 Updated SSL support.

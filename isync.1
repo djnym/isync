@@ -16,7 +16,7 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ..
-.TH isync 1 "2001 Oct 02"
+.TH isync 1 "2001 Oct 30"
 ..
 .SH NAME
 isync - synchronize IMAP4 and maildir mailboxes
@@ -39,6 +39,9 @@ mode.  Multiple copies of the remote IMAP4 mailbox can be maintained, and
 all flags are synchronized.
 ..
 .SH OPTIONS
+.TP
+\fB-a\fR, \fB--all\fR
+Synchronize all mailboxes specified in the user's ~/.isyncrc.
 .TP
 \fB-c\fR, \fB--config\fR \fIfile\fR
 Read configuration from
