@@ -107,6 +107,22 @@ enter_password (void)
     return strdup (pass);
 }
 
+/* set defaults from the global configuration section */
+static void
+config_defaults (config_t * conf)
+{
+    conf->user = global.user;
+    conf->pass = global.pass;
+    conf->port = global.port;
+    conf->box = global.box;
+    conf->host = global.host;
+#if HAVE_LIBSSL
+    conf->require_ssl = global.require_ssl;
+    conf->use_imaps = global.use_imaps;
+    conf->cert_file = global.cert_file;
+#endif
+}
+
 static void
 load_config (char *where)
 {
@@ -152,10 +168,25 @@ load_config (char *where)
 	    if (*cur)
 		cur = &(*cur)->next;
 	    *cur = calloc (1, sizeof (config_t));
+	    config_defaults (*cur);
 	    (*cur)->path = strdup (p);
 	}
 	else if (!strncasecmp ("host", buf, 4))
 	{
+	    if (!strncasecmp ("imaps:", p, 6))
+	    {
+		p += 6;
+		if (*cur)
+		{
+		    (*cur)->use_imaps = 1;
+		    (*cur)->port = 993;
+		}
+		else
+		{
+		    global.use_imaps = 1;
+		    global.port = 993;
+		}
+	    }
 	    if (*cur)
 		(*cur)->host = strdup (p);
 	    else
@@ -194,6 +225,22 @@ load_config (char *where)
 	    if (*cur)
 		(*cur)->alias = strdup (p);
 	}
+#if HAVE_LIBSSL
+	else if (!strncasecmp ("CertificateFile", buf, 15))
+	{
+	    if (*cur)
+		(*cur)->cert_file = strdup (p);
+	    else
+		global.cert_file = strdup (p);
+	}
+	else if (!strncasecmp ("RequireSSL", buf, 10))
+	{
+	    if (*cur)
+		(*cur)->require_ssl = (strcasecmp (p, "yes") == 0);
+	    else
+		global.require_ssl = (strcasecmp (p, "yes") == 0);
+	}
+#endif
 	else if (buf[0])
 	    printf ("%s:%d:unknown command:%s", path, line, buf);
     }
@@ -257,6 +304,12 @@ main (int argc, char **argv)
     global.port = 143;
     global.box = "INBOX";
     global.user = strdup (pw->pw_name);
+#if HAVE_LIBSSL
+    /* this will probably annoy people, but its the best default just in
+     * case people forget to turn it on
+     */
+    global.require_ssl = 1;
+#endif
 
 #if HAVE_GETOPT_LONG
     while ((i = getopt_long (argc, argv, "defhp:u:r:s:vV", Opts, NULL)) != -1)
@@ -326,29 +379,15 @@ main (int argc, char **argv)
 	box = &global;
     }
 
-    /* fill in missing info with defaults */
     if (!box->pass)
     {
-	if (!global.pass)
+	box->pass = enter_password ();
+	if (!box->pass)
 	{
-	    box->pass = enter_password ();
-	    if (!box->pass)
-	    {
-		puts ("Aborting, no password");
-		exit (1);
-	    }
+	    puts ("Aborting, no password");
+	    exit (1);
 	}
-	else
-	    box->pass = global.pass;
     }
-    if (!box->user)
-	box->user = global.user;
-    if (!box->port)
-	box->port = global.port;
-    if (!box->host)
-	box->host = global.host;
-    if (!box->box)
-	box->box = global.box;
 
     printf ("Reading %s\n", box->path);
     mail = maildir_open (box->path, fast);

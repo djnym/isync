@@ -19,10 +19,22 @@
  */
 
 #include <stdarg.h>
+#if HAVE_LIBSSL
+#include <openssl/ssl.h>
+#endif
 
 typedef struct
 {
     int fd;
+#if HAVE_LIBSSL
+    SSL *ssl;
+    unsigned int use_ssl:1;
+#endif
+} Socket_t;
+
+typedef struct
+{
+    Socket_t *sock;
     char buf[1024];
     int bytes;
     int offset;
@@ -43,6 +55,11 @@ struct config
     char *box;
     char *alias;
     config_t *next;
+#if HAVE_LIBSSL
+    char *cert_file;
+    unsigned int use_imaps:1;
+    unsigned int require_ssl:1;
+#endif
 };
 
 /* struct representing local mailbox file */
@@ -78,7 +95,7 @@ struct message
 /* imap connection info */
 typedef struct
 {
-    int fd;			/* server socket */
+    Socket_t *sock;
     unsigned int count;		/* # of msgs */
     unsigned int recent;	/* # of recent messages */
     buffer_t *buf;		/* input buffer for reading server output */
@@ -100,6 +117,10 @@ extern config_t global;
 extern unsigned int Tag;
 extern char Hostname[256];
 extern int Verbose;
+
+#if HAVE_LIBSSL
+extern SSL_CTX *SSLContext;
+#endif
 
 char *next_arg (char **);
 

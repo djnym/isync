@@ -29,6 +29,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#if HAVE_LIBSSL
+#include <openssl/err.h>
+#endif
 #include "isync.h"
 
 const char *Flags[] = {
@@ -39,6 +42,56 @@ const char *Flags[] = {
     "\\Recent",
     "\\Draft"
 };
+
+#if HAVE_LIBSSL
+SSL_CTX *SSLContext = 0;
+
+static int
+init_ssl (config_t * conf)
+{
+    if (!conf->cert_file)
+    {
+	puts ("Error, CertificateFile not defined");
+	return -1;
+    }
+    SSL_library_init ();
+    SSL_load_error_strings ();
+    SSLContext = SSL_CTX_new (SSLv23_client_method ());
+    if (!SSL_CTX_load_verify_locations (SSLContext, conf->cert_file, NULL))
+    {
+	printf ("Error, SSL_CTX_load_verify_locations: %s\n",
+		ERR_error_string (ERR_get_error (), 0));
+	return -1;
+    }
+    SSL_CTX_set_verify (SSLContext,
+			SSL_VERIFY_PEER |
+			SSL_VERIFY_FAIL_IF_NO_PEER_CERT |
+			SSL_VERIFY_CLIENT_ONCE, NULL);
+    SSL_CTX_set_verify_depth (SSLContext, 1);
+    return 0;
+}
+
+#endif
+
+static int
+socket_read (Socket_t * sock, char *buf, size_t len)
+{
+#if HAVE_LIBSSL
+    if (sock->use_ssl)
+	return SSL_read (sock->ssl, buf, len);
+#endif
+    return read (sock->fd, buf, len);
+}
+
+static int
+socket_write (Socket_t * sock, char *buf, size_t len)
+{
+#if HAVE_LIBSSL
+    if (sock->use_ssl)
+	return SSL_write (sock->ssl, buf, len);
+#endif
+    return write (sock->fd, buf, len);
+}
 
 /* simple line buffering */
 static int
@@ -64,7 +117,10 @@ buffer_gets (buffer_t * b, char **s)
 	    b->offset = n;
 	    start = 0;
 
-	    n = read (b->fd, b->buf + b->offset, sizeof (b->buf) - b->offset);
+	    n =
+		socket_read (b->sock, b->buf + b->offset,
+			     sizeof (b->buf) - b->offset);
+
 	    if (n <= 0)
 	    {
 		if (n == -1)
@@ -112,7 +168,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     snprintf (buf, sizeof (buf), "%d %s\r\n", ++Tag, tmp);
     if (Verbose)
 	fputs (buf, stdout);
-    write (imap->fd, buf, strlen (buf));
+    socket_write (imap->sock, buf, strlen (buf));
 
     for (;;)
     {
@@ -223,7 +279,6 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    arg = next_arg (&cmd);
 	    if (!strcmp ("OK", arg))
 		return 0;
-	    puts ("IMAP command failed");
 	    return -1;
 	}
     }
@@ -289,6 +344,15 @@ imap_open (config_t * box, int fast)
     int s;
     struct sockaddr_in sin;
     struct hostent *he;
+#if HAVE_LIBSSL
+    int use_ssl = 0;
+#endif
+
+#if HAVE_LIBSSL
+    /* initialize SSL */
+    if (init_ssl (box))
+	return 0;
+#endif
 
     /* open connection to IMAP server */
 
@@ -321,11 +385,45 @@ imap_open (config_t * box, int fast)
     puts ("ok");
 
     imap = calloc (1, sizeof (imap_t));
-    imap->fd = s;
-    //imap->state = imap_state_init;
+    imap->sock = calloc (1, sizeof (Socket_t));
+    imap->sock->fd = s;
     imap->buf = calloc (1, sizeof (buffer_t));
-    imap->buf->fd = s;
+    imap->buf->sock = imap->sock;
     imap->box = box;
+
+#if HAVE_LIBSSL
+    if (!box->use_imaps)
+    {
+	/* always try to select SSL support if available */
+	ret = imap_exec (imap, "STARTTLS");
+	if (!ret)
+	    use_ssl = 1;
+	else if (box->require_ssl)
+	{
+	    puts ("Error, SSL support not available");
+	    return 0;
+	}
+	else
+	    puts ("Warning, SSL support not available");
+    }
+    else
+	use_ssl = 1;
+
+    if (use_ssl)
+    {
+	imap->sock->ssl = SSL_new (SSLContext);
+	SSL_set_fd (imap->sock->ssl, imap->sock->fd);
+	ret = SSL_connect (imap->sock->ssl);
+	if (ret <= 0)
+	{
+	    ret = SSL_get_error (imap->sock->ssl, ret);
+	    printf ("Error, SSL_connect: %s\n", ERR_error_string (ret, 0));
+	    return 0;
+	}
+	imap->sock->use_ssl = 1;
+	puts ("SSL support enabled");
+    }
+#endif
 
     puts ("Logging in...");
     ret = imap_exec (imap, "LOGIN %s %s", box->user, box->pass);
@@ -395,7 +493,7 @@ write_strip (int fd, char *buf, size_t len)
 }
 
 static void
-send_server (int fd, const char *fmt, ...)
+send_server (Socket_t * sock, const char *fmt, ...)
 {
     char buf[128];
     char cmd[128];
@@ -406,7 +504,7 @@ send_server (int fd, const char *fmt, ...)
     va_end (ap);
 
     snprintf (cmd, sizeof (cmd), "%d %s\r\n", ++Tag, buf);
-    write (fd, cmd, strlen (cmd));
+    socket_write (sock, cmd, strlen (cmd));
 
     if (Verbose)
 	fputs (cmd, stdout);
@@ -421,7 +519,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
     size_t n;
     char buf[1024];
 
-    send_server (imap->fd, "UID FETCH %d RFC822.PEEK", uid);
+    send_server (imap->sock, "UID FETCH %d RFC822.PEEK", uid);
 
     for (;;)
     {
@@ -477,7 +575,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 		n = bytes;
 		if (n > sizeof (buf))
 		    n = sizeof (buf);
-		n = read (imap->fd, buf, n);
+		n = socket_read (imap->sock, buf, n);
 		if (n > 0)
 		{
 //                  printf("imap_fetch_message:%d:read %d bytes\n", __LINE__, n);

@@ -115,7 +115,19 @@ command, apply to this mailbox only.
 ..
 .TP
 \fBHost\fR \fIname\fR
-Defines the DNS name or IP address of the IMAP server
+Defines the DNS name or IP address of the IMAP server.  If the hostname is
+prefixed with
+.I imaps:
+the connection is assumed to be a SSL connection to port 993 (though you can
+change this by placing a
+.B Port
+command
+.B after
+the
+.B Host
+command.  Note that some servers support SSL on the default port 143.
+.B isync
+will always attempt to use SSL if available.
 ..
 .TP
 \fBPort\fR \fIport\fR
@@ -144,6 +156,18 @@ will prompt you for it.
 \fBAlias\fR \fIstring\fR
 Defines an alias for the mailbox which can be used as a shortcut on the
 command line.
+..
+.TP
+\fBRequireSSL\fR \fIyes|no\fR
+.B isync will abort the connection if a TLS/SSL session to the IMAP
+server can not be established.  (Default:
+.I yes
+)
+..
+.TP
+\fBCertificateFile\fR \fIpath\fR
+File containing X.509 CA certificates used to verify server identities.
+..
 .P
 Configuration commands that appear prior to the first
 .B Mailbox
@@ -176,9 +200,3 @@ http://www.sigpipe.org/isync/.
 ..
 .SH AUTHOR
 Written by Michael R. Elkins <me@mutt.org>.
-..
-.SH BUGS
-SSL is currently not used when connecting to the IMAP server.  A future
-version of
-.B isync
-is expected to support this.
