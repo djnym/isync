@@ -291,7 +291,23 @@ find_box (const char *s)
     config_t *p = boxes;
 
     for (; p; p = p->next)
+    {
 	if (!strcmp (s, p->path) || (p->alias && !strcmp (s, p->alias)))
 	    return p;
+	else
+	{
+	    /* check to see if the full pathname was specified on the
+	     * command line.
+	     */
+	    char *t = expand_strdup (p->path);
+
+	    if (!strcmp (s, t))
+	    {
+		free (t);
+		return p;
+	    }
+	    free (t);
+	}
+    }
     return 0;
 }
