@@ -119,14 +119,11 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		  continue;
 		}
 
-		if ((flags & SYNC_QUIET) == 0)
-		{
-		    if (!upload)
-			fputs ("Uploading messages", stdout);
-		    fputc ('.', stdout);
-		    fflush (stdout);
-		    upload++;
-		}
+		if (!upload)
+		    info ("Uploading messages");
+		infoc ('.');
+		fflush (stdout);
+		upload++;
 
 		/* upload the message if its not too big */
 		snprintf (path, sizeof (path), "%s/%s/%s", mbox->path,
@@ -139,16 +136,14 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		if (imap->box->max_size > 0
 		    && sb.st_size > imap->box->max_size)
 		{
-		    if ((flags & SYNC_QUIET) == 0)
-			printf
-			    ("Warning, local message is too large (%lu), skipping...\n",
-			     (unsigned long) sb.st_size);
+		    info ("Warning, local message is too large (%lu), skipping...\n",
+			  (unsigned long) sb.st_size);
 		    continue;
 		}
 		fd = open (path, O_RDONLY);
 		if (fd == -1)
 		{
-		    printf ("Error, unable to open %s: %s (errno %d)\n",
+		    fprintf (stderr, "Error, unable to open %s: %s (errno %d)\n",
 			    path, strerror (errno), errno);
 		    continue;
 		}
@@ -156,8 +151,11 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		cur->size = sb.st_size;
 		cur->uid = imap_append_message (imap, fd, cur);
 		/* if the server gave us back a uid, update the db */
-		if (cur->uid != (unsigned int) -1)
+		if (cur->uid != (unsigned int) -1) {
 		    set_uid (mbox->db, cur->file, cur->uid);
+		    if (!cur->uid)
+			printf("warning: no uid for new messge %s\n", cur->file);
+		}
 
 		close (fd);
 	    }
@@ -174,9 +172,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    /* if the user doesn't want local msgs deleted when they don't
 	     * exist on the server, warn that such messages exist.
 	     */
-	    else if ((flags & SYNC_QUIET) == 0)
-		printf ("Warning, uid %u doesn't exist on server\n",
-			cur->uid);
+	    else
+		info ("Warning, uid %u doesn't exist on server\n", cur->uid);
 	    continue;
 	}
 	tmp->processed = 1;
@@ -255,13 +252,10 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     }
 
     if (upload)
-	fprintf (stdout, " %d messages.\n", upload);
+	info (" %d messages.\n", upload);
 
-    if ((flags & SYNC_QUIET) == 0)
-    {
-	fputs ("Fetching new messages", stdout);
-	fflush (stdout);
-    }
+    info ("Fetching new messages");
+    fflush (stdout);
 
     if (max_msgs == 0)
 	max_msgs = UINT_MAX;
@@ -308,10 +302,8 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 	    if (max_size && cur->size > max_size)
 	    {
-		if ((flags & SYNC_QUIET) == 0)
-		    printf
-			("Warning, message skipped because it is too big (%u)\n",
-			 cur->size);
+		info ("Warning, message skipped because it is too big (%u)\n",
+		      cur->size);
 		continue;
 	    }
 
@@ -348,12 +340,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    if (fd < 0)
 		continue;
 
-	    if ((flags & SYNC_QUIET) == 0)
-	    {
-		/* give some visual feedback that something is happening */
-		fputs (".", stdout);
-		fflush (stdout);
-	    }
+	    /* give some visual feedback that something is happening */
+	    infoc ('.');
+	    fflush (stdout);
 	    fetched++;
 
 	    ret = imap_fetch_message (imap, cur->uid, fd);
@@ -389,8 +378,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	}
     }
 
-    if ((flags & SYNC_QUIET) == 0)
-	printf ("  %d messages\n", fetched);
+    info ("  %d messages\n", fetched);
 
     return 0;
 }

@@ -242,7 +242,7 @@ maildir_open (const char *path, int flags)
 		if (p->uid > m->maxuid)
 		    m->maxuid = p->uid;
 	    }
-	    else
+	    else /* XXX remove. every locally generated message triggers this */
 		puts ("Warning, no UID for message");
 
 	    if (s)
@@ -341,7 +341,7 @@ maildir_clean_tmp (const char *mbox)
     char path[_POSIX_PATH_MAX];
     DIR *dirp;
     struct dirent *entry;
-    struct stat info;
+    struct stat st;
     time_t now;
 
     snprintf (path, sizeof (path), "%s/tmp", mbox);
@@ -359,10 +359,10 @@ maildir_clean_tmp (const char *mbox)
     while ((entry = readdir (dirp)))
     {
 	snprintf (path, sizeof (path), "%s/tmp/%s", mbox, entry->d_name);
-	if (stat (path, &info))
+	if (stat (path, &st))
 	    fprintf (stderr, "maildir_clean_tmp: stat: %s: %s (errno %d)\n",
 		     path, strerror (errno), errno);
-	else if (S_ISREG (info.st_mode) && now - info.st_ctime >= _24_HOURS)
+	else if (S_ISREG (st.st_mode) && now - st.st_ctime >= _24_HOURS)
 	{
 	    /* this should happen infrequently enough that it won't be
 	     * bothersome to the user to display when it occurs.

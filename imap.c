@@ -20,6 +20,8 @@
 
 #include <assert.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -77,7 +79,7 @@ verify_cert (SSL * ssl)
     cert = SSL_get_peer_certificate (ssl);
     if (!cert)
     {
-	puts ("Error, no server certificate");
+	fprintf (stderr, "Error, no server certificate\n");
 	return -1;
     }
 
@@ -85,34 +87,33 @@ verify_cert (SSL * ssl)
     if (err == X509_V_OK)
 	return 0;
 
-    printf ("Error, can't verify certificate: %s (%d)\n",
-	    X509_verify_cert_error_string (err), err);
+    fprintf (stderr, "Error, can't verify certificate: %s (%d)\n",
+	     X509_verify_cert_error_string (err), err);
 
     X509_NAME_oneline (X509_get_subject_name (cert), buf, sizeof (buf));
-    printf ("\nSubject: %s\n", buf);
+    info ("\nSubject: %s\n", buf);
     X509_NAME_oneline (X509_get_issuer_name (cert), buf, sizeof (buf));
-    printf ("Issuer:  %s\n", buf);
+    info ("Issuer:  %s\n", buf);
     bio = BIO_new (BIO_s_mem ());
     ASN1_TIME_print (bio, X509_get_notBefore (cert));
     memset (buf, 0, sizeof (buf));
     BIO_read (bio, buf, sizeof (buf) - 1);
-    printf ("Valid from: %s\n", buf);
+    info ("Valid from: %s\n", buf);
     ASN1_TIME_print (bio, X509_get_notAfter (cert));
     memset (buf, 0, sizeof (buf));
     BIO_read (bio, buf, sizeof (buf) - 1);
     BIO_free (bio);
-    printf ("      to:   %s\n", buf);
+    info ("      to:   %s\n", buf);
 
-    printf
-	("\n*** WARNING ***  There is no way to verify this certificate.  It is\n"
+    fprintf (stderr, 
+	"\n*** WARNING ***  There is no way to verify this certificate.  It is\n"
 	 "                 possible that a hostile attacker has replaced the\n"
-	 "                 server certificate.  Continue at your own risk!\n");
-    printf ("\nAccept this certificate anyway? [no]: ");
-    fflush (stdout);
+	 "                 server certificate.  Continue at your own risk!\n"
+         "\nAccept this certificate anyway? [no]: ");
     if (fgets (buf, sizeof (buf), stdin) && (buf[0] == 'y' || buf[0] == 'Y'))
     {
 	ret = 0;
-	puts ("\n*** Fine, but don't say I didn't warn you!\n");
+	fprintf (stderr, "\n*** Fine, but don't say I didn't warn you!\n\n");
     }
     return ret;
 }
@@ -125,7 +126,7 @@ init_ssl (config_t * conf)
 
     if (!conf->cert_file)
     {
-	puts ("Error, CertificateFile not defined");
+	fprintf (stderr, "Error, CertificateFile not defined\n");
 	return -1;
     }
     SSL_library_init ();
@@ -145,15 +146,15 @@ init_ssl (config_t * conf)
 	    perror ("access");
 	    return -1;
 	}
-	puts
-	    ("*** Warning, CertificateFile doesn't exist, can't verify server certificates");
+	fprintf (stderr, 
+	    "*** Warning, CertificateFile doesn't exist, can't verify server certificates\n");
     }
     else
 	if (!SSL_CTX_load_verify_locations
 	    (SSLContext, conf->cert_file, NULL))
     {
-	printf ("Error, SSL_CTX_load_verify_locations: %s\n",
-		ERR_error_string (ERR_get_error (), 0));
+	fprintf (stderr, "Error, SSL_CTX_load_verify_locations: %s\n",
+		 ERR_error_string (ERR_get_error (), 0));
 	return -1;
     }
 
@@ -320,7 +321,7 @@ parse_fetch (imap_t * imap, list_t * list)
 			imap->maxuid = uid;
 		}
 		else
-		    puts ("Error, unable to parse UID");
+		    fprintf (stderr, "IMAP error: unable to parse UID\n");
 	    }
 	    else if (!strcmp ("FLAGS", tmp->val))
 	    {
@@ -346,15 +347,15 @@ parse_fetch (imap_t * imap, list_t * list)
 			    else if (!strcmp ("\\Recent", flags->val))
 				mask |= D_RECENT;
 			    else
-				printf ("Warning, unknown flag %s\n",
+				fprintf (stderr, "IMAP error: unknown flag %s\n",
 					flags->val);
 			}
 			else
-			    puts ("Error, unable to parse FLAGS list");
+			    fprintf (stderr, "IMAP error: unable to parse FLAGS list\n");
 		    }
 		}
 		else
-		    puts ("Error, unable to parse FLAGS");
+		    fprintf (stderr, "IMAP error: unable to parse FLAGS\n");
 	    }
 	    else if (!strcmp ("RFC822.SIZE", tmp->val))
 	    {
@@ -400,8 +401,7 @@ parse_response_code (imap_t * imap, char *s)
 	/* RFC2060 says that these messages MUST be displayed
 	 * to the user
 	 */
-	fputs ("***ALERT*** ", stdout);
-	puts (s);
+	fprintf (stderr, "*** IMAP ALERT *** %s\n", s);
     }
 }
 
@@ -414,6 +414,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     char *cmd;
     char *arg;
     char *arg1;
+    config_t *box;
     int n;
 
     va_start (ap, fmt);
@@ -422,10 +423,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 
     snprintf (buf, sizeof (buf), "%d %s\r\n", ++Tag, tmp);
     if (Verbose)
-    {
-	fputs (">>> ", stdout);
-	fputs (buf, stdout);
-    }
+	printf (">>> %s", buf);
     n = socket_write (imap->sock, buf, strlen (buf));
     if (n <= 0)
     {
@@ -435,6 +433,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 
     for (;;)
     {
+      next:
 	if (buffer_gets (imap->buf, &cmd))
 	    return -1;
 	if (Verbose)
@@ -446,7 +445,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    arg = next_arg (&cmd);
 	    if (!arg)
 	    {
-		puts ("Error, unable to parse untagged command");
+		fprintf (stderr, "IMAP error: unable to parse untagged response\n");
 		return -1;
 	    }
 
@@ -464,17 +463,50 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    }
 	    else if (!strcmp ("CAPABILITY", arg))
 	    {
-#if HAVE_LIBSSL
 		while ((arg = next_arg (&cmd)))
 		{
-		    if (!strcmp ("STARTTLS", arg))
+		    if (!strcmp ("UIDPLUS", arg))
+			imap->have_uidplus = 1;
+#if HAVE_LIBSSL
+		    else if (!strcmp ("STARTTLS", arg))
 			imap->have_starttls = 1;
 		    else if (!strcmp ("AUTH=CRAM-MD5", arg))
 			imap->have_cram = 1;
 		    else if (!strcmp ("NAMESPACE", arg))
 			imap->have_namespace = 1;
-		}
 #endif
+		}
+	    }
+	    else if (!strcmp ("LIST", arg))
+	    {
+		list_t *list, *lp;
+		int l;
+
+		list = parse_list (cmd, &cmd);
+		if (list->val == LIST)
+		    for (lp = list->child; lp; lp = lp->next)
+			if (is_atom (lp) &&
+			    !strcasecmp (lp->val, "\\NoSelect"))
+			{
+			    free_list (list);
+			    goto next;
+			}
+		free_list (list);
+		(void) next_arg (&cmd);	/* skip delimiter */
+		arg = next_arg (&cmd);
+		l = strlen (global.folder);
+		if (memcmp (arg, global.folder, l))
+		    goto next;
+		arg += l;
+		for (box = boxes; box; box = box->next)
+		    if (!strcmp (box->box, arg))
+			goto next;
+		box = malloc (sizeof (config_t));
+		memcpy (box, &global, sizeof (config_t));
+		box->path = strdup (arg);
+		box->box = box->path;
+		box->next = boxes;
+		boxes = box;
 	    }
 	    else if ((arg1 = next_arg (&cmd)))
 	    {
@@ -499,7 +531,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    }
 	    else
 	    {
-		puts ("Error, unable to parse untagged command");
+		fprintf (stderr, "IMAP error: unable to parse untagged response\n");
 		return -1;
 	    }
 	}
@@ -510,7 +542,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 
 	    if (!imap->cram)
 	    {
-		puts ("Error, not doing CRAM-MD5 authentication");
+		fprintf (stderr, "IMAP error, not doing CRAM-MD5 authentication\n");
 		return -1;
 	    }
 	    resp = cram (cmd, imap->box->user, imap->box->pass);
@@ -535,7 +567,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 #endif
 	else if ((size_t) atol (arg) != Tag)
 	{
-	    puts ("wrong tag");
+	    fprintf (stderr, "IMAP error: wrong tag\n");
 	    return -1;
 	}
 	else
@@ -550,79 +582,32 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     /* not reached */
 }
 
-/* `box' is the config info for the maildrop to sync.  `minuid' is the
- * minimum UID to consider.  in normal mode this will be 1, but in --fast
- * mode we only fetch messages newer than the last one seen in the local
- * mailbox.
- */
 imap_t *
-imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
+imap_connect (config_t * cfg)
 {
-  int ret;
-  int s;
+  int s, ret;
   struct sockaddr_in addr;
   struct hostent *he;
+  imap_t *imap;
   char *arg, *rsp;
-  int reuse = 0;
   int preauth = 0;
 #if HAVE_LIBSSL
   int use_ssl = 0;
 #endif
+    int a[2];
 
-  (void) flags;
-
-  if (imap)
-  {
-    /* determine whether or not we can reuse the existing session */
-    if (strcmp (box->host, imap->box->host) ||
-	strcmp (box->user, imap->box->user) ||
-	box->port != imap->box->port
-#if HAVE_LIBSSL
-	/* ensure that security requirements are met */
-	|| (box->require_ssl ^ imap->box->require_ssl)
-	|| (box->require_cram ^ imap->box->require_cram)
-#endif
-       )
-    {
-      /* can't reuse */
-      imap_close (imap);
-      imap = 0;
-    }
-    else
-    {
-      reuse = 1;
-      /* reset mailbox-specific state info */
-      imap->recent = 0;
-      imap->deleted = 0;
-      imap->count = 0;
-      imap->maxuid = 0;
-      free_message (imap->msgs);
-      imap->msgs = 0;
-    }
-  }
-
-  if (!imap)
-  {
     imap = calloc (1, sizeof (imap_t));
+    imap->box = cfg;
     imap->sock = calloc (1, sizeof (Socket_t));
     imap->buf = calloc (1, sizeof (buffer_t));
     imap->buf->sock = imap->sock;
     imap->sock->fd = -1;
-  }
-
-  imap->box = box;
-  imap->minuid = minuid;
-  imap->prefix = "";
-
-  if (!reuse)
-  {
-    int a[2];
 
     /* open connection to IMAP server */
 
-    if (box->tunnel)
+    if (cfg->tunnel)
     {
-      printf ("Starting tunnel '%s'...", box->tunnel);
+      info ("Starting tunnel '%s'...", cfg->tunnel);
       fflush (stdout);
 
       if (socketpair (PF_UNIX, SOCK_STREAM, 0, a))
@@ -639,7 +624,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	}
 	close (a[0]);
 	close (a[1]);
-	execl ("/bin/sh", "sh", "-c", box->tunnel, 0);
+	execl ("/bin/sh", "sh", "-c", cfg->tunnel, 0);
 	_exit (127);
       }
 
@@ -647,90 +632,80 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 
       imap->sock->fd = a[1];
 
-      puts ("ok");
+      info ("ok\n");
     }
     else
     {
       memset (&addr, 0, sizeof (addr));
-      addr.sin_port = htons (box->port);
+      addr.sin_port = htons (cfg->port);
       addr.sin_family = AF_INET;
 
-      printf ("Resolving %s... ", box->host);
+      info ("Resolving %s... ", cfg->host);
       fflush (stdout);
-      he = gethostbyname (box->host);
+      he = gethostbyname (cfg->host);
       if (!he)
       {
 	perror ("gethostbyname");
-	return 0;
+	goto bail;
       }
-      puts ("ok");
+      info ("ok\n");
 
       addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
 
       s = socket (PF_INET, SOCK_STREAM, 0);
 
-      printf ("Connecting to %s:%hu... ", inet_ntoa (addr.sin_addr),
-	      ntohs (addr.sin_port));
+      info ("Connecting to %s:%hu... ", inet_ntoa (addr.sin_addr),
+	     ntohs (addr.sin_port));
       fflush (stdout);
       if (connect (s, (struct sockaddr *) &addr, sizeof (addr)))
       {
+	close (s);
 	perror ("connect");
-	exit (1);
+	goto bail;
       }
-      puts ("ok");
+      info ("ok\n");
 
       imap->sock->fd = s;
     }
-  }
 
-  do
-  {
-    /* if we are reusing the existing connection, we can skip the
-     * authentication steps.
-     */
-    if (!reuse)
-    {
       /* read the greeting string */
       if (buffer_gets (imap->buf, &rsp))
       {
-        puts ("Error, no greeting response");
-        ret = -1;
-        break;
+        fprintf (stderr, "IMAP error: no greeting response\n");
+	goto bail;
       }
       if (Verbose)
         puts (rsp);
       arg = next_arg (&rsp);
       if (!arg || *arg != '*' || (arg = next_arg (&rsp)) == NULL)
       {
-        puts ("Error, invalid greeting response");
-        ret = -1;
-        break;
+        fprintf (stderr, "IMAP error: invalid greeting response\n");
+	goto bail;
       }
       if (!strcmp ("PREAUTH", arg))
         preauth = 1;
       else if (strcmp ("OK", arg) != 0)
       {
-        puts ("Error, unknown greeting response");
-        ret = -1;
-        break;
+        fprintf (stderr, "IMAP error: unknown greeting response\n");
+	goto bail;
       }
 
 #if HAVE_LIBSSL
-      if (box->use_imaps)
+      if (cfg->use_imaps)
 	use_ssl = 1;
       else
       {
 	/* let's see what this puppy can do... */
-	if ((ret = imap_exec (imap, "CAPABILITY")))
-	  break;
+	if (imap_exec (imap, "CAPABILITY"))
+	  goto bail;
 
-	if (box->use_sslv2 || box->use_sslv3 || box->use_tlsv1)
+	if (cfg->use_sslv2 || cfg->use_sslv3 || cfg->use_tlsv1)
 	{
 	  /* always try to select SSL support if available */
 	  if (imap->have_starttls)
 	  {
-	    if ((ret = imap_exec (imap, "STARTTLS")))
-	      break;
+	    if (imap_exec (imap, "STARTTLS"))
+	      goto bail;
 	    use_ssl = 1;
 	  }
 	}
@@ -738,40 +713,36 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 
       if (!use_ssl)
       {
-	if (box->require_ssl)
+	if (cfg->require_ssl)
 	{
-	  puts ("Error, SSL support not available");
-	  ret = -1;
-	  break;
+	  fprintf (stderr, "IMAP error: SSL support not available\n");
+	  goto bail;
 	}
-	else if (box->use_sslv2 || box->use_sslv3 || box->use_tlsv1)
-	  puts ("Warning, SSL support not available");
+	else if (cfg->use_sslv2 || cfg->use_sslv3 || cfg->use_tlsv1)
+	  fprintf (stderr, "IMAP warning: SSL support not available\n");
       }
       else
       {
 	/* initialize SSL */
-	if (init_ssl (box))
-	{
-	  ret = -1;
-	  break;
-	}
+	if (init_ssl (cfg))
+	  goto bail;
 
 	imap->sock->ssl = SSL_new (SSLContext);
 	SSL_set_fd (imap->sock->ssl, imap->sock->fd);
-	ret = SSL_connect (imap->sock->ssl);
-	if (ret <= 0)
+	if ((ret = SSL_connect (imap->sock->ssl)) <= 0)
 	{
 	  socket_perror ("connect", imap->sock, ret);
-	  break;
+	  goto bail;
 	}
 
 	/* verify the server certificate */
-	if ((ret = verify_cert (imap->sock->ssl)))
-	  break;
+	if (verify_cert (imap->sock->ssl))
+	  goto bail;
 
 	/* to conform to RFC2595 we need to forget all information
 	 * retrieved from CAPABILITY invocations before STARTTLS.
 	 */
+	imap->have_uidplus = 0;
 	imap->have_namespace = 0;
 	imap->have_cram = 0;
 	imap->have_starttls = 0;
@@ -779,19 +750,19 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	imap->sock->use_ssl = 1;
 	puts ("SSL support enabled");
 
-	if ((ret = imap_exec (imap, "CAPABILITY")))
-	  break;
+	if (imap_exec (imap, "CAPABILITY"))
+	  goto bail;
       }
 #else
-      if ((ret = imap_exec (imap, "CAPABILITY")))
-	break;
+      if (imap_exec (imap, "CAPABILITY"))
+	goto bail;
 #endif
 
       if (!preauth)
       {
-	puts ("Logging in...");
+	info ("Logging in...\n");
 
-	if (!box->pass)
+	if (!cfg->pass)
 	{
 	  /*
 	   * if we don't have a global password set, prompt the user for
@@ -807,9 +778,9 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	    }
 	    if (!*global.pass)
 	    {
-	      fprintf (stderr, "Skipping %s, no password", box->path);
+	      fprintf (stderr, "Skipping %s, no password\n", cfg->path);
 	      global.pass = NULL; /* force retry */
-	      break;
+	      goto bail;
 	    }
 	    /*
 	     * getpass() returns a pointer to a static buffer.  make a copy
@@ -817,23 +788,21 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	     */
 	    global.pass = strdup (global.pass);
 	  }
-	  box->pass = strdup (global.pass);
+	  cfg->pass = strdup (global.pass);
 	}
 
 #if HAVE_LIBSSL
 	if (imap->have_cram)
 	{
-	  puts ("Authenticating with CRAM-MD5");
+	  info ("Authenticating with CRAM-MD5\n");
 	  imap->cram = 1;
-	  if ((ret = imap_exec (imap, "AUTHENTICATE CRAM-MD5")))
-	    break;
+	  if (imap_exec (imap, "AUTHENTICATE CRAM-MD5"))
+	    goto bail;
 	}
 	else if (imap->box->require_cram)
 	{
-	  puts
-	    ("Error, CRAM-MD5 authentication is not supported by server");
-	  ret = -1;
-	  break;
+	  fprintf (stderr, "IMAP error: CRAM-MD5 authentication is not supported by server\n");
+	  goto bail;
 	}
 	else
 #endif
@@ -841,58 +810,108 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 #if HAVE_LIBSSL
 	  if (!use_ssl)
 #endif
-	    puts
-	      ("*** Warning *** Password is being sent in the clear");
-	  if (
-	      (ret =
-	       imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user,
-			  box->pass)))
+	    fprintf (stderr, "*** IMAP Warning *** Password is being sent in the clear\n");
+	  if (imap_exec (imap, "LOGIN \"%s\" \"%s\"", cfg->user, cfg->pass))
 	  {
-	    puts ("Error, LOGIN failed");
-	    break;
+	    fprintf (stderr, "IMAP error: LOGIN failed\n");
+	    goto bail;
 	  }
 	}
       }
 
       /* get NAMESPACE info */
-      if (box->use_namespace && imap->have_namespace)
+      if (cfg->use_namespace && imap->have_namespace)
       {
-	if ((ret = imap_exec (imap, "NAMESPACE")))
-	  break;
+	if (imap_exec (imap, "NAMESPACE"))
+	  goto bail;
       }
-    }			/* !reuse */
+      return imap;
 
+ bail:
+  imap_close (imap);
+  return 0;
+}
+
+/* `box' is the config info for the maildrop to sync.  `minuid' is the
+ * minimum UID to consider.  in normal mode this will be 1, but in --fast
+ * mode we only fetch messages newer than the last one seen in the local
+ * mailbox.
+ */
+imap_t *
+imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_create)
+{
+  if (imap)
+  {
+    /* determine whether or not we can reuse the existing session */
+    if (strcmp (box->host, imap->box->host) ||
+	strcmp (box->user, imap->box->user) ||
+	box->port != imap->box->port
+#if HAVE_LIBSSL
+	/* ensure that security requirements are met */
+	|| (box->require_ssl ^ imap->box->require_ssl)
+	|| (box->require_cram ^ imap->box->require_cram)
+#endif
+       )
+    {
+      /* can't reuse */
+      imap_close (imap);
+    }
+    else
+    {
+      /* reset mailbox-specific state info */
+      imap->box = box;
+      imap->recent = 0;
+      imap->deleted = 0;
+      imap->count = 0;
+      imap->maxuid = 0;
+      free_message (imap->msgs);
+      imap->msgs = 0;
+      goto gotimap;
+    }
+  }
+  if (!(imap = imap_connect (box)))
+    return 0;
+ gotimap:
+
+  if (global.folder)
+    imap->prefix = !strcmp (box->box, "INBOX") ? "" : global.folder;
+  else
+  {
+    imap->prefix = "";
     /* XXX for now assume personal namespace */
-    if (imap->box->use_namespace && is_list (imap->ns_personal) &&
+    if (imap->box->use_namespace &&
+	is_list (imap->ns_personal) &&
 	is_list (imap->ns_personal->child) &&
 	is_atom (imap->ns_personal->child->child))
-    {
       imap->prefix = imap->ns_personal->child->child->val;
-    }
+  }
 
-    fputs ("Selecting mailbox... ", stdout);
+    info ("Selecting IMAP mailbox... ");
     fflush (stdout);
-    if ((ret = imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)))
-      break;
-    printf ("%d messages, %d recent\n", imap->count, imap->recent);
+    if (imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)) {
+      if (imap_create) {
+	if (imap_exec (imap, "CREATE \"%s%s\"", imap->prefix, box->box))
+	  goto bail;
+        if (imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box))
+	  goto bail;
+      } else
+        goto bail;
+    }
+    info ("%d messages, %d recent\n", imap->count, imap->recent);
 
-    puts ("Reading IMAP mailbox index");
+    info ("Reading IMAP mailbox index\n");
+    imap->minuid = minuid;
     if (imap->count > 0)
     {
-      if ((ret = imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)",
-			    imap->minuid)))
-	break;
+      if (imap_exec (imap, "UID FETCH %d:* (FLAGS RFC822.SIZE)", minuid))
+	goto bail;
     }
-  }
-  while (0);
 
-  if (ret)
-  {
-    imap_close (imap);
-    imap = 0;
-  }
+    return imap;
 
-  return imap;
+ bail:
+  imap_close (imap);
+  return 0;
 }
 
 void
@@ -900,8 +919,11 @@ imap_close (imap_t * imap)
 {
   if (imap)
   {
-    imap_exec (imap, "LOGOUT");
-    close (imap->sock->fd);
+    if (imap->sock->fd != -1)
+    {
+      imap_exec (imap, "LOGOUT");
+      close (imap->sock->fd);
+    }
     free (imap->sock);
     free (imap->buf);
     free_message (imap->msgs);
@@ -1009,7 +1031,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 	 * "* 2 RECENT"
 	 *
 	 */
-	printf ("skipping untagged response: %s\n", arg);
+	info ("IMAP info: skipping untagged response: %s\n", arg);
 	continue;
       }
 
@@ -1017,7 +1039,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 	;
       if (!arg)
       {
-	puts ("parse error getting size");
+	fprintf (stderr, "IMAP error: parse error getting size\n");
 	return -1;
       }
       bytes = strtol (arg + 1, 0, 10);
@@ -1077,7 +1099,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
       arg = next_arg (&cmd);
       if (!arg || (size_t) atoi (arg) != Tag)
       {
-	puts ("wrong tag");
+	fprintf (stderr, "IMAP error: wrong tag\n");
 	return -1;
       }
       arg = next_arg (&cmd);
@@ -1124,107 +1146,118 @@ imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox)
 int
 imap_append_message (imap_t * imap, int fd, message_t * msg)
 {
-  char buf[1024];
-  size_t len;
-  size_t sofar = 0;
-  int lines = 0;
-  char flagstr[128];
+  char *fmap;
+  int extra, uid, tuidl = 0;
+  char flagstr[128], tuid[128];
   char *s;
   size_t i;
-  size_t start, end;
+  size_t start;
+  size_t len, sbreak = 0, ebreak = 0;
   char *arg;
+  struct timeval tv;
+  pid_t pid = getpid();
 
+  len = msg->size;
   /* ugh, we need to count the number of newlines */
-  while (sofar < msg->size)
+  fmap = (char *)mmap (0, len, PROT_READ, MAP_PRIVATE, fd, 0);
+  if (!fmap)
   {
-    len = msg->size - sofar;
-    if (len > sizeof (buf))
-      len = sizeof (buf);
-    len = read (fd, buf, len);
-    if (len == (size_t) - 1)
-    {
-      perror ("read");
-      return -1;
-    }
-    for (i = 0; i < len; i++)
-      if (buf[i] == '\n')
-	lines++;
-    sofar += len;
+    perror ("mmap");
+    return -1;
   }
+
+  extra = 0, i = 0;
+  if (!imap->have_uidplus)
+  {
+   nloop:
+    start = i;
+    while (i < len)
+      if (fmap[i++] == '\n')
+      {
+	extra++;
+	if (i - 1 == start)
+	{
+	  sbreak = ebreak = i - 1;
+	  goto mktid;
+	}
+	if (!memcmp (fmap + start, "X-TUID: ", 8))
+	{
+	  extra -= (ebreak = i) - (sbreak = start) + 1;
+	  goto mktid;
+	}
+	goto nloop;
+      }
+    /* invalid mesasge */
+    goto bail;
+   mktid:
+    gettimeofday (&tv, 0);
+    tuidl = sprintf (tuid, "X-TUID: %08lx%05lx%04x\r\n", 
+			   tv.tv_sec, tv.tv_usec, pid);
+    extra += tuidl;
+  }
+  for (; i < len; i++)
+    if (fmap[i] == '\n')
+      extra++;
 
   flagstr[0] = 0;
   if (msg->flags)
   {
-    strcpy (flagstr, "(");
     if (msg->flags & D_DELETED)
-      snprintf (flagstr + strlen (flagstr),
-		sizeof (flagstr) - strlen (flagstr), "%s\\Deleted",
-		flagstr[1] ? " " : "");
+      strcat (flagstr," \\Deleted");
     if (msg->flags & D_ANSWERED)
-      snprintf (flagstr + strlen (flagstr),
-		sizeof (flagstr) - strlen (flagstr), "%s\\Answered",
-		flagstr[1] ? " " : "");
+      strcat (flagstr," \\Answered");
     if (msg->flags & D_SEEN)
-      snprintf (flagstr + strlen (flagstr),
-		sizeof (flagstr) - strlen (flagstr), "%s\\Seen",
-		flagstr[1] ? " " : "");
+      strcat (flagstr," \\Seen");
     if (msg->flags & D_FLAGGED)
-      snprintf (flagstr + strlen (flagstr),
-		sizeof (flagstr) - strlen (flagstr), "%s\\Flagged",
-		flagstr[1] ? " " : "");
+      strcat (flagstr," \\Flagged");
     if (msg->flags & D_DRAFT)
-      snprintf (flagstr + strlen (flagstr),
-		sizeof (flagstr) - strlen (flagstr), "%s\\Draft",
-		flagstr[1] ? " " : "");
-    snprintf (flagstr + strlen (flagstr),
-	      sizeof (flagstr) - strlen (flagstr), ") ");
+      strcat (flagstr," \\Draft");
+    flagstr[0] = '(';
+    strcat (flagstr,") ");
   }
 
   send_server (imap->sock, "APPEND %s%s %s{%d}",
-	       imap->prefix, imap->box->box, flagstr, msg->size + lines);
+	       imap->prefix, imap->box->box, flagstr, len + extra);
 
   if (buffer_gets (imap->buf, &s))
-    return -1;
+    goto bail;
   if (Verbose)
     puts (s);
 
   if (*s != '+')
   {
-    puts ("Error, expected `+' from server (aborting)");
-    return -1;
+    fprintf (stderr, "IMAP error: expected `+' from server (aborting)\n");
+    goto bail;
   }
 
-  /* rewind */
-  lseek (fd, 0, 0);
-
-  sofar = 0;
-  while (sofar < msg->size)
+  i = 0;
+  if (!imap->have_uidplus)
   {
-    len = msg->size - sofar;
-    if (len > sizeof (buf))
-      len = sizeof (buf);
-    len = read (fd, buf, len);
-    if (len == (size_t) - 1)
-      return -1;
-    start = 0;
-    while (start < len)
-    {
-      end = start;
-      while (end < len && buf[end] != '\n')
-	end++;
-      if (start != end)
-	socket_write (imap->sock, buf + start, end - start);
-      /* only send a crlf if we actually hit the end of a line.  we
-       * might be in the middle of a line in which case we don't
-       * send one.
-       */
-      if (end != len)
+   n1loop:
+    start = i;
+    while (i < sbreak)
+      if (fmap[i++] == '\n')
+      {
+	socket_write (imap->sock, fmap + start, i - 1 - start);
 	socket_write (imap->sock, "\r\n", 2);
-      start = end + 1;
-    }
-    sofar += len;
+	goto n1loop;
+      }
+    socket_write (imap->sock, tuid, tuidl);
+    i = ebreak;
   }
+ n2loop:
+  start = i;
+  while (i < len)
+    if (fmap[i++] == '\n')
+    {
+      socket_write (imap->sock, fmap + start, i - 1 - start);
+      socket_write (imap->sock, "\r\n", 2);
+      goto n2loop;
+    }
+  socket_write (imap->sock, fmap + start, len - start);
   socket_write (imap->sock, "\r\n", 2);
+
+  munmap (fmap, len);
 
   for (;;)
   {
@@ -1241,13 +1274,11 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
     }
     else if (atoi (arg) != (int) Tag)
     {
-      puts ("wrong tag");
+      fprintf (stderr, "IMAP error: wrong tag\n");
       return -1;
     }
     else
     {
-      int uid;
-
       arg = next_arg (&s);
       if (strcmp (arg, "OK"))
 	return -1;
@@ -1257,7 +1288,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
       arg++;
       if (strcasecmp ("APPENDUID", arg))
       {
-	puts ("Error, expected APPENDUID");
+	fprintf (stderr, "IMAP error: expected APPENDUID\n");
 	break;
       }
       arg = next_arg (&s);
@@ -1265,7 +1296,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 	break;
       if (atoi (arg) != (int) imap->uidvalidity)
       {
-	puts ("Error, UIDVALIDITY doesn't match APPENDUID");
+	fprintf (stderr, "IMAP error: UIDVALIDITY doesn't match APPENDUID\n");
 	return -1;
       }
       arg = next_arg (&s);
@@ -1281,5 +1312,58 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
     }
   }
 
+  /* didn't receive an APPENDUID */
+  send_server (imap->sock,
+	       "UID SEARCH HEADER X-TUID %08lx%05lx%04x", 
+	       tv.tv_sec, tv.tv_usec, pid);
+  uid = 0;
+  for (;;)
+  {
+    if (buffer_gets (imap->buf, &s))
+      return -1;
+
+    if (Verbose)
+      puts (s);
+
+    arg = next_arg (&s);
+    if (*arg == '*')
+    {
+      arg = next_arg (&s);
+      if (!strcmp (arg, "SEARCH"))
+      {
+	arg = next_arg (&s);
+	if (!arg)
+	{
+	  fprintf (stderr, "IMAP error: incomplete SEARCH response\n");
+	  return -1;
+	}
+	uid = atoi (arg);
+      }
+    }
+    else if (atoi (arg) != (int) Tag)
+    {
+      fprintf (stderr, "IMAP error: wrong tag\n");
+      return -1;
+    }
+    else
+    {
+      arg = next_arg (&s);
+      if (strcmp (arg, "OK"))
+	return -1;
+      return uid;
+    }
+  }
+
   return 0;
+
+ bail:
+  munmap (fmap, len);
+  return -1;
 }
+
+int
+imap_list (imap_t * imap)
+{
+  return imap_exec (imap, "LIST \"\" \"%s*\"", global.folder);
+}
+

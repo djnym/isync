@@ -62,7 +62,9 @@ struct config
     int port;
     char *user;
     char *pass;
+    char *folder;
     char *box;
+    char *inbox;
     char *alias;
     char *copy_deleted_to;
     char *tunnel;
@@ -151,6 +153,7 @@ typedef struct
     list_t *ns_personal;
     list_t *ns_other;
     list_t *ns_shared;
+    unsigned int have_uidplus:1;
     unsigned int have_namespace:1;
 #if HAVE_LIBSSL
     unsigned int have_cram:1;
@@ -163,7 +166,6 @@ imap_t;
 /* flags for sync_mailbox */
 #define	SYNC_DELETE	(1<<0)	/* delete local that don't exist on server */
 #define SYNC_EXPUNGE	(1<<1)	/* don't fetch deleted messages */
-#define SYNC_QUIET	(1<<2)	/* only display critical errors */
 
 /* flags for maildir_open */
 #define OPEN_FAST	(1<<0)	/* fast open - don't parse */
@@ -173,7 +175,10 @@ extern config_t global;
 extern config_t *boxes;
 extern unsigned int Tag;
 extern char Hostname[256];
-extern int Verbose;
+extern int Verbose, Quiet;
+
+extern void info (const char *, ...);
+extern void infoc (char);
 
 #if HAVE_LIBSSL
 extern SSL_CTX *SSLContext;
@@ -185,7 +190,7 @@ char *next_arg (char **);
 
 int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int, unsigned int);
 
-void load_config (const char *);
+void load_config (const char *, int *);
 char * expand_strdup (const char *s);
 config_t *find_box (const char *);
 void free_config (void);
@@ -195,8 +200,10 @@ int imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox);
 int imap_fetch_message (imap_t *, unsigned int, int);
 int imap_set_flags (imap_t *, unsigned int, unsigned int);
 int imap_expunge (imap_t *);
+imap_t *imap_connect (config_t *);
 imap_t *imap_open (config_t *, unsigned int, imap_t *, int);
 int imap_append_message (imap_t *, int, message_t *);
+int imap_list (imap_t *);
 
 mailbox_t *maildir_open (const char *, int flags);
 int maildir_expunge (mailbox_t *, int);

@@ -1,6 +1,6 @@
 .ig
 \" isync - IMAP4 to maildir mailbox synchronizer
-\" Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>
+\" Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
 \"
 \"  This program is free software; you can redistribute it and/or modify
 \"  it under the terms of the GNU General Public License as published by
@@ -16,66 +16,70 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ..
-.TH isync 1 "2002 Jun 17"
+.TH isync 1 "2002 Oct 14"
 ..
 .SH NAME
 isync - synchronize IMAP4 and maildir mailboxes
 ..
 .SH SYNOPSIS
-.B isync
-[
-.I options...
-]
-.I mailbox
-[
-.I mailbox ...
-]
+\fBisync\fR [\fIoptions...\fR] \fImailbox\fR [\fImailbox ...\fR]
+.br
+\fBisync\fR [\fIoptions...\fR] \fI-a\fR
+.br
+\fBisync\fR [\fIoptions...\fR] \fI-l\fR
 ..
 .SH DESCRIPTION
-.B isync
-is a command line application which synchronizes a local maildir-style
-mailbox with a remote IMAP4 mailbox, suitable for use in IMAP-disconnected
-mode.  Multiple copies of the remote IMAP4 mailbox can be maintained, and
-all flags are synchronized.
+\fBisync\fR is a command line application which synchronizes a local
+maildir-style mailbox with a remote IMAP4 mailbox, suitable for use in
+IMAP-disconnected mode.  Multiple copies of the remote IMAP4 mailbox can 
+be maintained, and all flags are synchronized.
 ..
 .SH OPTIONS
 .TP
-\fB-a\fR, \fB--all\fR
-Synchronize all mailboxes specified in the user's ~/.isyncrc.
+\fB-c\fR, \fB--config\fR \fIfile\fR
+Read configuration from \fIfile\fR.
+By default, the configuration is read from ~/.isyncrc if it exists.
 .TP
-\fB-C\fR, \fB--create\fR
+\fB-1\fR, \fB--one-to-one\fR
+Instead of using the mailbox specifications in ~/.isyncrc, isync will pick up
+all mailboxes from the local directory and remote folder and map them 1:1 
+onto each other according to their names.
+.TP
+\fB-I\fR, \fB--inbox\fR \fImailbox\fR
+Exception to the 1:1 mapping created by -1: the special IMAP mailbox \fIINBOX\fR
+is mapped to the local \fImailbox\fR (relative to the maildir).
+.TP
+\fB-a\fR, \fB--all\fR
+Synchronize all mailboxes (either specified in ~/.isyncrc or determined by the
+1:1 mapping).
+.TP
+\fB-l\fR, \fB--list\fR
+Don't synchronize anything, but list all mailboxes and exit.
+.TP
+\fB-L\fR, \fB--create-local\fR
 Automatically create the local maildir-style mailbox if it doesn't already
 exist.
 .TP
-\fB-c\fR, \fB--config\fR \fIfile\fR
-Read configuration from
-.I file
-By default, configuration is read from ~/.isyncrc if it exists.
+\fB-R\fR, \fB--create-remote\fR
+Automatically create the remote IMAP mailbox if it doesn't already exist.
 .TP
-.B -d, --delete
-Causes
-.B isync
-to delete messages from the local maildir mailbox which do not exist on the
-IMAP server.  By default,
-.I dead
-messages are
-.B not
-deleted.
+\fB-C\fR, \fB--create\fR
+Automatically create any mailboxes if they doesn't already exist.
+.TP
+\fB-d\fR, \fB--delete\fR
+Causes \fBisync\fR to delete messages from the local maildir mailbox 
+which do not exist on the IMAP server.  By default, \fIdead\fR messages
+are \fBnot\fR deleted.
 .TP
 \fB-e\fR, \fB--expunge\fR
-Causes
-.B isync
-to permanently remove all messages marked for deletion in both the local
-maildir mailbox and the remote IMAP mailbox.  By default, messages are
-.B not
-expunged.
+Causes \fBisync\fR to permanently remove all messages marked for deletion
+in both the local maildir mailbox and the remote IMAP mailbox.  By default,
+messages are \fBnot\fR expunged.
 .TP
 \fB-f\fR, \fB--fast\fR
-Causes
-.B isync
-to skip the step of synchronzing message flags between the local maildir
-mailbox and the IMAP mailbox.  Only new messages existing on the server will
-be fetched into the local mailbox.
+Causes \fBisync\fR to skip the step of synchronzing message flags between the
+local maildir mailbox and the IMAP mailbox.  Only new messages existing on the
+server will be fetched into the local mailbox.
 .TP
 \fB-h\fR, \fB--help\fR
 Displays a summary of command line options
@@ -96,44 +100,34 @@ Specifies the hostname of the IMAP server
 \fB-u\fR, \fB--user\fR \fIuser\fR
 Specifies the login name to access the IMAP server (default: $USER)
 .TP
-.B -v, --version
-Displays
-.B isync
-version information
+\fB-M\fR, \fB--maildir\fR \fIdir\fR
+Specifies the location for your local mailboxes.
 .TP
-.B -V, --verbose
-Enables
-.I verbose
-mode, which displays the IMAP4 network traffic.
+\fB-F\fR, \fB--folder\fR \fIfolder\fR/
+Specifies the location for your remote mailboxes.
+.TP
+\fB-v\fR, \fB--version\fR
+Displays \fBisync\fR version information.
+.TP
+\fB-V\fR, \fB--verbose\fR
+Enables \fIverbose\fR mode, which displays the IMAP4 network traffic.
 ..
 .SH CONFIGURATION
-.B isync
-reads
-.I ~/.isyncrc
-to load default configuration data.  Each line of the configuration file
-consists of a command.  The following commands are understood:
+\fBisync\fR reads \fI~/.isyncrc\fR to load default configuration data.
+Each line of the configuration file consists of a command.
+The following commands are understood:
 .TP
 \fBMailbox\fR \fIpath\fR
 Defines a local maildir mailbox.  All configuration commands following this
-line, up until the next
-.I Mailbox
-command, apply to this mailbox only.
+line, up until the next \fIMailbox\fR command, apply to this mailbox only.
 ..
 .TP
 \fBHost\fR \fB[\fRimaps:\fB]\fR\fIname\fR
 Defines the DNS name or IP address of the IMAP server.  If the hostname is
-prefixed with
-.I imaps:
-the connection is assumed to be a SSL connection to port 993 (though you can
-change this by placing a
-.B Port
-command
-.B after
-the
-.B Host
-command.  Note that some servers support SSL on the default port 143.
-.B isync
-will always attempt to use SSL if available.
+prefixed with \fIimaps:\fR the connection is assumed to be a SSL connection
+to port 993 (though you can change this by placing a \fBPort\fR command
+\fBafter\fR the \fBHost\fR command.  Note that some servers support SSL on 
+the default port 143. \fBisync\fR will always attempt to use SSL if available.
 ..
 .TP
 \fBPort\fR \fIport\fR
@@ -150,12 +144,9 @@ Defines the login name on the IMAP server (Default: current user)
 ..
 .TP
 \fBPass\fR \fIpassword\fR
-Defines the password for
-.I username
-on the IMAP server.  Note that this option is
-.B NOT
-required.  If no password is specified in the configuration file,
-.B isync
+Defines the password for \fIusername\fR on the IMAP server.
+Note that this option is \fBNOT\fR required.
+If no password is specified in the configuration file, \fBisync\fR
 will prompt you for it.
 ..
 .TP
@@ -164,64 +155,58 @@ Defines an alias for the mailbox which can be used as a shortcut on the
 command line.
 ..
 .TP
-\fBCopyDeletedTo\fR \fIstring\fR
+\fBCopyDeletedTo\fR \fImailbox\fR
 Specifies the remote IMAP mailbox to copy deleted messages prior to
 expunging (Default: none).
 ..
 .TP
-\fBDelete\fR \fIyes|no\fR
+\fBDelete\fR \fIyes\fR|\fIno\fR
 Specifies whether messages in the local copy of the mailbox which don't
 exist on the server are automatically deleted.  (Default: no).
+\fBNOTE:\fR  The \fI-d\fR command line option overrides this setting when 
+set to \fIno\fR.
 ..
 .TP
-\fBExpunge\fR \fIyes|no\fR
+\fBExpunge\fR \fIyes\fR|\fIno\fR
 Specifies whether deleted messages are expunged by default (Default: no).
-\fBNOTE:\fR  The
-.I -e
-command line option overrides this setting when set to
-\fIno\fR.
+\fBNOTE:\fR  The \fI-e\fR command line option overrides this setting when 
+set to \fIno\fR.
 ..
 .TP
-\fBMailDir\fR \fIstring\fR
-Specifies the location for your mailboxes if a relative path is
-specified in a
-.I Mailbox
-command (Default: \fI~\fR).
-.B NOTE:
-This directive is only meaningful the in
-.I global
+\fBMailDir\fR \fIdirectory\fR
+Specifies the location of your local mailboxes if a relative path is
+specified in a \fIMailbox\fR command (Default: \fI~\fR).
+\fBNOTE:\fR This directive is only meaningful in the \fIglobal\fR
+section (see below).
+..
+.TP
+\fBFolder\fR \fIdirectory\fR/
+Specifies the location of your IMAP mailboxes 
+specified in \fIBox\fR commands (Default: \fI""\fR).
+\fBNOTE:\fR You \fBmust\fR append the hierarchy delimiter (usually
+a slash) to this specification.
+\fBNOTE 2:\fR This directive is only meaningful in the \fIglobal\fR
 section (see below).
 ..
 .TP
 \fBMaxMessages\fR \fIcount\fR
-Sets the number of messages
-.B isync
-should keep in a mailbox.
+Sets the number of messages \fBisync\fR should keep in a mailbox.
 This is useful for mailboxes where you keep a complete archive on the
 server, but want to mirror only the last messages (for instance, for mailing
 lists.)
 The messages that were the first to arrive in the mailbox (independent of the
-actual date of the message) will automatically be deleted if you tell
-pass
-.B isync
-the delete (-d, --delete) flag.
+actual date of the message) will automatically be deleted if you
+pass \fBisync\fR the delete (-d, --delete) flag.
 Messages that are flagged (marked as important) will not be automatically
 deleted.
-If
-.I count
-is 0, the maximum number of messages is
-.B unlimited
+If \fIcount\fR is 0, the maximum number of messages is \fBunlimited\fR
 (Default: 0).
 ..
 .TP
 \fBMaxSize\fR \fIbytes\fR
-Sets a threshold for the maximum message size (in bytes) for which
-.B isync
+Sets a threshold for the maximum message size (in bytes) for which \fBisync\fR
 should fetch from the server.  This is useful for weeding out messages with
-large attachments.  If
-.I bytes
-is 0, the maximum file size is
-.B unlimited.
+large attachments.  If \fIbytes\fR is 0, the maximum file size is \fBunlimited\fR.
 ..
 .TP
 \fBTunnel\fR \fIcommand\fR
@@ -229,79 +214,64 @@ Specify a command to run to establish a connection rather than opening a TCP
 socket.  This allows you to run an IMAP session over an SSH tunnel, for
 example.
 .TP
-\fBUseNamespace\fR \fIyes|no\fR
-Selects whether
-.B isync
-should select mailboxes using the namespace given by the NAMESPACE command.
-This is useful with broken IMAP servers. (Default:
-.I yes
-)
+\fBUseNamespace\fR \fIyes\fR|\fIno\fR
+Selects whether \fBisync\fR should select mailboxes using the namespace given 
+by the NAMESPACE command. This is useful with broken IMAP servers. (Default:
+\fIyes\fR)
 ..
 .TP
-\fBRequireCRAM\fR \fIyes|no\fR
-If set to
-.I yes
-,
-.B isync
-will require that the server accept CRAM-MD5 intead of PLAIN to authenticate
-the user.
+\fBRequireCRAM\fR \fIyes\fR|\fIno\fR
+If set to \fIyes\fR, \fBisync\fR will require that the server accept CRAM-MD5 
+intead of PLAIN to authenticate the user.
 ..
 .TP
-\fBRequireSSL\fR \fIyes|no\fR
-.B isync
-will abort the connection if a TLS/SSL session to the IMAP
-server can not be established.  (Default:
-.I yes
-)
+\fBRequireSSL\fR \fIyes\fR|\fIno\fR
+\fBisync\fR will abort the connection if a TLS/SSL session to the IMAP
+server can not be established.  (Default: \fIyes\fR)
 ..
 .TP
 \fBCertificateFile\fR \fIpath\fR
 File containing X.509 CA certificates used to verify server identities.
 ..
 .TP
-\fBUseSSLv2\fR \fIyes|no\fR
-Should
-.B isync
-use SSLv2 for communication with the IMAP server over SSL?  (Default:
-.I yes
-if the imaps port is used, otherwise
-.I no
-)
+\fBUseSSLv2\fR \fIyes\fR|\fIno\fR
+Should \fBisync\fR use SSLv2 for communication with the IMAP server over SSL?
+(Default: \fIyes\fR if the imaps port is used, otherwise \fIno\fR)
 ..
 .TP
-\fBUseSSLv3\fR \fIyes|no\fR
-Should
-.B isync
-use SSLv3 for communication with the IMAP server over SSL?  (Default:
-.I yes
-if the imaps port is used, otherwise
-.I no
-)
+\fBUseSSLv3\fR \fIyes\fR|\fIno\fR
+Should \fBisync\fR use SSLv3 for communication with the IMAP server over SSL?
+(Default: \fIyes\fR if the imaps port is used, otherwise \fIno\fR)
 ..
 .TP
-\fBUseTLSv1\fR \fIyes|no\fR
-Should
-.B isync
-use TLSv1 for communication with the IMAP server over SSL?  (Default:
-.I yes
-)
+\fBUseTLSv1\fR \fIyes\fR|\fIno\fR
+Should \fBisync\fR use TLSv1 for communication with the IMAP server over SSL?
+(Default: \fIyes\fR)
+..
+.TP
+\fBOneToOne\fR
+\fBisync\fR will ignore any \fIMailbox\fR specifications and instead pick up
+all mailboxes from the local \fIMailDir\fR and remote \fIFolder\fR and map 
+them 1:1 onto each other according to their names.
+\fBNOTE:\fR This directive is only meaningful in the \fIglobal\fR
+section (see below).
+..
+.TP
+\fBInbox\fR \fImailbox\fR
+Exception to the OneToOne mapping: the special IMAP mailbox \fIINBOX\fR
+is mapped to the local \fImailbox\fR (relative to the \fIMailDir\fR).
+\fBNOTE:\fR This directive is only meaningful in the \fIglobal\fR
+section (see below).
 ..
 .P
-Configuration commands that appear prior to the first
-.B Mailbox
-command are considered to be
-.I global
+Configuration commands that appear prior to the first \fBMailbox\fR
+command are considered to be \fIglobal\fR
 options which are used as defaults when those specific options are not
 specifically set for a defined Mailbox.  For example, if you use the same
-login name for several IMAP servers, you can put a
-.B User
-command before the first
-.B Mailbox
-command, and then leave out the
-.B User
-command in the sections for each mailbox.
-.B isync
-will then use the global value by default.
+login name for several IMAP servers, you can put a \fBUser\fR command before 
+the first \fBMailbox\fR command, and then leave out the \fBUser\fR command 
+in the sections for each mailbox.
+\fBisync\fR will then use the global value by default.
 ..
 .SH FILES
 .TP
@@ -309,20 +279,16 @@ will then use the global value by default.
 Default configuration file
 ..
 .SH BUGS
-.B isync
-does not use NFS-safe locking.  It will correctly prevent concurrent
-synchronization of a mailbox on the same host, but not across NFS.
+\fBisync\fR does not use NFS-safe locking.  It will correctly prevent 
+concurrent synchronization of a mailbox on the same host, but not across NFS.
 .P
 When synchronizing multiple mailboxes on the same IMAP server, it is not
 possible to select different SSL options for each mailbox.  Only the options
 from the first mailbox are applied since the SSL session is reused.
 .P
-If new mail arrives in the IMAP mailbox after
-.B isync
+If new mail arrives in the IMAP mailbox after \fBisync\fR
 has retrieved the initial message list, the new mail will not be fetched
-until the next time
-.B isync
-is invoked.
+until the next time \fBisync\fR is invoked.
 .P
 It is currently impossible to unset the \\Flagged attribute of a message
 once it is set.  It has to be manually unset everywhere since isync
@@ -331,12 +297,12 @@ message.
 .P
 The ndbm database created for each mailbox is not portable across different
 architectures.  It currently stores the UID in host byte order.
+.P
+The configuration file takes precedence over command line options.
 .SH SEE ALSO
 mutt(1), maildir(5)
 .P
-Up to date information on
-.B isync
-can be found at
+Up to date information on \fBisync\fR can be found at
 http://www.cs.hmc.edu/~me/isync/.
 ..
 .SH AUTHOR
