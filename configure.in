@@ -19,7 +19,29 @@ AC_CHECK_LIB(socket,socket)
 AC_CHECK_LIB(nsl,inet_ntoa)
 AC_CHECK_LIB(crypto,ERR_error_string)
 AC_CHECK_LIB(ssl,SSL_library_init)
-AC_CHECK_LIB(db,db_create)
+
+AC_CACHE_CHECK(for dbm_open, ac_cv_dbmopen,
+	[ac_cv_dbmopen=no
+	AC_TRY_LINK([#include <ndbm.h>],
+		[dbm_open(0,0,0);],[ac_cv_dbmopen=yes])])
+if test $ac_cv_dbmopen = no; then
+	AC_CACHE_CHECK([for dbm_open in -ldb], ac_cv_libdb,
+		[save_LIBS="$LIBS"
+		LIBS="$LIBS -ldb"
+		ac_cv_libdb=no
+		AC_TRY_LINK([#define DB_DBM_HSEARCH 1
+#include <db.h>],
+			[dbm_open(0,0,0);],
+			[ac_cv_libdb=yes])
+		LIBS="$save_LIBS"])
+
+	if test $ac_cv_libdb = yes; then
+		LIBS="$LIBS -ldb"
+	else
+		AC_MSG_ERROR([Could not find dbm_open(), you must install libdb])
+	fi
+fi
+
 dnl test for gcc.  use the prefix so we know that gcc-3.0 is also gcc
 if test `echo $CC | sed 's/^gcc.*/gcc/'` = gcc; then
 	CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"

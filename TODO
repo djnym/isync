@@ -6,3 +6,5 @@ isync gets confused when new mail is delivered while in the middle of an
 IMAP session.  need to handled those asynchronous notifications properly.
 
 add a way to automatically create and sync IMAP subfolders.
+
+add support for tunnelling over an ssh connection instead of ssl
