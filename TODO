@@ -1,9 +1,17 @@
-don't require maildir_trash
+don't require maildir_trash. currently MaxMessages gets into the way of
+simply removing it; that is fixable with some shuffling, though.
 
-refactor mailbox support.
-put sync info outside the mailbox itself.
+refactor mailbox support. create proper mailbox drivers; handle imap and
+maildir (and anything else) symmetrically; decouple UID->message mapping
+from sync database - should use the same UID storing schemes as c-client
+(pine, uw-imap) does, at least optionally, i think.
 
-store flags in sync info.
+add asynchrounous operation to remote mailbox drivers. this is actually
+what prevents us from simply using c-client for the previous point and
+thus simply becoming mailsync.
+
+store message flags in sync database, so _un_setting them will be properly
+synced as well.
 
 add option to suppress upload of messages (but not deletion).
 
