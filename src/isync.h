@@ -153,16 +153,23 @@ typedef struct
     list_t *ns_personal;
     list_t *ns_other;
     list_t *ns_shared;
-    unsigned int have_nologin:1;
-    unsigned int have_uidplus:1;
-    unsigned int have_namespace:1;
+    unsigned int caps;
 #if HAVE_LIBSSL
-    unsigned int have_cram:1;
-    unsigned int have_starttls:1;
     unsigned int cram:1;
 #endif
 }
 imap_t;
+
+/* Keep in sync with cap_list */
+enum CAPABILITY {
+    NOLOGIN,
+    UIDPLUS,
+    NAMESPACE,
+#if HAVE_LIBSSL
+    CRAM,
+    STARTTLS,
+#endif
+};
 
 /* flags for sync_mailbox */
 #define	SYNC_DELETE	(1<<0)	/* delete local that don't exist on server */

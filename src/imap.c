@@ -42,6 +42,10 @@
 # include <openssl/err.h>
 #endif
 
+#define as(ar) (sizeof(ar)/sizeof(ar[0]))
+
+#define CAP(cap) (imap->caps & (1 << (cap)))
+
 static int Tag;
 
 const char *Flags[] = {
@@ -395,14 +399,44 @@ parse_fetch (imap_t *imap, char *cmd)
     return 0;
 }
 
+/* Keep this in sync with enum CAPABILITY */
+const char *cap_list[] = {
+    "LOGINDISABLED",
+    "UIDPLUS",
+    "NAMESPACE",
+#if HAVE_LIBSSL
+    "AUTH=CRAM-MD5",
+    "STARTTLS",
+#endif
+};
+
+static void
+parse_capability (imap_t *imap, char *cmd)
+{
+    char *arg;
+    unsigned i;
+
+    imap->caps = 0x80000000;
+    while ((arg = next_arg (&cmd)))
+	for (i = 0; i < as(cap_list); i++)
+	    if (!strcmp (cap_list[i], arg))
+		imap->caps |= 1 << i;
+}
+
 static void
 parse_response_code (imap_t * imap, char *s)
 {
-    char *arg;
+    char *arg, *p;
 
     if (*s != '[')
 	return;			/* no response code */
     s++;
+    if (!(p = strchr (s, ']')))
+    {
+	fprintf (stderr, "IMAP error: malformed response code\n");
+	return;
+    }
+    *p++ = 0;
 
     arg = next_arg (&s);
 
@@ -411,12 +445,17 @@ parse_response_code (imap_t * imap, char *s)
 	arg = next_arg (&s);
 	imap->uidvalidity = atol (arg);
     }
+    else if (!strcmp ("CAPABILITY", arg))
+    {
+	parse_capability (imap, s);
+    }
     else if (!strcmp ("ALERT", arg))
     {
 	/* RFC2060 says that these messages MUST be displayed
 	 * to the user
 	 */
-	fprintf (stderr, "*** IMAP ALERT *** %s\n", s);
+	for (; isspace ((unsigned char)*p); p++);
+	fprintf (stderr, "*** IMAP ALERT *** %s\n", p);
     }
 }
 
@@ -477,21 +516,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    }
 	    else if (!strcmp ("CAPABILITY", arg))
 	    {
-		while ((arg = next_arg (&cmd)))
-		{
-		    if (!strcmp ("UIDPLUS", arg))
-			imap->have_uidplus = 1;
-		    else if (!strcmp ("NAMESPACE", arg))
-			imap->have_namespace = 1;
-		    else if (!strcmp ("LOGINDISABLED", arg))
-			imap->have_nologin = 1;
-#if HAVE_LIBSSL
-		    else if (!strcmp ("STARTTLS", arg))
-			imap->have_starttls = 1;
-		    else if (!strcmp ("AUTH=CRAM-MD5", arg))
-			imap->have_cram = 1;
-#endif
-		}
+		parse_capability (imap, cmd);
 	    }
 	    else if (!strcmp ("LIST", arg))
 	    {
@@ -736,8 +761,8 @@ imap_connect (config_t * cfg)
         fprintf (stderr, "IMAP error: unknown greeting response\n");
 	goto bail;
       }
-      /* let's see what this puppy can do... */
-      if (imap_exec (imap, "CAPABILITY"))
+      parse_response_code (imap, rsp);
+      if (!imap->caps && imap_exec (imap, "CAPABILITY"))
 	goto bail;
 
     if (!preauth)
@@ -749,7 +774,7 @@ imap_connect (config_t * cfg)
 	if (cfg->use_sslv2 || cfg->use_sslv3 || cfg->use_tlsv1)
 	{
 	  /* always try to select SSL support if available */
-	  if (imap->have_starttls)
+	  if (CAP(STARTTLS))
 	  {
 	    if (imap_exec (imap, "STARTTLS"))
 	      goto bail;
@@ -757,14 +782,6 @@ imap_connect (config_t * cfg)
 	      goto bail;
 	    use_ssl = 1;
 
-	    /* to conform to RFC2595 we need to forget all information
-	     * retrieved from CAPABILITY invocations before STARTTLS.
-	     */
-	    imap->have_uidplus = 0;
-	    imap->have_namespace = 0;
-	    imap->have_cram = 0;
-	    imap->have_nologin = 0;
-	    /* imap->have_starttls = 0; */
 	    if (imap_exec (imap, "CAPABILITY"))
 	      goto bail;
 	  }
@@ -817,7 +834,7 @@ imap_connect (config_t * cfg)
 	}
 
 #if HAVE_LIBSSL
-	if (imap->have_cram)
+	if (CAP(CRAM))
 	{
 	  info ("Authenticating with CRAM-MD5\n");
 	  imap->cram = 1;
@@ -832,7 +849,7 @@ imap_connect (config_t * cfg)
 	else
 #endif
 	{
-	  if (imap->have_nologin)
+	  if (CAP(NOLOGIN))
 	  {
 	    fprintf (stderr, "Skipping %s, server forbids LOGIN\n", cfg->path);
 	    goto bail;
@@ -850,7 +867,7 @@ imap_connect (config_t * cfg)
     } /* !preauth */
 
       /* get NAMESPACE info */
-      if (!global.folder && cfg->use_namespace && imap->have_namespace)
+      if (!global.folder && cfg->use_namespace && CAP(NAMESPACE))
       {
 	if (imap_exec (imap, "NAMESPACE"))
 	  goto bail;
@@ -1204,7 +1221,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
   }
 
   extra = 0, i = 0;
-  if (!imap->have_uidplus)
+  if (!CAP(UIDPLUS))
   {
    nloop:
     start = i;
@@ -1266,7 +1283,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
   }
 
   i = 0;
-  if (!imap->have_uidplus)
+  if (!CAP(UIDPLUS))
   {
    n1loop:
     start = i;
