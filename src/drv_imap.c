@@ -1026,7 +1026,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 				         		cmdp->cmd : "LOGIN <user> <pass>",
 				         		arg, cmd ? cmd : "");
 			}
-			if ((resp2 = parse_response_code( ctx, cmdp->cb.ctx, cmd )) > resp)
+			if ((resp2 = parse_response_code( ctx, &cmdp->cb, cmd )) > resp)
 				resp = resp2;
 		  normal:
 			if (cmdp->cb.done)
