@@ -33,6 +33,22 @@
 #include <errno.h>
 #include <sys/stat.h>
 
+void
+Fprintf( FILE *f, const char *msg, ... )
+{
+	int r;
+	va_list va;
+
+	va_start( va, msg );
+	r = vfprintf( f, msg, va );
+	va_end( va );
+	if (r < 0) {
+		perror( "cannot write file" );
+		exit( 1 );
+	}
+}
+
+
 static const char Flags[] = { 'D', 'F', 'R', 'S', 'T' };
 
 static int
@@ -256,10 +272,10 @@ sync_old( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 			default: /* ok */ break;
 			case DRV_OK:
 				if (pull) {
-					fprintf( jfp, "< %d %d 0\n", srec->muid, srec->suid );
+					Fprintf( jfp, "< %d %d 0\n", srec->muid, srec->suid );
 					srec->muid = 0;
 				} else {
-					fprintf( jfp, "> %d %d 0\n", srec->muid, srec->suid );
+					Fprintf( jfp, "> %d %d 0\n", srec->muid, srec->suid );
 					srec->suid = 0;
 				}
 			}
@@ -290,10 +306,10 @@ sync_old( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 						case DRV_OK:
 							if (pull) {
 								srec->suid = uid;
-								fprintf( jfp, "> %d -1 %d\n", srec->muid, srec->suid );
+								Fprintf( jfp, "> %d -1 %d\n", srec->muid, srec->suid );
 							} else {
 								srec->muid = uid;
-								fprintf( jfp, "< -1 %d %d\n", srec->suid, srec->muid );
+								Fprintf( jfp, "< -1 %d %d\n", srec->suid, srec->muid );
 							}
 							*nflags = smsg->flags;
 						}
@@ -344,7 +360,7 @@ sync_old( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 				if (unex) {
 					debug( "unexpiring pair(%d,%d)\n", srec->muid, srec->suid );
 					/* log last, so deletion can't be misinterpreted! */
-					fprintf( jfp, "~ %d %d 0\n", srec->muid, srec->suid );
+					Fprintf( jfp, "~ %d %d 0\n", srec->muid, srec->suid );
 					srec->status &= ~S_EXPIRED;
 				}
 			}
@@ -407,10 +423,10 @@ sync_new( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 					srec->next = 0;
 					**srecadd = srec;
 					*srecadd = &srec->next;
-					fprintf( jfp, "+ %d %d %u\n", srec->muid, srec->suid, srec->flags );
+					Fprintf( jfp, "+ %d %d %u\n", srec->muid, srec->suid, srec->flags );
 					if (*smaxuid < msg->uid) {
 						*smaxuid = msg->uid;
-						fprintf( jfp, pull ? "( %d\n" : ") %d\n", msg->uid );
+						Fprintf( jfp, pull ? "( %d\n" : ") %d\n", msg->uid );
 					}
 				}
 			} else
@@ -522,7 +538,13 @@ sync_boxes( store_t *mctx, const char *mname,
 	}
 	if ((dfp = fopen( dname, "r" ))) {
 		debug( "reading sync state %s ...\n", dname );
-		if (fscanf( dfp, "%d:%d %d:%d:%d\n", &muidval, &mmaxuid, &suidval, &smaxxuid, &smaxuid) != 5) {
+		if (!fgets( buf, sizeof(buf), dfp ) || !(i = strlen( buf )) || buf[i - 1] != '\n') {
+			fprintf( stderr, "Error: incomplete sync state header in %s\n", dname );
+			fclose( dfp );
+			ret = SYNC_FAIL;
+			goto bail;
+		}
+		if (sscanf( buf, "%d:%d %d:%d:%d", &muidval, &mmaxuid, &suidval, &smaxxuid, &smaxuid) != 5) {
 			fprintf( stderr, "Error: invalid sync state header in %s\n", dname );
 			fclose( dfp );
 			ret = SYNC_FAIL;
@@ -531,8 +553,14 @@ sync_boxes( store_t *mctx, const char *mname,
 		line = 1;
 		while (fgets( buf, sizeof(buf), dfp )) {
 			line++;
+			if (!(i = strlen( buf )) || buf[i - 1] != '\n') {
+				fprintf( stderr, "Error: incomplete sync state entry at %s:%d\n", dname, line );
+				fclose( dfp );
+				ret = SYNC_FAIL;
+				goto bail;
+			}
 			fbuf[0] = 0;
-			if (sscanf( buf, "%d %d %15s\n", &t1, &t2, fbuf ) < 2) {
+			if (sscanf( buf, "%d %d %15s", &t1, &t2, fbuf ) < 2) {
 				fprintf( stderr, "Error: invalid sync state entry at %s:%d\n", dname, line );
 				fclose( dfp );
 				ret = SYNC_FAIL;
@@ -568,14 +596,20 @@ sync_boxes( store_t *mctx, const char *mname,
 			srec = recs;
 			while (fgets( buf, sizeof(buf), jfp )) {
 				line++;
+				if (!(i = strlen( buf )) || buf[i - 1] != '\n') {
+					fprintf( stderr, "Error: incomplete journal entry at %s:%d\n", jname, line );
+					fclose( jfp );
+					ret = SYNC_FAIL;
+					goto bail;
+				}
 				if (buf[0] == '^')
 					srec = recs;
 				else {
 					if (buf[0] == '(' || buf[0] == ')' ?
-					        (sscanf( buf + 2, "%d\n", &t1 ) != 1) :
+					        (sscanf( buf + 2, "%d", &t1 ) != 1) :
 					    buf[0] == '-' || buf[0] == '|' ?
-						(sscanf( buf + 2, "%d %d\n", &t1, &t2 ) != 2) :
-						(sscanf( buf + 2, "%d %d %d\n", &t1, &t2, &t3 ) != 3))
+						(sscanf( buf + 2, "%d %d", &t1, &t2 ) != 2) :
+						(sscanf( buf + 2, "%d %d %d", &t1, &t2, &t3 ) != 3))
 					{
 						fprintf( stderr, "Error: malformed journal entry at %s:%d\n", jname, line );
 						fclose( jfp );
@@ -719,7 +753,7 @@ sync_boxes( store_t *mctx, const char *mname,
 				minwuid = srec->muid;
 		}
 		debug( "  min non-orphaned master uid is %d\n", minwuid );
-		fprintf( jfp, "^\n" ); /* if any S_EXP_SLAVE */
+		Fprintf( jfp, "^\n" ); /* if any S_EXP_SLAVE */
 		for (srec = recs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
 				continue;
@@ -727,10 +761,10 @@ sync_boxes( store_t *mctx, const char *mname,
 				if (minwuid > srec->muid && mmaxuid >= srec->muid) {
 					debug( "  -> killing (%d,%d)\n", srec->muid, srec->suid );
 					srec->status = S_DEAD;
-					fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
+					Fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
 				} else if (srec->suid) {
 					debug( "  -> orphaning (%d,[%d])\n", srec->muid, srec->suid );
-					fprintf( jfp, "> %d %d 0\n", srec->muid, srec->suid );
+					Fprintf( jfp, "> %d %d 0\n", srec->muid, srec->suid );
 					srec->suid = 0;
 				}
 			} else if (minwuid > srec->muid) {
@@ -738,7 +772,7 @@ sync_boxes( store_t *mctx, const char *mname,
 					if (mmaxuid >= srec->muid) {
 						debug( "  -> killing (%d,%d)\n", srec->muid, srec->suid );
 						srec->status = S_DEAD;
-						fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
+						Fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
 					}
 				} else if (srec->muid > 0 && srec->suid && (mctx->opts & OPEN_OLD) &&
 				           (!(mctx->opts & OPEN_NEW) || mmaxuid >= srec->muid)) {
@@ -785,12 +819,12 @@ sync_boxes( store_t *mctx, const char *mname,
 	if (!muidval || !suidval) {
 		muidval = mctx->uidvalidity;
 		suidval = sctx->uidvalidity;
-		fprintf( jfp, "| %d %d\n", muidval, suidval );
+		Fprintf( jfp, "| %d %d\n", muidval, suidval );
 	}
 
 	info( "Synchronizing\n" );
 	debug( "synchronizing old entries\n" );
-	fprintf( jfp, "^\n" );
+	Fprintf( jfp, "^\n" );
 	for (srec = recs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
@@ -803,7 +837,7 @@ sync_boxes( store_t *mctx, const char *mname,
 			debug( "  vanished\n" );
 			/* d.1) d.5) d.6) d.10) d.11) */
 			srec->status = S_DEAD;
-			fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
+			Fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
 		} else {
 			delm = nom && (srec->muid > 0);
 			dels = nos && (srec->suid > 0);
@@ -816,7 +850,7 @@ sync_boxes( store_t *mctx, const char *mname,
 			if (srec->flags != nflags) {
 				debug( "  updating flags (%u -> %u)\n", srec->flags, nflags );
 				srec->flags = nflags;
-				fprintf( jfp, "* %d %d %u\n", srec->muid, srec->suid, nflags );
+				Fprintf( jfp, "* %d %d %u\n", srec->muid, srec->suid, nflags );
 			}
 			if (mmsg && (mmsg->flags & F_DELETED))
 				srec->status |= S_DEL_MASTER;
@@ -849,7 +883,7 @@ sync_boxes( store_t *mctx, const char *mname,
 			}
 		}
 		if (delt) {
-			fprintf( jfp, "^\n" );
+			Fprintf( jfp, "^\n" );
 			for (srec = recs; srec; srec = srec->next) {
 				if (srec->status & (S_DEAD|S_EXPIRED))
 					continue;
@@ -857,7 +891,7 @@ sync_boxes( store_t *mctx, const char *mname,
 				if (smsg && (smsg->status & M_EXPIRED)) {
 					debug( "  expiring pair(%d,%d)\n", srec->muid, srec->suid );
 					/* log first, so deletion can't be misinterpreted! */
-					fprintf( jfp, "~ %d %d 1\n", srec->muid, srec->suid );
+					Fprintf( jfp, "~ %d %d 1\n", srec->muid, srec->suid );
 					if (smaxxuid < srec->suid)
 						smaxxuid = srec->suid;
 					srec->status |= S_EXPIRED;
@@ -914,7 +948,7 @@ sync_boxes( store_t *mctx, const char *mname,
 			debug( "  min non-orphaned master uid is %d\n", minwuid );
 		}
 
-		fprintf( jfp, "^\n" );
+		Fprintf( jfp, "^\n" );
 		for (srec = recs; srec; srec = srec->next) {
 			if (srec->status & S_DEAD)
 				continue;
@@ -922,15 +956,15 @@ sync_boxes( store_t *mctx, const char *mname,
 				if (srec->muid <= 0 || ((srec->status & S_DEL_MASTER) && mex)) {
 					debug( "  -> killing (%d,%d)\n", srec->muid, srec->suid );
 					srec->status = S_DEAD;
-					fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
+					Fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
 				} else if (srec->status & S_EXPIRED) {
 					if (mmaxuid >= srec->muid && minwuid > srec->muid) {
 						debug( "  -> killing (%d,%d)\n", srec->muid, srec->suid );
 						srec->status = S_DEAD;
-						fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
+						Fprintf( jfp, "- %d %d\n", srec->muid, srec->suid );
 					} else if (srec->suid) {
 						debug( "  -> orphaning (%d,[%d])\n", srec->muid, srec->suid );
-						fprintf( jfp, "> %d %d 0\n", srec->muid, srec->suid );
+						Fprintf( jfp, "> %d %d 0\n", srec->muid, srec->suid );
 						srec->suid = 0;
 					}
 				}
@@ -939,12 +973,12 @@ sync_boxes( store_t *mctx, const char *mname,
 	}
 
   finish:
-	fprintf( nfp, "%d:%d %d:%d:%d\n", muidval, mmaxuid, suidval, smaxxuid, smaxuid );
+	Fprintf( nfp, "%d:%d %d:%d:%d\n", muidval, mmaxuid, suidval, smaxxuid, smaxuid );
 	for (srec = recs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
 		make_flags( srec->flags, fbuf );
-		fprintf( nfp, "%d %d %s%s\n", srec->muid, srec->suid,
+		Fprintf( nfp, "%d %d %s%s\n", srec->muid, srec->suid,
 		         srec->status & S_EXPIRED ? "X" : "", fbuf );
 	}
 
