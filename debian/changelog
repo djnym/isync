@@ -1,3 +1,9 @@
+isync (0.9.2-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Oswald Buddenhagen <ossi@users.sf.net>  Sun, 07 Dec 2003 16:13:00 +0100
+
 isync (0.9.1-1) unstable; urgency=medium
 
   * New upstream release
