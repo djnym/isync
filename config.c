@@ -79,7 +79,10 @@ expand_strdup (const char *s)
 
 	    p = strchr (s, '/');
 	    if (p)
+	    {
 		user = strndup (s, (int)(p - s));
+		p++;
+	    }
 	    else
 		user = strdup (s);
 	    pw = getpwnam (user);
