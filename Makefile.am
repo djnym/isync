@@ -1,7 +1,7 @@
 SUBDIRS=debian
 bin_PROGRAMS=isync
 isync_SOURCES=main.c imap.c sync.c maildir.c isync.h list.c cram.c config.c \
-	      debug.h
+	      debug.h dotlock.c dotlock.h
 isync_LDADD=@DEBUGOBJ@
 isync_DEPENDENCIES=@DEBUGOBJ@
 EXTRA_isync_SOURCES=debug.c

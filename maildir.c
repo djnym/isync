@@ -29,26 +29,7 @@
 #include <errno.h>
 #include <time.h>
 #include "isync.h"
-
-static int
-do_lock (int fd, int flag)
-{
-    struct flock lck;
-
-    memset (&lck, 0, sizeof (lck));
-    lck.l_type = flag;
-    lck.l_whence = SEEK_SET;
-    lck.l_start = 0;
-    lck.l_len = 0;
-
-    if (fcntl (fd, F_SETLK, &lck))
-    {
-	perror ("fcntl");
-	return -1;
-    }
-
-    return 0;
-}
+#include "dotlock.h"
 
 /* 2,<flags> */
 static void
@@ -117,44 +98,8 @@ read_uid (const char *path, const char *file, unsigned int *uid /* out */)
     return ret;
 }
 
-/* NOTE: this is NOT NFS safe */
-static int
-maildir_lock (mailbox_t * m)
-{
-    char path[_POSIX_PATH_MAX];
-
-    snprintf (path, sizeof (path), "%s/isynclock", m->path);
-    m->lockfd = open (path, O_WRONLY | O_CREAT | O_EXCL, S_IWUSR | S_IRUSR);
-    if (m->lockfd == -1)
-    {
-	perror (path);
-	return -1;
-    }
-    if (do_lock (m->lockfd, F_WRLCK))
-    {
-	close (m->lockfd);
-	m->lockfd = -1;
-	return -1;
-    }
-    return 0;
-}
-
-static void
-maildir_unlock (mailbox_t * m)
-{
-  char path[_POSIX_PATH_MAX];
-
-  if (m->lockfd != -1)
-  {
-    snprintf (path, sizeof (path), "%s/isynclock", m->path);
-    unlink (path);
-    do_lock (m->lockfd, F_UNLCK);
-    close (m->lockfd);
-    m->lockfd = -1;
-  }
-}
-
-/* open a maildir mailbox.
+/*
+ * open a maildir mailbox.
  * if OPEN_FAST is set, we just check to make
  * sure its a valid mailbox and don't actually parse it.  any IMAP messages
  * with the \Recent flag set are guaranteed not to be in the mailbox yet,
@@ -231,10 +176,12 @@ maildir_open (const char *path, int flags)
 	}
     }
 
-    /* we need a mutex on the maildir because of the state files that isync
+    /*
+     * we need a mutex on the maildir because of the state files that isync
      * uses.
      */
-    if (maildir_lock (m))
+    snprintf (buf, sizeof (buf), "%s/isynclock", m->path);
+    if (dotlock_lock (buf, &m->lockfd))
 	goto err;
 
     /* check for the uidvalidity value */
@@ -311,7 +258,7 @@ maildir_open (const char *path, int flags)
   err:
     if (m->db)
 	dbm_close (m->db);
-    maildir_unlock (m);
+    dotlock_unlock (&m->lockfd);
     free (m->path);
     free (m);
     return NULL;
@@ -436,7 +383,7 @@ maildir_close (mailbox_t * mbox)
 	dbm_close (mbox->db);
 
     /* release the mutex on the mailbox */
-    maildir_unlock (mbox);
+    dotlock_unlock (&mbox->lockfd);
 
     /* per the maildir(5) specification, delivery agents are supposed to
      * set a 24-hour timer on items placed in the `tmp' directory.
