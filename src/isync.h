@@ -22,18 +22,17 @@
  */
 
 #if HAVE_LIBDB
-#define DB_DBM_HSEARCH 1
-#include <db.h>
+# define DB_DBM_HSEARCH 1
+# include <db.h>
 #else
-#include <ndbm.h>
+# include <ndbm.h>
 #endif
 
 #include <sys/types.h>
 #include <stdarg.h>
 #if HAVE_LIBSSL
-#include <openssl/ssl.h>
+# include <openssl/ssl.h>
 #endif
-#include "debug.h"
 
 typedef struct
 {

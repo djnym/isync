@@ -5,9 +5,10 @@
 |_|___/\__, |_| |_|\___|
        |___/            
 isync - IMAP4 to maildir mailbox synchronization program
-http://www.cs.hmc.edu/~me/isync/
+http://isync.sf.net/
 
 Author: Michael Elkins <me@mutt.org>
+Current maintainer: Oswald Buddenhagen <ossi@users.sf.net>
 
 ``isync'' is a command line application which synchronizes a local
 maildir-style mailbox with a remote IMAP4 mailbox, suitable for use in

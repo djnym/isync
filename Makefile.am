@@ -1,22 +1,15 @@
-SUBDIRS=debian
-bin_PROGRAMS=isync
-isync_SOURCES=main.c imap.c sync.c maildir.c isync.h list.c cram.c config.c \
-	      debug.h dotlock.c dotlock.h
-isync_LDADD=@DEBUGOBJ@
-isync_DEPENDENCIES=@DEBUGOBJ@
-EXTRA_isync_SOURCES=debug.c
-man_MANS=isync.1
-EXTRA_DIST=sample.isyncrc $(man_MANS)
-INCLUDES=$(RPM_OPT_FLAGS)
-DISTCLEANFILES=*~ build-stamp configure-stamp
+SUBDIRS = debian src
+man_MANS = isync.1
+EXTRA_DIST = isyncrc.sample isync.spec.in $(man_MANS)
+DISTCLEANFILES = *~ build-stamp configure-stamp
 
 log:
-	rcs2log -h sigpipe.org | sed 's;/home/cvs/isync/;;g' > ChangeLog
-
-isync.html: isync.1
-	groff -Thtml -man isync.1 > isync.html
+	rcs2log -u "me	Michael Elkins	me@sigpipe.org" \
+		-u "melkins	Michael Elkins	me@sigpipe.org" \
+		-u "ossi	Oswald Buddenhagen	ossi@users.sf.net" \
+	    -l 79 > ChangeLog
 
 rpm:
 	make dist
-	cp isync-$(VERSION).tar.gz /usr/src/rpm/SOURCES
+	cp $(PACKAGE)-$(VERSION).tar.gz /usr/src/rpm/SOURCES
 	rpm -ba --target=i586 --clean isync.spec

@@ -1,4 +1,4 @@
-AC_INIT(isync.h)
+AC_INIT(src/isync.h)
 AM_INIT_AUTOMAKE(isync,0.9)
 AM_PROG_CC_STDC
 AC_ARG_WITH(ssl-dir, [  --with-ssl-dir=DIR	location where openssl is insalled],
@@ -47,4 +47,4 @@ dnl test for gcc.  use the prefix so we know that gcc-3.0 is also gcc
 if test `echo $CC | sed 's/^gcc.*/gcc/'` = gcc; then
 	CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"
 fi
-AC_OUTPUT(Makefile debian/Makefile)
+AC_OUTPUT(Makefile src/Makefile debian/Makefile isync.spec)

@@ -1,16 +1,144 @@
-2002-01-28  me  <me@sigpipe.org>
+2002-10-30  Michael Elkins  <me@sigpipe.org>
 
-	* TODO, configure.in:
-	check for dbm_open() in libc and libdb
+	* isync.1, src/config.c, src/cram.c, src/dotlock.c, src/dotlock.h, src/imap.c, src/isync.h, src/list.c, src/maildir.c, src/main.c, src/sync.c:
+	Updated the copyright notice to allow an exception for linking with OpenSSL,
+	which has a non-GPL compatible license.
 
-2002-01-17  me  <me@sigpipe.org>
+	* .cvsignore, isync.1, src/config.c, src/imap.c, src/isync.h, src/maildir.c, src/main.c, src/sync.c:
+	Bunch 'o patches from Oswald Buddenhagen:
 
-	* sync.c:
+	i implemented some cool stuff (tm).
+	first, the long missing "create server-side missing mailboxes". -C now
+	creates both local and remote boxes; -L and -R create only local/remote.
+	second, i implemented a 1:1 remote:local folder mapping (-1) with an
+	optional INBOX exception (inbox/-I). the remote folder is specified with
+	the folder keyword (or -F switch) and takes precedence over the
+	namespace setting. the local directory with the mailboxes can now be
+	specified on the command line, too (-M).
+
+	another patch:
+	- made the -1 switch settable permanently (OneToOne). after all, you
+	  usually define your mailbox layout once forever. removed -A, as it is
+	  semantically -a modified by -1.
+	- cleaned up message output a bit. still, the quiet variable should be
+	  used throughout the program. at best, create some generic output
+	  function, which obeys a global verbosity level variable.
+	- optimized + cleaned up configuration parser slightly
+	- minor cleanups
+
+	add an (almost) unique id to every uploaded message and search for it
+	right after. i thought about using the message-id, but a) it is not
+	guaranteed to be unique in a mailbox (imagine you edit a mail and store
+	the dupe in the same box) and b) some mails (e.g., postponed) don't even
+	have one. a downside of the current implementation is, that this
+	id-header remains in the mailbox, but given that it wastes only 27 bytes
+	per mail and removing it would mean several roundtrips more, this seems
+	acceptable.
+	i changed the line-counting loop to use a mmapped file instead of
+	reading it in chunks, as it makes things simpler and is probably even
+	faster for big mails.
+	the amount of goto statements in my code may be scary, but c is simply
+	lacking a multi-level break statement. :)
+
+	this is the "shut up" patch. :) it makes the -q option consequent, so to
+	say.
+	additionally it adds an -l option which gathers all defined/found
+	mailboxes and just outputs the list. don't ask what i need it for. ;)
+
+	* src/maildir.c: fixed missing closedir() call (Joey Hess)
+
+2002-06-27  Michael Elkins  <me@sigpipe.org>
+
+	* src/imap.c:
+	explicitly set global.pass to NULL when getpass() returns an empty string.
+
+	* src/imap.c: Oswald Buddenhagen <ossi@kde.org>
+	* fix imap_open() brokeness with PREAUTH (missed hunk from previous patch)
+
+2002-06-22  Michael Elkins  <me@sigpipe.org>
+
+	* src/dotlock.c, src/imap.c:
+	fixed errors introduced by ME when hand-applying Oswald Nuddenhagen's
+	patch.
+
+	* autogen.sh, src/dotlock.c, src/imap.c, src/isync.h, src/main.c:
+	Patch from Oswald Buddenhagen <ossi@kde.org>
+		- move prompt for password to imap_open()
+		- don't ask for global password in PREAUTH state
+		- use socketpair() to create one full-duplex fd in tunnel mode
+		  instead of two half-duplex pipes
+		- don't set lck.l_pid in fcntl() call (its read-only)
+		- use F_SETLK instead of F_SETLKW to avoid infinite waiting
+		- use "$@" in autogen.sh to get proper word expansion
+
+2002-06-21  Michael Elkins  <me@sigpipe.org>
+
+	* configure.in, src/isync.h:
+	Fixed to compile under FreeBSD 4.6-RELEASE.  Must include ndbm.h rather than
+	db.h.
+
+2002-06-20  Michael Elkins  <me@sigpipe.org>
+
+	* Makefile.am, src/dotlock.c, src/dotlock.h, src/maildir.c:
+	remove debian/files
+
+	move dotlocking code to dotlock.c.
+
+	dotlocking code fixed to ignore whether or not the lockfile exists on
+	open().  we only care about whether fcntl() was able to lock it.
+
+2002-06-19  Michael Elkins  <me@sigpipe.org>
+
+	* src/sync.c:
+	Don't bother uploaded messages marked deleted when we are going to expunge.
+
+	* src/maildir.c, AUTHORS, src/imap.c:
+	fixed unused var warning in imap_open()
+
+	locking cleanups from Oswald Buddenhagen <ossi@kde.org>
+		* don't need to stat the lockfile since it will always be size 0
+		* only remove lockfile when we actually succeeded in locking
+
+	* Makefile.am, debian/Makefile.am, debian/changelog:
+	Debian package cleanups from Oswald Buddenhagen <ossi@kde.org>
+
+2002-06-18  Michael Elkins  <me@sigpipe.org>
+
+	* README, isync.1, src/isync.h, src/maildir.c, src/main.c, src/sync.c:
+	updated URL for project
+
+	fixed segmentation fault caused by double free() when an error occurred
+	during the IMAP transmission.
+
+	fixed bug where isync could not handle a 0 value UIDVALIDITY
+
+2002-04-19  Michael Elkins  <me@sigpipe.org>
+
+	* debian/changelog, debian/rules:
+	changed debian/rules to set DESTDIR instead of `prefix' when doing a make
+	install.
+
+	* configure.in, isync.1, isyncrc.sample, src/config.c, src/imap.c, src/isync.h, src/main.c:
+	PREAUTH support from Oswald Buddenhagen <ossi@kde.org>
+
+	Added Tunnel directive to allow the user to specify a shell command to run
+	to set up an IMAP connection in place of a TCP socket (eg., to run over
+	an SSH session).
+
+2002-01-28  Michael Elkins  <me@sigpipe.org>
+
+	* debian/changelog, ChangeLog, isync.spec.in: post 0.8 release commit
+
+	* TODO, configure.in: check for dbm_open() in libc and libdb
+
+2002-01-17  Michael Elkins  <me@sigpipe.org>
+
+	* src/sync.c:
 	don't bother renaming the message file if we are about to unlink() it
 
-2002-01-16  me  <me@sigpipe.org>
+2002-01-16  Michael Elkins  <me@sigpipe.org>
 
-	* AUTHORS, Makefile.am, NEWS, sync.c:
+	* AUTHORS, Makefile.am, NEWS, src/sync.c:
 	remove tilde backup files for distclean
 
 	fixed indentation
@@ -19,7 +147,7 @@
 
 	reformated NEWS blurb for 0.8
 
-	* sync.c, maildir.c:
+	* src/sync.c, src/maildir.c:
 	sync_mailbox() did not update the msg struct when flags were changed,
 	causing the expunge command to fail
 
@@ -29,7 +157,7 @@
 	added debian build files dist target so that people can use them to build
 	their own .deb packages without having to use CVS
 
-	* debian/changelog, debian/control, debian/copyright, debian/dirs, debian/docs, debian/files, debian/rules, isync.1, maildir.c, sync.c:
+	* debian/changelog, debian/control, debian/copyright, debian/docs, debian/rules, isync.1, src/maildir.c, src/sync.c:
 	added debian build files
 
 	fixed indentation
@@ -37,12 +165,12 @@
 	added bug note to manpage about db file format not being architecture
 	independent
 
-	* sync.c, maildir.c:
+	* src/sync.c, src/maildir.c:
 	remove the uid from the db when a message is deleted from the maildir
 
 	optimize db fetch/store to not copy the base filename
 
-	* NEWS, TODO, config.c, configure.in, cram.c, debug.c, debug.h, imap.c, isync.1, isync.h, list.c, maildir.c, main.c, sync.c, ChangeLog:
+	* NEWS, TODO, configure.in, isync.1, src/config.c, src/cram.c, src/imap.c, src/isync.h, src/list.c, src/maildir.c, src/main.c, src/sync.c, ChangeLog:
 	updated year in copyright notice
 
 	the uid for each message in the maildir is now stored in a dbm database
@@ -57,36 +185,35 @@
 	to always call maildir_close() so that the lock can be disabled, and the
 	database closed.
 
-2001-11-20  me  <me@sigpipe.org>
+2001-11-20  Michael Elkins  <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am, isync.spec:
-	post 0.7-release commit
+	* ChangeLog, Makefile.am, isync.spec.in: post 0.7-release commit
 
-	* Makefile.am, NEWS, isync.1, isync.h, maildir.c, main.c:
+	* Makefile.am, NEWS, isync.1, src/isync.h, src/maildir.c, src/main.c:
 	added --create/-C command line option to force creation of the local
 	maildir-style mailbox if nonexistent
 
 	debug.h was not included in isync_SOURCES in Makefile.am
 
-2001-11-19  me  <me@sigpipe.org>
+2001-11-19  Michael Elkins  <me@sigpipe.org>
 
-	* config.c, configure.in, debug.c, debug.h, isync.h, list.c, main.c, Makefile.am, TODO:
+	* configure.in, src/config.c, src/isync.h, src/list.c, src/main.c, Makefile.am, TODO:
 	added memory debugging code
 
 	fixed memory leak in free_list()
 
 	free memory associated with global settings on exit
 
-2001-11-16  me  <me@sigpipe.org>
+2001-11-16  Michael Elkins  <me@sigpipe.org>
 
-	* isync.h, sync.c, ChangeLog, cram.c, imap.c:
+	* src/isync.h, src/sync.c, ChangeLog, src/cram.c, src/imap.c:
 	remove c++ style comments
 
 	use %lu and cast off_t to unsigned long in printf()
 
-2001-11-15  me  <me@sigpipe.org>
+2001-11-15  Michael Elkins  <me@sigpipe.org>
 
-	* NEWS, config.c, isync.1, isync.h, main.c, sync.c:
+	* NEWS, isync.1, src/config.c, src/isync.h, src/main.c, src/sync.c:
 	Added MaxMessages patch from Eivind Eklund <eivind@FreeBSD.org>.
 
 	config_defaults() can just use memcpy() instead of assigning each struct
@@ -94,9 +221,9 @@
 
 	config_defaults() can be declared static
 
-2001-11-14  me  <me@sigpipe.org>
+2001-11-14  Michael Elkins  <me@sigpipe.org>
 
-	* config.c, configure.in, strndup.c:
+	* configure.in, src/config.c:
 	move strndup() code into config.c for less complexity
 
 	change AC_REPLACE_FUNC(strndup) to AC_CHECK_FUNCS(strndup)
@@ -104,9 +231,9 @@
 	sed expression checking for gcc-3.0 should be quoted beccause it
 	fails under Solaris 2.7
 
-2001-11-13  me  <me@sigpipe.org>
+2001-11-13  Michael Elkins  <me@sigpipe.org>
 
-	* config.c, strndup.c, sync.c:
+	* src/config.c, src/sync.c:
 	strndup() could return a non-NULL terminated string
 
 	size_t should be printed with %lu
@@ -114,27 +241,27 @@
 	when expending tildes (~), an extra slash was inserted after the user's home
 	directory
 
-2001-11-12  me  <me@sigpipe.org>
+2001-11-12  Michael Elkins  <me@sigpipe.org>
 
-	* isync.h, maildir.c, main.c:
+	* src/isync.h, src/maildir.c, src/main.c:
 	merge maildir_sync() and maildir_close().  the maxuid in a maildir still
 	needs to be updated in --fast mode, and the sync code already checks to see
 	if any changes were made to the mailbox.
 
-2001-11-09  me  <me@sigpipe.org>
+2001-11-09  Michael Elkins  <me@sigpipe.org>
 
 	* README: add FreeBSD to the list of tested platforms
 
-	* config.c, configure.in, imap.c, maildir.c:
+	* configure.in, src/config.c, src/imap.c, src/maildir.c:
 	update version to 0.7
 
 	detect short write in write_strip()
 
 	fix compilation warnings with gcc-2.95.4
 
-2001-10-31  me  <me@sigpipe.org>
+2001-10-31  Michael Elkins  <me@sigpipe.org>
 
-	* configure.in, imap.c, isync.h, main.c, sync.c:
+	* configure.in, src/imap.c, src/isync.h, src/main.c, src/sync.c:
 	set compiler warnings for gcc-3.0 as well
 
 	display message with count of uploaded messages
@@ -143,35 +270,33 @@
 
 	fixed compiler warnings with -Wshadow
 
-	* ChangeLog, NEWS, isync.1:
-	post 0.6 commit
+	* ChangeLog, NEWS, isync.1: post 0.6 commit
 
-2001-10-30  me  <me@sigpipe.org>
+2001-10-30  Michael Elkins  <me@sigpipe.org>
 
-	* README, configure.in, strndup.c:
+	* README, configure.in:
 	add strndup replacement function for systems which lack it
 
-2001-10-03  me  <me@sigpipe.org>
+2001-10-03  Michael Elkins  <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am, maildir.c:
+	* ChangeLog, Makefile.am, src/maildir.c:
 	fixed broken code in maildir_clean_tmp()
 
-	* TODO, maildir.c:
+	* TODO, src/maildir.c:
 	added code to clean the tmp directory in a maildir to comply with
 	maildir(5)
 
-	* config.c:
-	forgot to add code to parse the `Delete' option
+	* src/config.c: forgot to add code to parse the `Delete' option
 
-	* main.c:
+	* src/main.c:
 	forgot conditional #if HAVE_LIBSSL around setting of .use_imaps in main()
 	from command line arguments
 
-	* main.c: update Copyright printed by --help
+	* src/main.c: update Copyright printed by --help
 
 	add compile time option list to --help output
 
-	* NEWS, TODO, config.c, isync.1, isync.h, main.c, sample.isyncrc, sync.c:
+	* NEWS, TODO, isync.1, isyncrc.sample, src/config.c, src/isync.h, src/main.c, src/sync.c:
 	added `Delete' configuration option to force -d option
 
 	sync_mailbox() didn't consider MaxSize == 0 to mean "unlimited".
@@ -182,45 +307,45 @@
 
 	* TODO: update TODO list with action items
 
-	* imap.c, sync.c:
+	* src/imap.c, src/sync.c:
 	fixed maildir message filenames to comply with the maildir(5) specification.
 
 	fixed write_strip() and imap_fetch_message() to check the return code of
 	write() and fsync() to comply with maildir(5) spec.
 
-2001-10-02  me  <me@sigpipe.org>
+2001-10-02  Michael Elkins  <me@sigpipe.org>
 
-	* main.c:
+	* src/main.c:
 	the `Expunge' config directive didn't work since only the -e command line
 	argument was consulted.
 
-	* config.c, imap.c, isync.h:
+	* src/config.c, src/imap.c, src/isync.h:
 	we should issue a CAPABILITY even if we aren't going to use ssl/tls so that
 	cram-md5 auth still works.
 
-2001-07-18  me  <me@sigpipe.org>
+2001-07-18  Michael Elkins  <me@sigpipe.org>
 
-	* config.c:
+	* src/config.c:
 	find_box() should attempt to expand all filenames if none of the other
 	methods found a match.
 
-	* isync.h, maildir.c, config.c:
+	* src/isync.h, src/maildir.c, src/config.c:
 	fixed to not expand filenames until they are used inside of maildir_open(),
 	so that aliases are not required for simple filenames.
 	[re: http://bugs.debian.org/102255]
 
-2001-06-22  me  <me@sigpipe.org>
+2001-06-22  Michael Elkins  <me@sigpipe.org>
 
-	* main.c: --host option didn't check for imaps: prefix
+	* src/main.c: --host option didn't check for imaps: prefix
 
-2001-06-21  me  <me@sigpipe.org>
+2001-06-21  Michael Elkins  <me@sigpipe.org>
 
-	* main.c:
+	* src/main.c:
 	fixed core when specifying multiple mailboxes on the command line
 
-2001-06-18  me  <me@sigpipe.org>
+2001-06-18  Michael Elkins  <me@sigpipe.org>
 
-	* isync.1, TODO, configure.in, imap.c:
+	* isync.1, TODO, configure.in, src/imap.c:
 	handle untagged responses in imap_fetch_message() so that it doesn't bomb
 	out if new mail arrives while in the process of downloading
 
@@ -228,50 +353,37 @@
 	message list has been retrieved from the IMAP server, that new mail will not
 	be fetched until the next invocation of isync.
 
-	* config.c, imap.c, isync.h, main.c:
+	* src/config.c, src/imap.c, src/isync.h, src/main.c:
 	isync should continue to process additional mailboxes even if there is an
 	error with a previous mailbox.
 
 	added -a (--all) flag to synchronize all mailboxes defined in ~/.isyncrc
 
-2001-06-13  me  <me@sigpipe.org>
+2001-06-13  Michael Elkins  <me@sigpipe.org>
 
 	* NEWS: post 0.5-release commit
 
-	* ChangeLog, smtppush:
-	updated ChangeLog.  removed smtppush binary.
+	* ChangeLog: updated ChangeLog.  removed smtppush binary.
 
-2001-06-12  me  <me@sigpipe.org>
+2001-06-12  Michael Elkins  <me@sigpipe.org>
 
-	* Makefile, config.cache, config.log, config.status:
-	auto generated files should not be part of the CVS tree
-
-	* Makefile, config.cache, config.status, smtppush:
-	New file.
-
-	* Makefile, config.cache, config.status, smtppush:
+	* COPYING, Makefile.am, configure.in, src/main.c, AUTHORS, README:
 	initial import
 
-	* config.log: New file.
+2001-02-28  Michael Elkins  <me@sigpipe.org>
 
-	* COPYING, INSTALL, Makefile.am, config.log, configure, configure.in, install-sh, main.c, missing, mkinstalldirs, AUTHORS, Makefile.in, README:
-	initial import
+	* src/config.c, src/imap.c: fixed compiler warnings under Solaris 2.7
 
-2001-02-28  me  <me@sigpipe.org>
+2001-02-19  Michael Elkins  <me@sigpipe.org>
 
-	* config.c, imap.c:
-	fixed compiler warnings under Solaris 2.7
-
-2001-02-19  me  <me@sigpipe.org>
-
-	* ChangeLog, cram.c, imap.c, maildir.c:
+	* ChangeLog, src/cram.c, src/imap.c, src/maildir.c:
 	rfc2595 compliance patch from Daniel Resare <noa@metamatrix.se>
 		- CAPABILITY should be reissued after starting TLS since the
 		  previous call was not protected
 
-2001-02-14  me  <me@sigpipe.org>
+2001-02-14  Michael Elkins  <me@sigpipe.org>
 
-	* config.c, imap.c, isync.1, main.c, sync.c:
+	* isync.1, src/config.c, src/imap.c, src/main.c, src/sync.c:
 	patch from Daniel Resare <noa@metamatrix.se>:
 	1 giving a path to a nonexistant rc-file with the -c argument dumps core
 
@@ -308,29 +420,28 @@
 
 		give error message when the LOGIN command fails
 
-2001-02-01  me  <me@sigpipe.org>
+2001-02-01  Michael Elkins  <me@sigpipe.org>
 
-	* imap.c: patch from Daniel Resare <noa@metamatrix.se>
+	* src/imap.c: patch from Daniel Resare <noa@metamatrix.se>
 		- don't initialize ssl support if none of use_sslv* is enabled
 
-2001-01-26  me  <me@sigpipe.org>
+2001-01-26  Michael Elkins  <me@sigpipe.org>
 
-	* imap.c, isync.h:
-	include <sys/types.h> for off_t
+	* src/imap.c, src/isync.h: include <sys/types.h> for off_t
 
 	patch from "lorenzo martignoni" <lorenzo.martignoni@technologist.com>
 		- fixed uploading of message to IMAP server
 
-2001-01-24  me  <me@sigpipe.org>
+2001-01-24  Michael Elkins  <me@sigpipe.org>
 
-	* config.c, cram.c, imap.c, isync.1, list.c, maildir.c, main.c, sync.c:
+	* isync.1, src/config.c, src/cram.c, src/imap.c, src/list.c, src/maildir.c, src/main.c, src/sync.c:
 	fixed cram compilation error under bsd
 
 	updated man page
 
-2001-01-16  me  <me@sigpipe.org>
+2001-01-16  Michael Elkins  <me@sigpipe.org>
 
-	* TODO, config.c, imap.c, isync.1, isync.h, main.c:
+	* TODO, isync.1, src/config.c, src/imap.c, src/isync.h, src/main.c:
 	added support for tilde (~) expansion in the `Mailbox' and `CertificateFile'
 	configuration directives
 
@@ -338,16 +449,16 @@
 	user's mailboxes.  If a relative path is used in a `Mailbox' command, this
 	path is used as a prefix.
 
-2001-01-11  me  <me@sigpipe.org>
+2001-01-11  Michael Elkins  <me@sigpipe.org>
 
-	* configure.in, imap.c, isync.h:
+	* configure.in, src/imap.c, src/isync.h:
 	set imap->prefix to be the namespace prefix
 
 	update version to 0.5
 
 	fixed compilation warnings in imap.c
 
-	* Makefile.am, config.c, imap.c, isync.1, isync.h, main.c, sample.isyncrc, sync.c:
+	* Makefile.am, isync.1, isyncrc.sample, src/config.c, src/imap.c, src/isync.h, src/main.c, src/sync.c:
 	broke config code into config.c
 
 	added support for uploading local messages with no UID to the IMAP server
@@ -356,9 +467,9 @@
 
 	added CopyDeletedTo configuration option
 
-2001-01-09  me  <me@sigpipe.org>
+2001-01-09  Michael Elkins  <me@sigpipe.org>
 
-	* maildir.c, sync.c:
+	* src/maildir.c, src/sync.c:
 	always put changed messages in the cur/ subdirectory since they are no
 	longer new.
 
@@ -366,45 +477,40 @@
 	flag on the message since Mutt will move Old (unread, but not recent)
 	messges into cur/.
 
-2001-01-08  me  <me@sigpipe.org>
+2001-01-08  Michael Elkins  <me@sigpipe.org>
 
-	* Makefile.am, main.c:
-	patch from Hugo Haas <hugo@larve.net>
+	* Makefile.am, src/main.c: patch from Hugo Haas <hugo@larve.net>
 		-c was not specified in the getopt*() calls
 
 		set global password to the one the user inputs and use that as the
 		default for remaining mailboxes
 
-2001-01-05  me  <me@sigpipe.org>
+2001-01-05  Michael Elkins  <me@sigpipe.org>
 
 	* configure.in:
 	added --with-ssl-dir to specify an alternate installation of OpenSSL
 
-2000-12-31  me  <me@sigpipe.org>
+2000-12-31  Michael Elkins  <me@sigpipe.org>
 
-	* ChangeLog, isync.spec:
-	pre 0.4 commit.
+	* ChangeLog, isync.spec.in: pre 0.4 commit.
 
 	updated rpm spec file
 
-	* sync.c:
-	display how many messages were fetched from the server
+	* src/sync.c: display how many messages were fetched from the server
 
-	* imap.c:
+	* src/imap.c:
 	fixed compilation error with no libssl support ("lorenzo martignoni"
 	<lorenzo.martignoni@technologist.com>)
 
-2000-12-28  me  <me@sigpipe.org>
+2000-12-28  Michael Elkins  <me@sigpipe.org>
 
-	* main.c:
-	fixed config parser to accept arbitrary whitespace
+	* src/main.c: fixed config parser to accept arbitrary whitespace
 
-2000-12-27  me  <me@sigpipe.org>
+2000-12-27  Michael Elkins  <me@sigpipe.org>
 
-	* imap.c:
-	use imap_close to terminate a connection in imap_open()
+	* src/imap.c: use imap_close to terminate a connection in imap_open()
 
-	* imap.c, isync.1, isync.h, maildir.c, main.c:
+	* isync.1, src/imap.c, src/isync.h, src/maildir.c, src/main.c:
 	allow leading whitespace in config files
 
 	now possible to sync multiple mailboxes by specifying multiple aliases on
@@ -412,47 +518,47 @@
 
 	don't initialize ssl unless we are going to use it.
 
-2000-12-23  me  <me@sigpipe.org>
+2000-12-23  Michael Elkins  <me@sigpipe.org>
 
-	* imap.c, isync.h:
+	* src/imap.c, src/isync.h:
 	don't use NAMESPACE unless the server supports it
 
-	* Makefile.am, README, cram.c, imap.c, isync.h:
+	* Makefile.am, README, src/cram.c, src/imap.c, src/isync.h:
 	added CRAM-MD5 authentication support.
 
 	parse server capability string to determine if STARTTLS is available
 
-2000-12-22  me  <me@sigpipe.org>
+2000-12-22  Michael Elkins  <me@sigpipe.org>
 
-	* README, imap.c, isync.1, isync.h, main.c:
+	* README, isync.1, src/imap.c, src/isync.h, src/main.c:
 	isync-brokenservers.diff (Jeremy Katz <katzj@linuxpower.org>)
 	adds support for disabling NAMESPACE, and disable various flavors of TLS/SSL
 	for use with some broken IMAP servers.
 
-	* imap.c, sync.c:
+	* src/imap.c, src/sync.c:
 	prompt user if they wish to continue if the server's X.509 certificate can't
 	be verified.
 
 	sync_mailbox should consider uid == 0 to be "unknown"
 
-	* main.c, sync.c:
+	* src/main.c, src/sync.c:
 	fixed sync_mailbox() to correctly write new messages to the local maildir
 	box (Thomas Roessler <roessler@does-not-exist.org>)
 
-	* main.c: set default MaxSize to 0 (unlimited)
+	* src/main.c: set default MaxSize to 0 (unlimited)
 
 	invert test for password being set after getpass() call (Magnus Jonsson
 	<bigfoot@acc.umu.se>)
 
-	* ChangeLog, NEWS, configure.in, imap.c, isync.1, isync.h, maildir.c, main.c, sample.isyncrc, sync.c:
+	* ChangeLog, NEWS, configure.in, isync.1, isyncrc.sample, src/imap.c, src/isync.h, src/maildir.c, src/main.c, src/sync.c:
 	added MaxSize configuration variable
 
 	fixed --fast to work robustly without relying on the \Recent flag in
 	messages
 
-2000-12-21  me  <me@sigpipe.org>
+2000-12-21  Michael Elkins  <me@sigpipe.org>
 
-	* imap.c, isync.h, maildir.c, sync.c:
+	* src/imap.c, src/isync.h, src/maildir.c, src/sync.c:
 	RFC822.PEEK is obsolete in RFC2060.  Use BODY.PEEK[] instead, which does
 	the same thing
 
@@ -461,25 +567,24 @@
 
 	* NEWS: updated NEWS for 0.3 release
 
-	* Makefile.am, isync.spec:
-	added support for building RPMS
+	* Makefile.am, isync.spec.in: added support for building RPMS
 
 	* Makefile.am, isync.1:
 	added target for creating html version of the man page
 
 	documented the imaps: prefix to the Host command
 
-	* imap.c, sync.c:
+	* src/imap.c, src/sync.c:
 	can't assume flag order when fetching a message.  just search for the
 	first `{' to find the message size.
 
-	* isync.1, sync.c:
+	* isync.1, src/sync.c:
 	added BUGS section to manpage detailing the fact that we break the
 	maildir(5) spec by parsing the filename
 
 	change message delivery to use the method described in maildir(5)
 
-	* configure.in, main.c, sync.c:
+	* configure.in, src/main.c, src/sync.c:
 	use getpass() to get the user's password
 
 	unlink the temp file if we are unable to fetch a new message from the
@@ -489,20 +594,20 @@
 
 	* isync.1: fixed typo in man page for --verbose option
 
-	* Makefile.am, README, TODO, imap.c, isync.h, list.c:
+	* Makefile.am, README, TODO, src/imap.c, src/isync.h, src/list.c:
 	added generic IMAP list parser and rewrote imap_exec() to handle
 	arbitrary data instead of hardcoded
 
-	* Makefile.am, README, configure.in, main.c:
+	* Makefile.am, README, configure.in, src/main.c:
 	fixes to compile cleanly under Solaris 2.7
 
-	* configure.in, imap.c, isync.1, isync.h, main.c:
+	* configure.in, isync.1, src/imap.c, src/isync.h, src/main.c:
 	added OpenSSL support
 
-	* ChangeLog, configure.in, main.c:
+	* ChangeLog, configure.in, src/main.c:
 	config options were not case insensitive
 
-	* imap.c, isync.h, maildir.c, main.c, sync.c:
+	* src/imap.c, src/isync.h, src/maildir.c, src/main.c, src/sync.c:
 	don't fetch deleted messages when expunging
 
 	display number of messages that are to be deleted
@@ -511,35 +616,27 @@
 
 	local messages with updated flags were not corrected renamed
 
-2000-12-20  me  <me@sigpipe.org>
+2000-12-20  Michael Elkins  <me@sigpipe.org>
 
-	* ChangeLog, Makefile.am:
-	updated ChangeLog
+	* ChangeLog, Makefile.am: updated ChangeLog
 
 	added log: rule in Makefile.am
 
-	* configure: forgot to remove configure script
+	* autogen.sh: added autogen.sh to regenerate the build environment
 
-	* INSTALL, Makefile.in, aclocal.m4, autogen.sh, install-sh, missing, mkinstalldirs:
-	added autogen.sh to regenerate the build environment
+	* COPYING: added missing files
 
-	* COPYING, INSTALL, install-sh, missing, mkinstalldirs:
-	added missing files
+	* isync.1, isyncrc.sample: New file.
 
-	* isync.1, sample.isyncrc: New file.
+	* isync.1, isyncrc.sample: initial import
 
-	* isync.1, sample.isyncrc:
-	initial import
+	* TODO, src/imap.c, src/maildir.c, src/sync.c: New file.
 
-	* TODO, configure, imap.c, maildir.c, sync.c:
+	* TODO, src/imap.c, src/maildir.c, src/sync.c: initial import
+
+	* AUTHORS, ChangeLog, Makefile.am, NEWS, README, configure.in, src/isync.h, src/main.c:
 	New file.
 
-	* TODO, configure, imap.c, maildir.c, sync.c:
-	initial import
-
-	* AUTHORS, ChangeLog, INSTALL, Makefile.am, Makefile.in, NEWS, README, aclocal.m4, configure.in, isync.h, main.c:
-	New file.
-
-	* AUTHORS, ChangeLog, INSTALL, Makefile.am, Makefile.in, NEWS, README, aclocal.m4, configure.in, isync.h, main.c:
+	* AUTHORS, ChangeLog, Makefile.am, NEWS, README, configure.in, src/isync.h, src/main.c:
 	initial import
 

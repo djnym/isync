@@ -1,14 +1,16 @@
 This package was debianized by Michael Elkins <melkins@debian> on
 Wed, 16 Jan 2002 13:36:52 -0800.
 
-It was downloaded from http://www.sigpipe.org:8080/isync/
+It was downloaded from http://isync.sf.net/
 
-Upstream Author(s): Michael Elkins <me@mutt.org>
+Upstream author(s): Michael Elkins <me@mutt.org>
+Current upstream maintainer(s): Oswald Buddenhagen <ossi@users.sf.net>
 
 Copyright:
 
  * isync - IMAP4 to maildir mailbox synchronizer
- * Copyright (C) 2000-2 Michael R. Elkins <me@mutt.org>
+ * Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
+ * Copyright (C) 2002 Oswald Buddenhagen <ossi@users.sf.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
