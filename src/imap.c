@@ -855,6 +855,16 @@ imap_connect (config_t * cfg)
   return 0;
 }
 
+static int
+mstrcmp (const char *s1, const char *s2)
+{
+  if (s1 == s2)
+    return 0;
+  if (!s1 || !s2)
+    return 1;
+  return strcmp (s1, s2);
+}
+
 /* `box' is the config info for the maildrop to sync.  `minuid' is the
  * minimum UID to consider.  in normal mode this will be 1, but in --fast
  * mode we only fetch messages newer than the last one seen in the local
@@ -866,8 +876,9 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int imap_create)
   if (imap)
   {
     /* determine whether or not we can reuse the existing session */
-    if (strcmp (box->host, imap->box->host) ||
-	strcmp (box->user, imap->box->user) ||
+    if (mstrcmp (box->tunnel, imap->box->tunnel) ||
+	mstrcmp (box->host, imap->box->host) ||
+	mstrcmp (box->user, imap->box->user) ||
 	box->port != imap->box->port
 #if HAVE_LIBSSL
 	/* ensure that security requirements are met */
