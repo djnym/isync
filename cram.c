@@ -53,7 +53,6 @@ cram (const char *challenge, const char *user, const char *pass)
      * decoding.
      */
     len = EVP_DecodeBlock ((unsigned char *) response, (unsigned char *) challenge, strlen (challenge));
-//    printf ("CRAM-MD5 challege is %s\n", response);
 
     HMAC_Init (&hmac, (unsigned char *) pass, strlen (pass), EVP_md5 ());
     HMAC_Update (&hmac, (unsigned char *) response, strlen(response));
@@ -71,7 +70,6 @@ cram (const char *challenge, const char *user, const char *pass)
     }
 
     snprintf (buf, sizeof (buf), "%s %s", user, hex);
-//    printf ("Response: %s\n", buf);
 
     len = strlen (buf);
     len = ENCODED_SIZE (len) + 1;

@@ -101,7 +101,7 @@ struct message
     char *file;
     unsigned int uid;
     unsigned int flags;
-    unsigned int size;
+    size_t size;
     message_t *next;
     unsigned int processed:1;	/* message has already been evaluated */
     unsigned int new:1;		/* message is in the new/ subdir */

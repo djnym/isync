@@ -1,9 +1,71 @@
-2001-10-30  Michael Elkins  <me@sigpipe.org>
+2001-11-15  me  <me@sigpipe.org>
+
+	* NEWS, config.c, isync.1, isync.h, main.c, sync.c:
+	Added MaxMessages patch from Eivind Eklund <eivind@FreeBSD.org>.
+
+	config_defaults() can just use memcpy() instead of assigning each struct
+	member individually.
+
+	config_defaults() can be declared static
+
+2001-11-14  me  <me@sigpipe.org>
+
+	* config.c, configure.in, strndup.c:
+	move strndup() code into config.c for less complexity
+
+	change AC_REPLACE_FUNC(strndup) to AC_CHECK_FUNCS(strndup)
+
+	sed expression checking for gcc-3.0 should be quoted beccause it
+	fails under Solaris 2.7
+
+2001-11-13  me  <me@sigpipe.org>
+
+	* config.c, strndup.c, sync.c:
+	strndup() could return a non-NULL terminated string
+
+	size_t should be printed with %lu
+
+	when expending tildes (~), an extra slash was inserted after the user's home
+	directory
+
+2001-11-12  me  <me@sigpipe.org>
+
+	* isync.h, maildir.c, main.c:
+	merge maildir_sync() and maildir_close().  the maxuid in a maildir still
+	needs to be updated in --fast mode, and the sync code already checks to see
+	if any changes were made to the mailbox.
+
+2001-11-09  me  <me@sigpipe.org>
+
+	* README: add FreeBSD to the list of tested platforms
+
+	* config.c, configure.in, imap.c, maildir.c:
+	update version to 0.7
+
+	detect short write in write_strip()
+
+	fix compilation warnings with gcc-2.95.4
+
+2001-10-31  me  <me@sigpipe.org>
+
+	* configure.in, imap.c, isync.h, main.c, sync.c:
+	set compiler warnings for gcc-3.0 as well
+
+	display message with count of uploaded messages
+
+	--quiet now supresses warnings in sync_mailbox()
+
+	fixed compiler warnings with -Wshadow
+
+	* ChangeLog, NEWS, isync.1:
+	post 0.6 commit
+
+2001-10-30  me  <me@sigpipe.org>
 
 	* README, configure.in, strndup.c:
 	add strndup replacement function for systems which lack it
 
-2001-10-03  Michael Elkins  <me@sigpipe.org>
+2001-10-03  me  <me@sigpipe.org>
 
 	* ChangeLog, Makefile.am, maildir.c:
 	fixed broken code in maildir_clean_tmp()
@@ -40,7 +102,7 @@
 	fixed write_strip() and imap_fetch_message() to check the return code of
 	write() and fsync() to comply with maildir(5) spec.
 
-2001-10-02  Michael Elkins  <me@sigpipe.org>
+2001-10-02  me  <me@sigpipe.org>
 
 	* main.c:
 	the `Expunge' config directive didn't work since only the -e command line
@@ -50,7 +112,7 @@
 	we should issue a CAPABILITY even if we aren't going to use ssl/tls so that
 	cram-md5 auth still works.
 
-2001-07-18  Michael Elkins  <me@sigpipe.org>
+2001-07-18  me  <me@sigpipe.org>
 
 	* config.c:
 	find_box() should attempt to expand all filenames if none of the other
@@ -61,16 +123,16 @@
 	so that aliases are not required for simple filenames.
 	[re: http://bugs.debian.org/102255]
 
-2001-06-22  Michael Elkins  <me@sigpipe.org>
+2001-06-22  me  <me@sigpipe.org>
 
 	* main.c: --host option didn't check for imaps: prefix
 
-2001-06-21  Michael Elkins  <me@sigpipe.org>
+2001-06-21  me  <me@sigpipe.org>
 
 	* main.c:
 	fixed core when specifying multiple mailboxes on the command line
 
-2001-06-18  Michael Elkins  <me@sigpipe.org>
+2001-06-18  me  <me@sigpipe.org>
 
 	* isync.1, TODO, configure.in, imap.c:
 	handle untagged responses in imap_fetch_message() so that it doesn't bomb
@@ -86,14 +148,14 @@
 
 	added -a (--all) flag to synchronize all mailboxes defined in ~/.isyncrc
 
-2001-06-13  Michael Elkins  <me@sigpipe.org>
+2001-06-13  me  <me@sigpipe.org>
 
 	* NEWS: post 0.5-release commit
 
 	* ChangeLog, smtppush:
 	updated ChangeLog.  removed smtppush binary.
 
-2001-06-12  Michael Elkins  <me@sigpipe.org>
+2001-06-12  me  <me@sigpipe.org>
 
 	* Makefile, config.cache, config.log, config.status:
 	auto generated files should not be part of the CVS tree
@@ -109,19 +171,19 @@
 	* COPYING, INSTALL, Makefile.am, config.log, configure, configure.in, install-sh, main.c, missing, mkinstalldirs, AUTHORS, Makefile.in, README:
 	initial import
 
-2001-02-28  Michael Elkins  <me@sigpipe.org>
+2001-02-28  me  <me@sigpipe.org>
 
 	* config.c, imap.c:
 	fixed compiler warnings under Solaris 2.7
 
-2001-02-19  Michael Elkins  <me@sigpipe.org>
+2001-02-19  me  <me@sigpipe.org>
 
 	* ChangeLog, cram.c, imap.c, maildir.c:
 	rfc2595 compliance patch from Daniel Resare <noa@metamatrix.se>
 		- CAPABILITY should be reissued after starting TLS since the
 		  previous call was not protected
 
-2001-02-14  Michael Elkins  <me@sigpipe.org>
+2001-02-14  me  <me@sigpipe.org>
 
 	* config.c, imap.c, isync.1, main.c, sync.c:
 	patch from Daniel Resare <noa@metamatrix.se>:
@@ -160,12 +222,12 @@
 
 		give error message when the LOGIN command fails
 
-2001-02-01  Michael Elkins  <me@sigpipe.org>
+2001-02-01  me  <me@sigpipe.org>
 
 	* imap.c: patch from Daniel Resare <noa@metamatrix.se>
 		- don't initialize ssl support if none of use_sslv* is enabled
 
-2001-01-26  Michael Elkins  <me@sigpipe.org>
+2001-01-26  me  <me@sigpipe.org>
 
 	* imap.c, isync.h:
 	include <sys/types.h> for off_t
@@ -173,14 +235,14 @@
 	patch from "lorenzo martignoni" <lorenzo.martignoni@technologist.com>
 		- fixed uploading of message to IMAP server
 
-2001-01-24  Michael Elkins  <me@sigpipe.org>
+2001-01-24  me  <me@sigpipe.org>
 
 	* config.c, cram.c, imap.c, isync.1, list.c, maildir.c, main.c, sync.c:
 	fixed cram compilation error under bsd
 
 	updated man page
 
-2001-01-16  Michael Elkins  <me@sigpipe.org>
+2001-01-16  me  <me@sigpipe.org>
 
 	* TODO, config.c, imap.c, isync.1, isync.h, main.c:
 	added support for tilde (~) expansion in the `Mailbox' and `CertificateFile'
@@ -190,7 +252,7 @@
 	user's mailboxes.  If a relative path is used in a `Mailbox' command, this
 	path is used as a prefix.
 
-2001-01-11  Michael Elkins  <me@sigpipe.org>
+2001-01-11  me  <me@sigpipe.org>
 
 	* configure.in, imap.c, isync.h:
 	set imap->prefix to be the namespace prefix
@@ -208,7 +270,7 @@
 
 	added CopyDeletedTo configuration option
 
-2001-01-09  Michael Elkins  <me@sigpipe.org>
+2001-01-09  me  <me@sigpipe.org>
 
 	* maildir.c, sync.c:
 	always put changed messages in the cur/ subdirectory since they are no
@@ -218,7 +280,7 @@
 	flag on the message since Mutt will move Old (unread, but not recent)
 	messges into cur/.
 
-2001-01-08  Michael Elkins  <me@sigpipe.org>
+2001-01-08  me  <me@sigpipe.org>
 
 	* Makefile.am, main.c:
 	patch from Hugo Haas <hugo@larve.net>
@@ -227,12 +289,12 @@
 		set global password to the one the user inputs and use that as the
 		default for remaining mailboxes
 
-2001-01-05  Michael Elkins  <me@sigpipe.org>
+2001-01-05  me  <me@sigpipe.org>
 
 	* configure.in:
 	added --with-ssl-dir to specify an alternate installation of OpenSSL
 
-2000-12-31  Michael Elkins  <me@sigpipe.org>
+2000-12-31  me  <me@sigpipe.org>
 
 	* ChangeLog, isync.spec:
 	pre 0.4 commit.
@@ -246,12 +308,12 @@
 	fixed compilation error with no libssl support ("lorenzo martignoni"
 	<lorenzo.martignoni@technologist.com>)
 
-2000-12-28  Michael Elkins  <me@sigpipe.org>
+2000-12-28  me  <me@sigpipe.org>
 
 	* main.c:
 	fixed config parser to accept arbitrary whitespace
 
-2000-12-27  Michael Elkins  <me@sigpipe.org>
+2000-12-27  me  <me@sigpipe.org>
 
 	* imap.c:
 	use imap_close to terminate a connection in imap_open()
@@ -264,7 +326,7 @@
 
 	don't initialize ssl unless we are going to use it.
 
-2000-12-23  Michael Elkins  <me@sigpipe.org>
+2000-12-23  me  <me@sigpipe.org>
 
 	* imap.c, isync.h:
 	don't use NAMESPACE unless the server supports it
@@ -274,7 +336,7 @@
 
 	parse server capability string to determine if STARTTLS is available
 
-2000-12-22  Michael Elkins  <me@sigpipe.org>
+2000-12-22  me  <me@sigpipe.org>
 
 	* README, imap.c, isync.1, isync.h, main.c:
 	isync-brokenservers.diff (Jeremy Katz <katzj@linuxpower.org>)
@@ -302,7 +364,7 @@
 	fixed --fast to work robustly without relying on the \Recent flag in
 	messages
 
-2000-12-21  Michael Elkins  <me@sigpipe.org>
+2000-12-21  me  <me@sigpipe.org>
 
 	* imap.c, isync.h, maildir.c, sync.c:
 	RFC822.PEEK is obsolete in RFC2060.  Use BODY.PEEK[] instead, which does
@@ -363,7 +425,7 @@
 
 	local messages with updated flags were not corrected renamed
 
-2000-12-20  Michael Elkins  <me@sigpipe.org>
+2000-12-20  me  <me@sigpipe.org>
 
 	* ChangeLog, Makefile.am:
 	updated ChangeLog

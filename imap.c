@@ -278,7 +278,6 @@ buffer_gets (buffer_t * b, char **s)
 	    {
 		b->buf[b->offset] = 0;	/* terminate the string */
 		b->offset += 2;	/* next line */
-//              assert (strchr (*s, '\r') == 0);
 		return 0;
 	    }
 	}
