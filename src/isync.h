@@ -153,6 +153,7 @@ typedef struct
     list_t *ns_personal;
     list_t *ns_other;
     list_t *ns_shared;
+    unsigned int have_nologin:1;
     unsigned int have_uidplus:1;
     unsigned int have_namespace:1;
 #if HAVE_LIBSSL

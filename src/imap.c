@@ -483,6 +483,8 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 			imap->have_uidplus = 1;
 		    else if (!strcmp ("NAMESPACE", arg))
 			imap->have_namespace = 1;
+		    else if (!strcmp ("LOGINDISABLED", arg))
+			imap->have_nologin = 1;
 #if HAVE_LIBSSL
 		    else if (!strcmp ("STARTTLS", arg))
 			imap->have_starttls = 1;
@@ -761,6 +763,7 @@ imap_connect (config_t * cfg)
 	    imap->have_uidplus = 0;
 	    imap->have_namespace = 0;
 	    imap->have_cram = 0;
+	    imap->have_nologin = 0;
 	    /* imap->have_starttls = 0; */
 	    if (imap_exec (imap, "CAPABILITY"))
 	      goto bail;
@@ -829,6 +832,11 @@ imap_connect (config_t * cfg)
 	else
 #endif
 	{
+	  if (imap->have_nologin)
+	  {
+	    fprintf (stderr, "Skipping %s, server forbids LOGIN\n", cfg->path);
+	    goto bail;
+	  }
 #if HAVE_LIBSSL
 	  if (!use_ssl)
 #endif
