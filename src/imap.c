@@ -742,6 +742,9 @@ imap_connect (config_t * cfg)
       if (imap_exec (imap, "CAPABILITY"))
 	goto bail;
 
+    if (!preauth)
+    {
+
 #if HAVE_LIBSSL
       if (!cfg->use_imaps)
       {
@@ -780,8 +783,6 @@ imap_connect (config_t * cfg)
       }
 #endif
 
-      if (!preauth)
-      {
 	info ("Logging in...\n");
 
 	if (!cfg->pass)
@@ -842,7 +843,7 @@ imap_connect (config_t * cfg)
 	    goto bail;
 	  }
 	}
-      }
+    } /* !preauth */
 
       /* get NAMESPACE info */
       if (cfg->use_namespace && imap->have_namespace)
