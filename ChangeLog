@@ -1,3 +1,23 @@
+2004-09-15 11:33  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* README:
+
+	update c-client compatibility
+
+2004-09-15 11:06  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* src/drv_maildir.c:
+
+	when storing \seen messages, don't set the \recent flag on them. could
+	well be that this is incorrect, but some mailers need it that way.
+	when trashing messages, preserve their \recent status as well.
+
+2004-09-15 10:44  Oswald Buddenhagen <ossi@users.sf.net>
+
+	* configure.in:
+
+	whoops, wrong define
+
 2004-09-08 18:40  Oswald Buddenhagen <ossi@users.sf.net>
 
 	* configure.in:
