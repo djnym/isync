@@ -15,6 +15,8 @@ AC_CHECK_LIB(socket, socket, [SOCK_LIBS="-lsocket"])
 AC_CHECK_LIB(nsl, inet_ntoa, [SOCK_LIBS="$SOCK_LIBS -lnsl"])
 AC_SUBST(SOCK_LIBS)
 
+m4_ifdef([AS_HELP_STRING], , [m4_define([AS_HELP_STRING], m4_defn([AC_HELP_STRING]))])
+
 ssl=false
 AC_ARG_WITH(ssl,
   AS_HELP_STRING([--with-ssl=DIR], [yes/no/OpenSSL installation root [detect]]),
