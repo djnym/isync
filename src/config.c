@@ -110,7 +110,7 @@ load_config (const char *where, int *o2o)
     char path[_POSIX_PATH_MAX];
     char buf[1024];
     struct passwd *pw;
-    config_t **cur = &boxes, *cfg;
+    config_t **stor = &boxes, *cfg;
     int line = 0;
     FILE *fp;
     char *p, *cmd, *val;
@@ -141,19 +141,23 @@ load_config (const char *where, int *o2o)
 	line++;
 	if (!cmd || *cmd == '#')
 	    continue;
+	if (!val) {
+	    fprintf (stderr, "%s:%d: parameter missing\n", path, line);
+	    continue;
+	}
 	if (!strcasecmp ("mailbox", cmd))
 	{
 	    if (*o2o)
 		break;
-	    cur = &(*cur)->next;
-	    cfg = *cur = malloc (sizeof (config_t));
+	    cfg = *stor = malloc (sizeof (config_t));
+	    stor = &cfg->next;
 	    config_defaults (cfg);
 	    /* not expanded at this point */
 	    cfg->path = strdup (val);
 	}
 	else if (!strcasecmp ("OneToOne", cmd))
 	{
-	    if (*cur) {
+	    if (boxes) {
 	      forbid:
 		fprintf (stderr,
 			 "%s:%d: keyword '%s' allowed only in global section\n",
@@ -164,7 +168,7 @@ load_config (const char *where, int *o2o)
 	}
 	else if (!strcasecmp ("maildir", cmd))
 	{
-	    if (*cur)
+	    if (boxes)
 		goto forbid;
 	    /* this only affects the global setting */
 	    free (global.maildir);
@@ -172,14 +176,14 @@ load_config (const char *where, int *o2o)
 	}
 	else if (!strcasecmp ("folder", cmd))
 	{
-	    if (*cur)
+	    if (boxes)
 		goto forbid;
 	    /* this only affects the global setting */
 	    global.folder = strdup (val);
 	}
 	else if (!strcasecmp ("inbox", cmd))
 	{
-	    if (*cur)
+	    if (boxes)
 		goto forbid;
 	    /* this only affects the global setting */
 	    global.inbox = strdup (val);
@@ -200,8 +204,8 @@ load_config (const char *where, int *o2o)
 	}
 	else if (!strcasecmp ("user", cmd))
 	{
-	    if (*cur)
-		(*cur)->user = strdup (val);
+	    if (boxes)
+		cfg->user = strdup (val);
 	    else {
 		free (global.user);
 		global.user = strdup (val);
@@ -215,7 +219,7 @@ load_config (const char *where, int *o2o)
 	    cfg->box = strdup (val);
 	else if (!strcasecmp ("alias", cmd))
 	{
-	    if (!*cur) {
+	    if (!boxes) {
 		fprintf (stderr,
 			 "%s:%d: keyword 'alias' allowed only in mailbox specification\n",
 			 path, line);
