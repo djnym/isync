@@ -82,7 +82,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    /* if the UIDVALIDITY value has changed, it means all our
 	     * local UIDs are invalid, so we can't sync.
 	     */
-	    fputs ("ERROR: UIDVALIDITY changed on server (fatal)\n", stderr);
+	    fprintf (stderr,
+		     "ERROR: UIDVALIDITY of '%s' changed on server\n",
+		     imap->box->box);
 	    return -1;
 	}
     }
@@ -219,21 +221,18 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	     */
 	    if ((cur->flags & D_DELETED) == 0 || (flags & SYNC_EXPUNGE) == 0)
 	    {
+		    size_t sl;
+
 		    /* generate old path */
 		    snprintf (path, sizeof (path), "%s/%s/%s",
 				    mbox->path, cur->new ? "new" : "cur", cur->file);
 
-		    /* truncate old flags (if present) */
-		    p = strchr (cur->file, ':');
-		    if (p)
-			    *p = 0;
-
-		    /* generate new path - always put this in the cur/ directory
-		     * because its no longer new
-		     */
-		    snprintf (newpath, sizeof (newpath), "%s/cur/%s:2,%s%s%s%s",
-				    mbox->path,
-				    cur->file, (cur->flags & D_FLAGGED) ? "F" : "",
+		    /* generate new path */
+		    strcpy (newpath, path);
+		    p = strchr (newpath, ':');
+		    sl = p ? (size_t)(p - newpath) : strlen (newpath);
+		    snprintf (newpath + sl, sizeof (newpath) - sl, ":2,%s%s%s%s",
+				    (cur->flags & D_FLAGGED) ? "F" : "",
 				    (cur->flags & D_ANSWERED) ? "R" : "",
 				    (cur->flags & D_SEEN) ? "S" : "",
 				    (cur->flags & D_DELETED) ? "T" : "");
@@ -249,7 +248,6 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 			    p = strrchr (newpath, '/');
 			    free (cur->file);
 			    cur->file = strdup (p + 1);
-			    cur->new = 0; /* not any more */
 		    }
 	    }
 	}
@@ -314,7 +312,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    /* construct the flags part of the file name. */
 
 	    *suffix = 0;
-	    if (cur->flags & ~D_RECENT)
+	    if (cur->flags & ~(D_RECENT | D_DRAFT))
 	    {
 		snprintf (suffix, sizeof (suffix), ":2,%s%s%s%s",
 			  (cur->flags & D_FLAGGED) ? "F" : "",
@@ -363,7 +361,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		p = strrchr (path, '/');
 
 		snprintf (newpath, sizeof (newpath), "%s/%s%s", mbox->path,
-			  (cur->flags & ~D_RECENT) ? "cur" : "new", p);
+			  (cur->flags & D_SEEN) ? "cur" : "new", p); /* hack: ignore \recent, use !\seen instead */
 
 		/* its ok if this fails, the next time we sync the message
 		 * will get pulled down
