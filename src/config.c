@@ -172,7 +172,6 @@ load_config (const char *where, int *o2o)
 	    if (boxes)
 		goto forbid;
 	    /* this only affects the global setting */
-	    free (global.maildir);
 	    global.maildir = expand_strdup (val);
 	}
 	else if (!strcasecmp ("folder", cmd))
@@ -204,14 +203,7 @@ load_config (const char *where, int *o2o)
 	    cfg->host = strdup (val);
 	}
 	else if (!strcasecmp ("user", cmd))
-	{
-	    if (boxes)
-		cfg->user = strdup (val);
-	    else {
-		free (global.user);
-		global.user = strdup (val);
-	    }
-	}
+	    cfg->user = strdup (val);
 	else if (!strcasecmp ("pass", cmd))
 	    cfg->pass = strdup (val);
 	else if (!strcasecmp ("port", cmd))
@@ -287,13 +279,4 @@ find_box (const char *s)
 	}
     }
     return 0;
-}
-
-void
-free_config (void)
-{
-    free (global.user);
-    free (global.maildir);
-    free (global.host);
-    free (global.pass);
 }

@@ -35,10 +35,6 @@
 #include <dirent.h>
 #include "isync.h"
 
-#if HAVE_GETOPT_LONG
-#define _GNU_SOURCE
-#include <getopt.h>
-
 int Quiet;
 
 void
@@ -61,6 +57,9 @@ infoc (char c)
 	putchar (c);
 }
 
+#if HAVE_GETOPT_LONG
+# define _GNU_SOURCE
+# include <getopt.h>
 struct option Opts[] = {
     {"all", 0, NULL, 'a'},
     {"list", 0, NULL, 'l'},
@@ -183,7 +182,7 @@ int
 main (int argc, char **argv)
 {
     int i;
-    int ret = 1;
+    int ret;
     config_t *box = 0;
     mailbox_t *mail = 0;
     imap_t *imap = 0;
@@ -274,8 +273,7 @@ main (int argc, char **argv)
 		global.folder = optarg;
 		break;
 	    case 'M':
-		free (global.maildir);
-		global.maildir = strdup (optarg);
+		global.maildir = optarg;
 		break;
 	    case 'I':
 		global.inbox = optarg;
@@ -291,7 +289,6 @@ main (int argc, char **argv)
 		global.host = optarg;
 		break;
 	    case 'u':
-		free (global.user);
 		global.user = optarg;
 		break;
 	    case 'V':
@@ -348,9 +345,9 @@ main (int argc, char **argv)
 
 	imap = imap_connect (&global);
 	if (!imap)
-	    goto bork;
+	    return 1;
 	if (imap_list (imap))
-	    goto bork;
+	    return 1;
     }
     if (list)
     {
@@ -462,12 +459,7 @@ main (int argc, char **argv)
 	if (all)
 	    box = box->next;
     }
-
     /* gracefully close connection to the IMAP server */
     imap_close (imap);
-
-  bork:
-    free_config ();
-
     return ret;
 }
