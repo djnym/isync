@@ -3,16 +3,26 @@
 # Intended to be run from the root of the isync source tree in the repository.
 #
 VERSION=`dpkg-parsechangelog | sed -ne 's/^Version: \(.*\)-[^-]\+$/\1/p'`
+OLDVERSION=$VERSION
 
-if [ ! -f ../isync_$VERSION.orig.tar.gz ]; then
-	echo isync_$VERSION.orig.tar.gz must be found in the parent directory.
-	exit 1
+if echo $VERSION | grep +cvsXXXXXXXX; then
+	DATE=`date +%Y%m%d`
+	VERSION=`echo $VERSION | sed -e s/+cvsXXXXXXXX/+cvs${DATE}/`
+else
+	if [ ! -f ../isync_$VERSION.orig.tar.gz ]; then
+		echo isync_$VERSION.orig.tar.gz must be found in the parent directory.
+		exit 1
+	fi
 fi
 rm -rf ../isync-$VERSION
 
 fakeroot ./debian/rules clean
 cp -rl . ../isync-$VERSION
 cd ../isync-$VERSION
+if [ "$OLDVERSION" != "$VERSION" ]; then
+	sed -e s/+cvsXXXXXXXX/+cvs${DATE}/ < debian/changelog > debian/changelog.new
+	mv debian/changelog.new debian/changelog
+fi 
 find . -name CVS -print0 | xargs -0r rm -rf
 find . -name .cvsignore -print0 | xargs -0r rm
 find . -type l -print0 | xargs -0r rm

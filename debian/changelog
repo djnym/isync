@@ -1,4 +1,4 @@
-isync (0.9.2-1) unstable; urgency=low
+isync (0.9.2+cvsXXXXXXXX-1) unstable; urgency=low
 
   * New upstream release.
        - Password prompt now includes the mailbox/server (Closes: #92893)
