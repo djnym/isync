@@ -52,6 +52,23 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
     int ret;
     struct stat sb;
 
+    if (mbox->uidvalidity != (unsigned int) -1)
+    {
+	if (mbox->uidvalidity != imap->uidvalidity)
+	{
+	    /* if the UIDVALIDITY value has changed, it means all our
+	     * local UIDs are invalid, so we can't sync.
+	     */
+	    puts ("Error, UIDVALIDITY changed on server (fatal)");
+	    return -1;
+	}
+    }
+    else if (maildir_set_uidvalidity (mbox, imap->uidvalidity))
+    {
+	puts ("Error, unable to store UIDVALIDITY");
+	return -1;
+    }
+
     for (cur = mbox->msgs; cur; cur = cur->next)
     {
 	tmp = find_msg (imap->msgs, cur->uid);

@@ -66,6 +66,7 @@ maildir_open (const char *path, int fast)
     mailbox_t *m;
     char *s;
     int count = 0;
+    FILE *fp;
 
     /* check to make sure this looks like a valid maildir box */
     snprintf (buf, sizeof (buf), "%s/new", path);
@@ -80,8 +81,20 @@ maildir_open (const char *path, int fast)
 	perror ("access");
 	return 0;
     }
+
     m = calloc (1, sizeof (mailbox_t));
     m->path = strdup (path);
+    m->uidvalidity = -1;
+
+    /* check for the uidvalidity value */
+    snprintf (buf, sizeof (buf), "%s/isyncuidvalidity", path);
+    if ((fp = fopen (buf, "r")))
+    {
+	buf[sizeof (buf) - 1] = 0;
+	if (fgets (buf, sizeof (buf) - 1, fp))
+	    m->uidvalidity = atol (buf);
+	fclose (fp);
+    }
 
     if (fast)
 	return m;
@@ -207,4 +220,43 @@ maildir_sync (mailbox_t * mbox)
 	}
     }
     return 0;
+}
+
+int
+maildir_set_uidvalidity (mailbox_t * mbox, unsigned int uidvalidity)
+{
+    char path[_POSIX_PATH_MAX];
+    char buf[16];
+    int fd;
+    int ret;
+
+    snprintf (path, sizeof (path), "%s/isyncuidvalidity", mbox->path);
+    fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd == -1)
+    {
+	perror ("open");
+	return -1;
+    }
+    snprintf (buf, sizeof (buf), "%u\n", uidvalidity);
+
+    ret = write (fd, buf, strlen (buf));
+
+    if (ret == -1)
+	perror("write");
+    else if ((size_t) ret != strlen (buf))
+	ret = -1;
+    else
+	ret = 0;
+
+    if (close (fd))
+    {
+	perror("close");
+	ret = -1;
+    }
+
+    if (ret)
+	if (unlink (path))
+	    perror ("unlink");
+
+    return (ret);
 }

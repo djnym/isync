@@ -150,7 +150,7 @@ buffer_gets (buffer_t * b, char **s)
 }
 
 static int
-parse_fetch (imap_t * imap, list_t * list, message_t *cur)
+parse_fetch (imap_t * imap, list_t * list, message_t * cur)
 {
     list_t *tmp;
 
@@ -196,7 +196,8 @@ parse_fetch (imap_t * imap, list_t * list, message_t *cur)
 			    else if (!strcmp ("\\Recent", flags->val))
 				cur->flags |= D_RECENT;
 			    else
-				printf ("Warning, unknown flag %s\n",flags->val);
+				printf ("Warning, unknown flag %s\n",
+					flags->val);
 			}
 			else
 			    puts ("Error, unable to parse FLAGS list");
@@ -208,6 +209,32 @@ parse_fetch (imap_t * imap, list_t * list, message_t *cur)
 	}
     }
     return 0;
+}
+
+static void
+parse_response_code (imap_t * imap, char *s)
+{
+    char *arg;
+
+    if (*s != '[')
+	return;			/* no response code */
+    s++;
+
+    arg = next_arg (&s);
+
+    if (!strcmp ("UIDVALIDITY", arg))
+    {
+	arg = next_arg (&s);
+	imap->uidvalidity = atol (arg);
+    }
+    else if (!strcmp ("ALERT", arg))
+    {
+	/* RFC2060 says that these messages MUST be displayed
+	 * to the user
+	 */
+	fputs ("***ALERT*** ", stdout);
+	puts (s);
+    }
 }
 
 static int
@@ -270,6 +297,12 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		    rec = &(*rec)->next;
 		}
 	    }
+	    else if (!strcmp ("OK", arg) || !strcmp ("BAD", arg) ||
+		     !strcmp ("NO", arg) || !strcmp ("PREAUTH", arg) ||
+		     !strcmp ("BYE", arg))
+	    {
+		parse_response_code (imap, cmd);
+	    }
 	    else if ((arg1 = next_arg (&cmd)))
 	    {
 		if (!strcmp ("EXISTS", arg1))
@@ -289,7 +322,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 
 		    list = parse_list (cmd, 0);
 
-		    *cur = calloc (1, sizeof(message_t));
+		    *cur = calloc (1, sizeof (message_t));
 		    if (parse_fetch (imap, list, *cur))
 		    {
 			free_list (list);
@@ -315,6 +348,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	else
 	{
 	    arg = next_arg (&cmd);
+	    parse_response_code (imap, cmd);
 	    if (!strcmp ("OK", arg))
 		return 0;
 	    return -1;
@@ -474,8 +508,8 @@ imap_open (config_t * box, int fast)
 	{
 	    /* XXX for now assume personal namespace */
 	    if (is_list (imap->ns_personal) &&
-		    is_list(imap->ns_personal->child) &&
-		    is_atom(imap->ns_personal->child->child))
+		is_list (imap->ns_personal->child) &&
+		is_atom (imap->ns_personal->child->child))
 	    {
 		ns_prefix = imap->ns_personal->child->child->val;
 	    }
@@ -575,7 +609,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
     size_t n;
     char buf[1024];
 
-    send_server (imap->sock, "UID FETCH %d (RFC822.PEEK)", uid);
+    send_server (imap->sock, "UID FETCH %d BODY.PEEK[]", uid);
 
     for (;;)
     {

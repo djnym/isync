@@ -68,6 +68,7 @@ struct mailbox
     char *path;
     message_t *msgs;
     unsigned int deleted;	/* # of deleted messages */
+    unsigned int uidvalidity;
     unsigned int changed:1;
 };
 
@@ -117,6 +118,7 @@ typedef struct
 				 * UID to be used in a FETCH FLAGS command
 				 */
     unsigned int deleted;	/* # of deleted messages */
+    unsigned int uidvalidity;
     /* NAMESPACE info */
     list_t *ns_personal;
     list_t *ns_other;
@@ -151,6 +153,7 @@ imap_t *imap_open (config_t *, int);
 mailbox_t *maildir_open (const char *, int fast);
 int maildir_expunge (mailbox_t *, int);
 int maildir_sync (mailbox_t *);
+int maildir_set_uidvalidity (mailbox_t *, unsigned int uidvalidity);
 
 /* parse an IMAP list construct */
 list_t * parse_list (char *s, char **end);
