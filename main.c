@@ -192,6 +192,11 @@ main (int argc, char **argv)
 		global.box = optarg;
 		break;
 	    case 's':
+		if (!strncasecmp("imaps:", optarg, 6))
+		{
+		    global.use_imaps = 1;
+		    optarg += 6;
+		}
 		global.host = optarg;
 		break;
 	    case 'u':
