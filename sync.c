@@ -50,6 +50,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
     char *p;
     int fd;
     int ret;
+    int fetched = 0;
 
     if (mbox->uidvalidity > 0)
     {
@@ -172,6 +173,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 	    /* give some visual feedback that something is happening */
 	    fputs (".", stdout);
 	    fflush (stdout);
+	    fetched++;
 
 	    ret = imap_fetch_message (imap, cur->uid, fd);
 
@@ -195,7 +197,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 	    unlink (path);
 	}
     }
-    puts ("");
+    printf ("  %d messages\n", fetched);
 
     return 0;
 }
