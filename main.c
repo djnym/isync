@@ -312,6 +312,7 @@ main (int argc, char **argv)
 		imap_close (imap); /* Just to be safe.  Don't really know
 				    * what the problem was.
 				    */
+		imap = NULL;	/* context no longer valid */
 		break;
 	    }
 

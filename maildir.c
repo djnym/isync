@@ -80,15 +80,21 @@ parse_info (message_t * m, char *s)
     }
 }
 
-static unsigned int
-read_uid (const char *path, const char *file)
+/*
+ * There are three possible results of this function:
+ * >1	uid was already seen
+ * 0	uid was not yet seen
+ * -1	unable to read uid because of some other error
+ */
+
+static int
+read_uid (const char *path, const char *file, unsigned int *uid /* out */)
 {
     char full[_POSIX_PATH_MAX];
     int fd;
-    int ret = 0;
+    int ret = -1;
     int len;
-    char buf[64];
-    unsigned int uid = 0;
+    char buf[64], *ptr;
 
     snprintf (full, sizeof (full), "%s/%s", path, file);
     fd = open (full, O_RDONLY);
@@ -103,18 +109,20 @@ read_uid (const char *path, const char *file)
     }
     len = read (fd, buf, sizeof (buf) - 1);
     if (len == -1)
-    {
 	perror ("read");
-	ret = -1;
-    }
     else
     {
 	buf[len] = 0;
-	uid = atol (buf);
+	errno  = 0;
+	*uid = strtoul (buf, &ptr, 10);
+	if (errno)
+	  perror ("strtoul");
+	else if (ptr && *ptr == '\n')
+	  ret = 1;
+	/* else invalid value */
     }
     close (fd);
-    return ret ? (unsigned int) ret : uid;
-
+    return ret;
 }
 
 /* NOTE: this is NOT NFS safe */
@@ -233,12 +241,14 @@ maildir_open (const char *path, int flags)
 	goto err;
 
     /* check for the uidvalidity value */
-    m->uidvalidity = read_uid (m->path, "isyncuidvalidity");
-    if (m->uidvalidity == (unsigned int) -1)
-	goto err;
+    i = read_uid (m->path, "isyncuidvalidity", &m->uidvalidity);
+    if (i == -1)
+      goto err;
+    else if (i > 0)
+      m->uidseen = 1;
 
     /* load the current maxuid */
-    if ((m->maxuid = read_uid (m->path, "isyncmaxuid")) == (unsigned int) -1)
+    if (read_uid (m->path, "isyncmaxuid", &m->maxuid) == -1)
 	goto err;
 
     if (flags & OPEN_FAST)

@@ -5,7 +5,7 @@
 |_|___/\__, |_| |_|\___|
        |___/            
 isync - IMAP4 to maildir mailbox synchronization program
-http://www.sigpipe.org:8080/isync/
+http://www.cs.hmc.edu/~me/isync/
 
 Author: Michael Elkins <me@mutt.org>
 
@@ -29,6 +29,7 @@ maintained, and all flags are synchronized.
 	* Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
 	* Courier-IMAP 1.2.3
 	* WU-IMAP 2000
+	* Domino IMAP4 Server Release 5.0.8
 
 * Platforms
 

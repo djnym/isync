@@ -71,7 +71,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
     int upload = 0;
     unsigned int msg_count;
 
-    if (mbox->uidvalidity > 0)
+    if (mbox->uidseen)
     {
 	if (mbox->uidvalidity != imap->uidvalidity)
 	{

@@ -91,6 +91,8 @@ struct mailbox
     unsigned int deleted;	/* # of deleted messages */
     unsigned int uidvalidity;
     unsigned int maxuid;	/* largest uid we know about */
+    unsigned int uidseen : 1;	/* flag indicating whether or not we saw a
+				   valid value for UIDVALIDITY */
 };
 
 /* message dispositions */
