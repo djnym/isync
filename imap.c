@@ -575,7 +575,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
     size_t n;
     char buf[1024];
 
-    send_server (imap->sock, "UID FETCH %d RFC822.PEEK", uid);
+    send_server (imap->sock, "UID FETCH %d (RFC822.PEEK)", uid);
 
     for (;;)
     {
@@ -594,9 +594,10 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 	    next_arg (&cmd);	/* * */
 	    next_arg (&cmd);	/* <msgno> */
 	    next_arg (&cmd);	/* FETCH */
-	    next_arg (&cmd);	/* (RFC822 */
-	    arg = next_arg (&cmd);
-	    if (*arg != '{')
+
+	    while ((arg = next_arg (&cmd)) && *arg != '{')
+		;
+	    if (!arg)
 	    {
 		puts ("parse error getting size");
 		return -1;
@@ -662,11 +663,13 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 		puts ("wrong tag");
 		return -1;
 	    }
-	    break;
+	    arg = next_arg (&cmd);
+	    if (!strcmp ("OK", arg))
+		return 0;
+	    return -1;
 	}
     }
-
-    return 0;
+    /* not reached */
 }
 
 /* add flags to existing flags */

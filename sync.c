@@ -150,9 +150,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 
 	    ret = imap_fetch_message (imap, cur->uid, fd);
 
-	    close (fd);
-
-	    if (!ret)
+	    if (close (fd))
+		perror ("close");
+	    else if (!ret)
 	    {
 		p = strrchr (path, '/');
 
