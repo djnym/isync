@@ -8,6 +8,7 @@ EXTRA_isync_SOURCES=debug.c
 man_MANS=isync.1
 EXTRA_DIST=sample.isyncrc $(man_MANS)
 INCLUDES=$(RPM_OPT_FLAGS)
+DISTCLEANFILES=*~
 
 log:
 	rcs2log -h sigpipe.org | sed 's;/home/cvs/isync/;;g' > ChangeLog

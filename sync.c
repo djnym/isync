@@ -226,10 +226,10 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    }
 	    else
 	    {
-		    /* update the filename in the msg struct */
-		    p=strrchr(newpath,'/');
-		    free(cur->file);
-		    cur->file=strdup(p+1);
+		/* update the filename in the msg struct */
+		p = strrchr (newpath, '/');
+		free (cur->file);
+		cur->file = strdup (p + 1);
 	    }
 	}
     }
