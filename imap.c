@@ -701,7 +701,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 
 	fputs ("Selecting mailbox... ", stdout);
 	fflush (stdout);
-	if ((ret = imap_exec (imap, "SELECT %s%s", ns_prefix, box->box)))
+	if ((ret = imap_exec (imap, "SELECT \"%s%s\"", ns_prefix, box->box)))
 	    break;
 	printf ("%d messages, %d recent\n", imap->count, imap->recent);
 
@@ -902,4 +902,183 @@ int
 imap_expunge (imap_t * imap)
 {
     return imap_exec (imap, "EXPUNGE");
+}
+
+int
+imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox)
+{
+    char *ns_prefix = "";
+
+    /* XXX for now assume personal namespace */
+    if (imap->box->use_namespace && is_list (imap->ns_personal) &&
+	is_list (imap->ns_personal->child) &&
+	is_atom (imap->ns_personal->child->child))
+    {
+	ns_prefix = imap->ns_personal->child->child->val;
+    }
+
+    return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, ns_prefix, mailbox);
+}
+
+int
+imap_append_message (imap_t * imap, int fd, message_t * msg)
+{
+    char buf[1024];
+    size_t len;
+    size_t sofar = 0;
+    int lines = 0;
+    char flagstr[128];
+    char *s;
+    size_t i;
+    size_t start, end;
+    char *arg;
+
+    /* ugh, we need to count the number of newlines */
+    while (sofar < msg->size)
+    {
+	len = msg->size - sofar;
+	if (len > sizeof (buf))
+	    len = sizeof (buf);
+	len = read (fd, buf, len);
+	if (len == (size_t) - 1)
+	{
+	    perror ("read");
+	    return -1;
+	}
+	for (i = 0; i < len; i++)
+	    if (buf[i] == '\n')
+		lines++;
+	sofar += len;
+    }
+
+    flagstr[0] = 0;
+    if (msg->flags)
+    {
+	strcpy (flagstr, "(");
+	if (msg->flags & D_DELETED)
+	    snprintf (flagstr + strlen (flagstr),
+		      sizeof (flagstr) - strlen (flagstr), "%s\\Deleted",
+		      flagstr[1] ? " " : "");
+	if (msg->flags & D_ANSWERED)
+	    snprintf (flagstr + strlen (flagstr),
+		      sizeof (flagstr) - strlen (flagstr), "%s\\Answered",
+		      flagstr[1] ? " " : "");
+	if (msg->flags & D_SEEN)
+	    snprintf (flagstr + strlen (flagstr),
+		      sizeof (flagstr) - strlen (flagstr), "%s\\Seen",
+		      flagstr[1] ? " " : "");
+	if (msg->flags & D_FLAGGED)
+	    snprintf (flagstr + strlen (flagstr),
+		      sizeof (flagstr) - strlen (flagstr), "%s\\Flagged",
+		      flagstr[1] ? " " : "");
+	if (msg->flags & D_DRAFT)
+	    snprintf (flagstr + strlen (flagstr),
+		      sizeof (flagstr) - strlen (flagstr), "%s\\Draft",
+		      flagstr[1] ? " " : "");
+	snprintf (flagstr + strlen (flagstr),
+		  sizeof (flagstr) - strlen (flagstr), ") ");
+    }
+
+    snprintf (buf, sizeof (buf), "%d APPEND %s %s{%d}\r\n", ++Tag,
+	      imap->box->box, flagstr, msg->size + lines);
+    socket_write (imap->sock, buf, strlen (buf));
+    if (Verbose)
+	fputs (buf, stdout);
+
+    if (buffer_gets (imap->buf, &s))
+	return -1;
+    if (Verbose)
+	puts (s);
+
+    if (*s != '+')
+	return -1;
+
+    /* rewind */
+    lseek (fd, 0, 0);
+
+    sofar = 0;
+    while (sofar < msg->size)
+    {
+	len = msg->size - sofar;
+	if (len > sizeof (buf))
+	    len = sizeof (buf);
+	len = read (fd, buf, len);
+	if (len == (size_t) - 1)
+	    return -1;
+	start = 0;
+	while (start < len)
+	{
+	    end = start;
+	    while (end < len && buf[end] != '\n')
+		end++;
+	    if (start != end)
+		socket_write (imap->sock, buf + start, end - start);
+/*	    if (Verbose)
+	    {
+		buf[end] = 0;
+		puts (buf + start);
+	    } */
+	    socket_write (imap->sock, "\r\n", 2);
+	    start = end + 1;
+	}
+	sofar += len;
+    }
+    socket_write (imap->sock, "\r\n", 2);
+
+    for (;;)
+    {
+	if (buffer_gets (imap->buf, &s))
+	    return -1;
+
+	if (Verbose)
+	    puts (s);
+
+	arg = next_arg (&s);
+	if (*arg == '*')
+	{
+	    /* XXX just ignore it for now */
+	}
+	else if (atoi (arg) != Tag)
+	{
+	    puts ("wrong tag");
+	    return -1;
+	}
+	else
+	{
+	    int uid;
+
+	    arg = next_arg (&s);
+	    if (strcmp (arg, "OK"))
+		return -1;
+	    arg = next_arg (&s);
+	    if (*arg != '[')
+		break;
+	    arg++;
+	    if (strcasecmp ("APPENDUID", arg))
+	    {
+		puts ("Error, expected APPENDUID");
+		break;
+	    }
+	    arg = next_arg (&s);
+	    if (!arg)
+		break;
+	    if (atoi (arg) != imap->uidvalidity)
+	    {
+		puts ("Error, UIDVALIDITY doesn't match APPENDUID");
+		return -1;
+	    }
+	    arg = next_arg (&s);
+	    if (!arg)
+		break;
+	    uid = strtol (arg, &s, 10);
+	    if (*s != ']')
+	    {
+		/* parse error */
+		break;
+	    }
+	    return uid;
+	}
+    }
+
+    return 0;
 }

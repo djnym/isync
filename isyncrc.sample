@@ -2,6 +2,12 @@
 #   Values here are used as defaults for any following Mailbox section that
 #   doesn't specify it.
 
+# by default, expunge deleted messages (same as -e on command line)
+Expunge yes
+
+# copy deleted messages to the IMAP "Trash" folder
+CopyDeletedTo "Trash"
+
 # my default username, if different from the local username
 User me
 #Port	143
@@ -18,6 +24,8 @@ Host	work.host.com
 Pass	xxxxxxxx
 # define a shortcut so I can just use "isync work" from the command line
 Alias	work
+# don't auto expunge messages in this box (overridden by -e on command line)
+Expunge no
 
 ###
 ### personal mailbox

@@ -50,7 +50,6 @@ struct option Opts[] = {
 
 config_t global;
 unsigned int Tag = 0;
-static config_t *box = 0;
 char Hostname[256];
 int Verbose = 0;
 
@@ -85,203 +84,6 @@ usage (void)
     exit (0);
 }
 
-/* set defaults from the global configuration section */
-static void
-config_defaults (config_t * conf)
-{
-    conf->user = global.user;
-    conf->pass = global.pass;
-    conf->port = global.port;
-    conf->box = global.box;
-    conf->host = global.host;
-    conf->max_size = global.max_size;
-    conf->use_namespace = global.use_namespace;
-#if HAVE_LIBSSL
-    conf->require_ssl = global.require_ssl;
-    conf->use_imaps = global.use_imaps;
-    conf->cert_file = global.cert_file;
-    conf->use_sslv2 = global.use_sslv2;
-    conf->use_sslv3 = global.use_sslv3;
-    conf->use_tlsv1 = global.use_tlsv1;
-#endif
-}
-
-static void
-load_config (char *where)
-{
-    char path[_POSIX_PATH_MAX];
-    char buf[1024];
-    struct passwd *pw;
-    config_t **cur = &box;
-    int line = 0;
-    FILE *fp;
-    char *p, *cmd, *val;
-
-    if (!where)
-    {
-	pw = getpwuid (getuid ());
-	snprintf (path, sizeof (path), "%s/.isyncrc", pw->pw_dir);
-	where = path;
-    }
-    printf ("Reading %s\n", where);
-
-    fp = fopen (where, "r");
-    if (!fp)
-    {
-	if (errno != ENOENT)
-	{
-	    perror ("fopen");
-	    return;
-	}
-    }
-    buf[sizeof buf - 1] = 0;
-    while ((fgets (buf, sizeof (buf) - 1, fp)))
-    {
-	p = buf;
-	cmd = next_arg (&p);
-	val = next_arg (&p);
-	line++;
-	if (!cmd || *cmd == '#')
-	    continue;
-	if (!strncasecmp ("mailbox", cmd, 7))
-	{
-	    if (*cur)
-		cur = &(*cur)->next;
-	    *cur = calloc (1, sizeof (config_t));
-	    config_defaults (*cur);
-	    (*cur)->path = strdup (val);
-	}
-	else if (!strncasecmp ("host", cmd, 4))
-	{
-#if HAVE_LIBSSL
-	    if (!strncasecmp ("imaps:", val, 6))
-	    {
-		val += 6;
-		if (*cur)
-		{
-		    (*cur)->use_imaps = 1;
-		    (*cur)->port = 993;
-		}
-		else
-		{
-		    global.use_imaps = 1;
-		    global.port = 993;
-		}
-	    }
-#endif
-	    if (*cur)
-		(*cur)->host = strdup (val);
-	    else
-		global.host = strdup (val);
-	}
-	else if (!strncasecmp ("user", cmd, 4))
-	{
-	    if (*cur)
-		(*cur)->user = strdup (val);
-	    else
-		global.user = strdup (val);
-	}
-	else if (!strncasecmp ("pass", cmd, 4))
-	{
-	    if (*cur)
-		(*cur)->pass = strdup (val);
-	    else
-		global.pass = strdup (val);
-	}
-	else if (!strncasecmp ("port", cmd, 4))
-	{
-	    if (*cur)
-		(*cur)->port = atoi (val);
-	    else
-		global.port = atoi (val);
-	}
-	else if (!strncasecmp ("box", cmd, 3))
-	{
-	    if (*cur)
-		(*cur)->box = strdup (val);
-	    else
-		global.box = strdup (val);
-	}
-	else if (!strncasecmp ("alias", cmd, 5))
-	{
-	    if (*cur)
-		(*cur)->alias = strdup (val);
-	}
-	else if (!strncasecmp ("maxsize", cmd, 7))
-	{
-	    if (*cur)
-		(*cur)->max_size = atol (val);
-	    else
-		global.max_size = atol (val);
-	}
-	else if (!strncasecmp ("UseNamespace", cmd, 12))
-	{
-	    if (*cur)
-		(*cur)->use_namespace = (strcasecmp (val, "yes") == 0);
-	    else
-		global.use_namespace = (strcasecmp (val, "yes") == 0);
-	}
-#if HAVE_LIBSSL
-	else if (!strncasecmp ("CertificateFile", cmd, 15))
-	{
-	    if (*cur)
-		(*cur)->cert_file = strdup (val);
-	    else
-		global.cert_file = strdup (val);
-	}
-	else if (!strncasecmp ("RequireSSL", cmd, 10))
-	{
-	    if (*cur)
-		(*cur)->require_ssl = (strcasecmp (val, "yes") == 0);
-	    else
-		global.require_ssl = (strcasecmp (val, "yes") == 0);
-	}
-	else if (!strncasecmp ("UseSSLv2", cmd, 8))
-	{
-	    if (*cur)
-		(*cur)->use_sslv2 = (strcasecmp (val, "yes") == 0);
-	    else
-		global.use_sslv2 = (strcasecmp (val, "yes") == 0);
-	}
-	else if (!strncasecmp ("UseSSLv3", cmd, 8))
-	{
-	    if (*cur)
-		(*cur)->use_sslv3 = (strcasecmp (val, "yes") == 0);
-	    else
-		global.use_sslv3 = (strcasecmp (val, "yes") == 0);
-	}
-	else if (!strncasecmp ("UseTLSv1", cmd, 8))
-	{
-	    if (*cur)
-		(*cur)->use_tlsv1 = (strcasecmp (val, "yes") == 0);
-	    else
-		global.use_tlsv1 = (strcasecmp (val, "yes") == 0);
-	}
-	else if (!strncasecmp ("RequireCRAM", cmd, 11))
-	{
-	    if (*cur)
-		(*cur)->require_cram = (strcasecmp (val, "yes") == 0);
-	    else
-		global.require_cram = (strcasecmp (val, "yes") == 0);
-	}
-#endif
-	else if (buf[0])
-	    printf ("%s:%d:unknown command:%s", path, line, cmd);
-    }
-    fclose (fp);
-}
-
-static config_t *
-find_box (const char *s)
-{
-    config_t *p = box;
-
-    for (; p; p = p->next)
-	if (!strcmp (s, p->path) || (p->alias && !strcmp (s, p->alias)))
-	    return p;
-    return 0;
-}
-
 char *
 next_arg (char **s)
 {
@@ -298,13 +100,25 @@ next_arg (char **s)
 	*s = 0;
 	return 0;
     }
-    ret = *s;
-    while (**s && !isspace ((unsigned char) **s))
-	(*s)++;
-    if (**s)
-	*(*s)++ = 0;
-    if (!**s)
-	*s = 0;
+    if (**s == '"')
+    {
+	++*s;
+	ret = *s;
+	*s = strchr (*s, '"');
+    }
+    else
+    {
+	ret = *s;
+	while (**s && !isspace ((unsigned char) **s))
+	    (*s)++;
+    }
+    if (*s)
+    {
+	if (**s)
+	    *(*s)++ = 0;
+	if (!**s)
+	    *s = 0;
+    }
     return ret;
 }
 
@@ -441,7 +255,7 @@ main (int argc, char **argv)
 
 	puts ("Synchronizing");
 	i = delete ? SYNC_DELETE : 0;
-	i |= expunge ? SYNC_EXPUNGE : 0;
+	i |= (expunge || box->expunge) ? SYNC_EXPUNGE : 0;
 	if (sync_mailbox (mail, imap, i, box->max_size))
 	    exit (1);
 

@@ -155,6 +155,19 @@ Defines an alias for the mailbox which can be used as a shortcut on the
 command line.
 ..
 .TP
+\fBCopyDeletedTo\fR \fIstring\fR
+Specifies the remote IMAP mailbox to copy deleted messages prior to
+expunging (Default: none).
+..
+.TP
+\fBExpunge\fR \fIyes|no\fR
+Specifies whether deleted messages are expunged by default (Default: no).
+\fBNOTE:\fR  The
+.I -e
+command line option overrides this setting when set to
+\fIno\fR.
+..
+.TP
 \fBMaxSize\fR \fIbytes\fR
 Sets a threshold for the maximum message size (in bytes) for which
 .B isync

@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include "isync.h"
 
 static unsigned int MaildirCount = 0;
@@ -40,7 +41,8 @@ find_msg (message_t * list, unsigned int uid)
 }
 
 int
-sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
+sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
+	      unsigned int max_size)
 {
     message_t *cur;
     message_t *tmp;
@@ -83,16 +85,103 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 	tmp = find_msg (imap->msgs, cur->uid);
 	if (!tmp)
 	{
-	    printf ("Warning, uid %d doesn't exist on server\n", cur->uid);
-	    if (flags & SYNC_DELETE)
+	    /* if this message wasn't fetched from the server, attempt to
+	     * upload it
+	     */
+	    if (cur->uid == (unsigned int) -1)
 	    {
-		cur->flags |= D_DELETED;
-		cur->dead = 1;
-		mbox->deleted++;
+		struct stat sb;
+		int fd;
+		int uid;
+
+		/* upload the message if its not too big */
+		snprintf (path, sizeof (path), "%s/%s/%s", mbox->path,
+			  cur->new ? "new" : "cur", cur->file);
+		if (stat (path, &sb))
+		{
+		    printf ("Error, unable to stat %s: %s (errno %d)\n",
+			    path, strerror (errno), errno);
+
+		    continue;	/* not fatal */
+		}
+		if (sb.st_size > imap->box->max_size)
+		{
+		    printf
+			("Warning, local message is too large (%ld), skipping...\n",
+			 sb.st_size);
+		    continue;
+		}
+		fd = open (path, O_RDONLY);
+		if (fd == -1)
+		{
+		    printf ("Error, unable to open %s: %s (errno %d)\n",
+			    path, strerror (errno), errno);
+		    continue;
+		}
+
+		cur->size = sb.st_size;
+
+		uid = imap_append_message (imap, fd, cur);
+
+		close (fd);
+
+		/* if the server gave us back a uid, rename the file so
+		 * we remember for next time
+		 */
+		if (uid != -1)
+		{
+		    char newpath[_POSIX_PATH_MAX];
+		    char *p;
+
+		    strfcpy (newpath, path, sizeof (newpath));
+		    /* kill :info field */
+		    p = strchr (newpath, ':');
+		    if (p)
+			*p = 0;
+
+		    /* XXX not quite right, should really always put the
+		     * msg in "cur/", but i'm too tired right now.
+		     */
+		    snprintf (newpath + strlen (newpath),
+			      sizeof (newpath) - strlen (newpath),
+			      ",U=%d:2,%s%s%s%s", uid,
+			      (cur->flags & D_FLAGGED) ? "F" : "",
+			      (cur->flags & D_ANSWERED) ? "R" : "",
+			      (cur->flags & D_SEEN) ? "S" : "",
+			      (cur->flags & D_DELETED) ? "T" : "");
+		    if (rename (path, newpath))
+			perror ("rename");
+		}
+	    }
+	    else
+	    {
+		printf ("Warning, uid %u doesn't exist on server\n",
+			cur->uid);
+		if (flags & SYNC_DELETE)
+		{
+		    cur->flags |= D_DELETED;
+		    cur->dead = 1;
+		    mbox->deleted++;
+		}
 	    }
 	    continue;
 	}
 	tmp->processed = 1;
+
+	/* if the message is deleted, and CopyDeletedTo is set, and we
+	 * are expunging, make a copy of the message now.
+	 */
+	if (((cur->flags | tmp->flags) & D_DELETED) != 0 &&
+	    (flags & SYNC_EXPUNGE) && imap->box->copy_deleted_to)
+	{
+	    if (imap_copy_message (imap, cur->uid,
+				   imap->box->copy_deleted_to))
+	    {
+		printf ("Error, unable to copy deleted message to \"%s\"\n",
+			imap->box->copy_deleted_to);
+		return -1;
+	    }
+	}
 
 	/* check if local flags are different from server flags.
 	 * ignore \Recent and \Draft
@@ -102,10 +191,11 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 	    /* set local flags that don't exist on the server */
 	    if (!(tmp->flags & D_DELETED) && (cur->flags & D_DELETED))
 		imap->deleted++;
+
 	    imap_set_flags (imap, cur->uid, cur->flags & ~tmp->flags);
 
 	    /* update local flags */
-	    if((cur->flags & D_DELETED) == 0 && (tmp->flags & D_DELETED))
+	    if ((cur->flags & D_DELETED) == 0 && (tmp->flags & D_DELETED))
 		mbox->deleted++;
 	    cur->flags |= (tmp->flags & ~(D_RECENT | D_DRAFT));
 	    cur->changed = 1;
@@ -132,8 +222,9 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 
 	    if (max_size && cur->size > max_size)
 	    {
-		printf ("Warning, message skipped because it is too big (%u)\n",
-			cur->size);
+		printf
+		    ("Warning, message skipped because it is too big (%u)\n",
+		     cur->size);
 		continue;
 	    }
 
@@ -148,13 +239,13 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 			  (cur->flags & D_SEEN) ? "S" : "",
 			  (cur->flags & D_DELETED) ? "T" : "");
 	    }
-	    
+
 	    for (;;)
 	    {
 		/* create new file */
 		snprintf (path, sizeof (path), "%s/tmp/%s.%ld_%d.%d,U=%d%s",
-			mbox->path, Hostname, time (0), MaildirCount++,
-			getpid (), cur->uid, suffix);
+			  mbox->path, Hostname, time (0), MaildirCount++,
+			  getpid (), cur->uid, suffix);
 
 		if ((fd = open (path, O_WRONLY | O_CREAT | O_EXCL, 0600)) > 0)
 		    break;
@@ -184,7 +275,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags, unsigned int max_size)
 		p = strrchr (path, '/');
 
 		snprintf (newpath, sizeof (newpath), "%s/%s%s", mbox->path,
-			(cur->flags & D_SEEN) ? "cur" : "new", p);
+			  cur->flags ? "cur" : "new", p);
 
 		/* its ok if this fails, the next time we sync the message
 		 * will get pulled down

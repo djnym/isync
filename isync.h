@@ -54,7 +54,8 @@ struct config
     char *pass;
     char *box;
     char *alias;
-    unsigned int max_size;
+    char *copy_deleted_to;
+    off_t max_size;
     config_t *next;
 #if HAVE_LIBSSL
     char *cert_file;
@@ -66,6 +67,7 @@ struct config
     unsigned int require_cram:1;
 #endif
     unsigned int use_namespace:1;
+    unsigned int expunge:1;
 };
 
 /* struct representing local mailbox file */
@@ -159,11 +161,17 @@ char *next_arg (char **);
 
 int sync_mailbox (mailbox_t *, imap_t *, int, unsigned int);
 
+void config_defaults (config_t *);
+void load_config (const char *);
+config_t *find_box (const char *);
+
 void imap_close (imap_t *);
+int imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox);
 int imap_fetch_message (imap_t *, unsigned int, int);
 int imap_set_flags (imap_t *, unsigned int, unsigned int);
 int imap_expunge (imap_t *);
 imap_t *imap_open (config_t *, unsigned int, imap_t *);
+int imap_append_message (imap_t *, int, message_t *);
 
 mailbox_t *maildir_open (const char *, int fast);
 int maildir_expunge (mailbox_t *, int);
@@ -180,3 +188,5 @@ int is_atom (list_t *list);
 int is_list (list_t *list);
 int is_nil (list_t *list);
 void free_list (list_t *list);
+
+#define strfcpy(a,b,c) {strncpy(a,b,c);(a)[c-1]=0;}
