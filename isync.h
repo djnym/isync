@@ -125,6 +125,7 @@ typedef struct
     buffer_t *buf;		/* input buffer for reading server output */
     message_t *msgs;		/* list of messages on the server */
     config_t *box;		/* mailbox to open */
+    char *prefix;		/* namespace prefix */
     unsigned int deleted;	/* # of deleted messages */
     unsigned int uidvalidity;
     unsigned int maxuid;

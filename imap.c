@@ -496,7 +496,6 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
     int s;
     struct sockaddr_in sin;
     struct hostent *he;
-    char *ns_prefix = "";
     int reuse = 0;
 #if HAVE_LIBSSL
     int use_ssl = 0;
@@ -542,6 +541,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 
     imap->box = box;
     imap->minuid = minuid;
+    imap->prefix = "";
 
     if (!reuse)
     {
@@ -696,12 +696,12 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 	    is_list (imap->ns_personal->child) &&
 	    is_atom (imap->ns_personal->child->child))
 	{
-	    ns_prefix = imap->ns_personal->child->child->val;
+	    imap->prefix = imap->ns_personal->child->child->val;
 	}
 
 	fputs ("Selecting mailbox... ", stdout);
 	fflush (stdout);
-	if ((ret = imap_exec (imap, "SELECT \"%s%s\"", ns_prefix, box->box)))
+	if ((ret = imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)))
 	    break;
 	printf ("%d messages, %d recent\n", imap->count, imap->recent);
 
@@ -907,17 +907,7 @@ imap_expunge (imap_t * imap)
 int
 imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox)
 {
-    char *ns_prefix = "";
-
-    /* XXX for now assume personal namespace */
-    if (imap->box->use_namespace && is_list (imap->ns_personal) &&
-	is_list (imap->ns_personal->child) &&
-	is_atom (imap->ns_personal->child->child))
-    {
-	ns_prefix = imap->ns_personal->child->child->val;
-    }
-
-    return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, ns_prefix, mailbox);
+    return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, imap->prefix, mailbox);
 }
 
 int
@@ -979,8 +969,8 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 		  sizeof (flagstr) - strlen (flagstr), ") ");
     }
 
-    snprintf (buf, sizeof (buf), "%d APPEND %s %s{%d}\r\n", ++Tag,
-	      imap->box->box, flagstr, msg->size + lines);
+    send_server (imap->sock, "APPEND %s%s %s{%d}\r\n",
+	      imap->prefix, imap->box->box, flagstr, msg->size + lines);
     socket_write (imap->sock, buf, strlen (buf));
     if (Verbose)
 	fputs (buf, stdout);
@@ -1038,7 +1028,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 	{
 	    /* XXX just ignore it for now */
 	}
-	else if (atoi (arg) != Tag)
+	else if (atoi (arg) != (int) Tag)
 	{
 	    puts ("wrong tag");
 	    return -1;
@@ -1062,7 +1052,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
 	    arg = next_arg (&s);
 	    if (!arg)
 		break;
-	    if (atoi (arg) != imap->uidvalidity)
+	    if (atoi (arg) != (int) imap->uidvalidity)
 	    {
 		puts ("Error, UIDVALIDITY doesn't match APPENDUID");
 		return -1;
