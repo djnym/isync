@@ -60,7 +60,11 @@ struct config
     char *cert_file;
     unsigned int use_imaps:1;
     unsigned int require_ssl:1;
+    unsigned int use_sslv2:1;
+    unsigned int use_sslv3:1;
+    unsigned int use_tlsv1:1;
 #endif
+    unsigned int use_namespace:1;
 };
 
 /* struct representing local mailbox file */
@@ -118,9 +122,6 @@ typedef struct
     buffer_t *buf;		/* input buffer for reading server output */
     message_t *msgs;		/* list of messages on the server */
     config_t *box;		/* mailbox to open */
-    message_t *recent_msgs;	/* list of recent messages - only contains
-				 * UID to be used in a FETCH FLAGS command
-				 */
     unsigned int deleted;	/* # of deleted messages */
     unsigned int uidvalidity;
     unsigned int maxuid;

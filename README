@@ -26,6 +26,8 @@ maintained, and all flags are synchronized.
 	``isync'' has been tested with the following IMAP servers:
 
 	* Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
+	* Courier-IMAP 1.2.3
+	* WU-IMAP 2000
 
 * Platforms
 

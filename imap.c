@@ -132,6 +132,14 @@ init_ssl (config_t * conf)
 		ERR_error_string (ERR_get_error (), 0));
 	return -1;
     }
+
+    if (!conf->use_sslv2)
+	SSL_CTX_set_options (SSLContext, SSL_OP_NO_SSLv2);
+    if (!conf->use_sslv3)
+	SSL_CTX_set_options (SSLContext, SSL_OP_NO_SSLv3);
+    if (!conf->use_tlsv1)
+	SSL_CTX_set_options (SSLContext, SSL_OP_NO_TLSv1);
+
     /* we check the result of the verification after SSL_connect() */
     SSL_CTX_set_verify (SSLContext, SSL_VERIFY_NONE, 0);
     return 0;
@@ -169,22 +177,27 @@ buffer_gets (buffer_t * b, char **s)
 
     for (;;)
     {
-	if (b->offset + 2 > b->bytes)
+	/* make sure we have enough data to read the \r\n sequence */
+	if (b->offset + 1 >= b->bytes)
 	{
-	    /* shift down used bytes */
-	    *s = b->buf;
+	    if (start != 0)
+	    {
+		/* shift down used bytes */
+		*s = b->buf;
 
-	    assert (start <= b->bytes);
-	    n = b->bytes - start;
+		assert (start <= b->bytes);
+		n = b->bytes - start;
 
-	    if (n)
-		memmove (b->buf, b->buf + start, n);
-	    b->offset = n;
-	    start = 0;
+		if (n)
+		    memmove (b->buf, b->buf + start, n);
+		b->offset -= start;
+		b->bytes = n;
+		start = 0;
+	    }
 
 	    n =
-		socket_read (b->sock, b->buf + b->offset,
-			     sizeof (b->buf) - b->offset);
+		socket_read (b->sock, b->buf + b->bytes,
+			     sizeof (b->buf) - b->bytes);
 
 	    if (n <= 0)
 	    {
@@ -194,17 +207,18 @@ buffer_gets (buffer_t * b, char **s)
 		    puts ("EOF");
 		return -1;
 	    }
-	    b->bytes = b->offset + n;
 
-//          printf ("buffer_gets:read %d bytes\n", n);
+	    b->bytes += n;
 	}
 
 	if (b->buf[b->offset] == '\r')
 	{
+	    assert (b->offset + 1 < b->bytes);
 	    if (b->buf[b->offset + 1] == '\n')
 	    {
 		b->buf[b->offset] = 0;	/* terminate the string */
 		b->offset += 2;	/* next line */
+//              assert (strchr (*s, '\r') == 0);
 		return 0;
 	    }
 	}
@@ -241,6 +255,8 @@ parse_fetch (imap_t * imap, list_t * list)
 			/* already saw this message */
 			return 0;
 		    }
+		    else if (uid > imap->maxuid)
+			imap->maxuid = uid;
 		}
 		else
 		    puts ("Error, unable to parse UID");
@@ -287,6 +303,15 @@ parse_fetch (imap_t * imap, list_t * list)
 	    }
 	}
     }
+
+#if 0
+    if (uid == 221)
+    {
+	int loop = 1;
+
+	while (loop);
+    }
+#endif
 
     cur = calloc (1, sizeof (message_t));
     cur->next = imap->msgs;
@@ -522,12 +547,12 @@ imap_open (config_t * box, unsigned int minuid)
 #endif
 
     puts ("Logging in...");
-    ret = imap_exec (imap, "LOGIN %s %s", box->user, box->pass);
+    ret = imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user, box->pass);
 
     if (!ret)
     {
 	/* get NAMESPACE info */
-	if (!imap_exec (imap, "NAMESPACE"))
+	if (box->use_namespace && !imap_exec (imap, "NAMESPACE"))
 	{
 	    /* XXX for now assume personal namespace */
 	    if (is_list (imap->ns_personal) &&

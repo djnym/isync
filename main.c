@@ -95,10 +95,14 @@ config_defaults (config_t * conf)
     conf->box = global.box;
     conf->host = global.host;
     conf->max_size = global.max_size;
+    conf->use_namespace = global.use_namespace;
 #if HAVE_LIBSSL
     conf->require_ssl = global.require_ssl;
     conf->use_imaps = global.use_imaps;
     conf->cert_file = global.cert_file;
+    conf->use_sslv2 = global.use_sslv2;
+    conf->use_sslv3 = global.use_sslv3;
+    conf->use_tlsv1 = global.use_tlsv1;
 #endif
 }
 
@@ -138,9 +142,9 @@ load_config (char *where)
 	if (buf[0] == '#')
 	    continue;
 	p = buf;
-	while (*p && !isspace ((unsigned char)*p))
+	while (*p && !isspace ((unsigned char) *p))
 	    p++;
-	while (isspace ((unsigned char)*p))
+	while (isspace ((unsigned char) *p))
 	    p++;
 	if (!strncasecmp ("mailbox", buf, 7))
 	{
@@ -213,6 +217,13 @@ load_config (char *where)
 	    else
 		global.max_size = atol (p);
 	}
+	else if (!strncasecmp ("UseNamespace", buf, 12))
+	{
+	    if (*cur)
+		(*cur)->use_namespace = (strcasecmp (p, "yes") == 0);
+	    else
+		global.use_namespace = (strcasecmp (p, "yes") == 0);
+	}
 #if HAVE_LIBSSL
 	else if (!strncasecmp ("CertificateFile", buf, 15))
 	{
@@ -227,6 +238,27 @@ load_config (char *where)
 		(*cur)->require_ssl = (strcasecmp (p, "yes") == 0);
 	    else
 		global.require_ssl = (strcasecmp (p, "yes") == 0);
+	}
+	else if (!strncasecmp ("UseSSLv2", buf, 8))
+	{
+	    if (*cur)
+		(*cur)->use_sslv2 = (strcasecmp (p, "yes") == 0);
+	    else
+		global.use_sslv2 = (strcasecmp (p, "yes") == 0);
+	}
+	else if (!strncasecmp ("UseSSLv3", buf, 8))
+	{
+	    if (*cur)
+		(*cur)->use_sslv3 = (strcasecmp (p, "yes") == 0);
+	    else
+		global.use_sslv3 = (strcasecmp (p, "yes") == 0);
+	}
+	else if (!strncasecmp ("UseTLSv1", buf, 8))
+	{
+	    if (*cur)
+		(*cur)->use_tlsv1 = (strcasecmp (p, "yes") == 0);
+	    else
+		global.use_tlsv1 = (strcasecmp (p, "yes") == 0);
 	}
 #endif
 	else if (buf[0])
@@ -255,7 +287,7 @@ next_arg (char **s)
 	return 0;
     if (!*s)
 	return 0;
-    while (isspace ((unsigned char)**s))
+    while (isspace ((unsigned char) **s))
 	(*s)++;
     if (!**s)
     {
@@ -263,7 +295,7 @@ next_arg (char **s)
 	return 0;
     }
     ret = *s;
-    while (**s && !isspace ((unsigned char)**s))
+    while (**s && !isspace ((unsigned char) **s))
 	(*s)++;
     if (**s)
 	*(*s)++ = 0;
@@ -293,11 +325,15 @@ main (int argc, char **argv)
     global.box = "INBOX";
     global.user = strdup (pw->pw_name);
     global.max_size = 0;
+    global.use_namespace = 1;
 #if HAVE_LIBSSL
     /* this will probably annoy people, but its the best default just in
      * case people forget to turn it on
      */
     global.require_ssl = 1;
+    global.use_sslv2 = 1;
+    global.use_sslv3 = 1;
+    global.use_tlsv1 = 1;
 #endif
 
 #if HAVE_GETOPT_LONG

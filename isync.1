@@ -160,6 +160,16 @@ large attachments.  If
 .I bytes
 is 0, the maximum file size is
 .B unlimited.
+..
+.TP
+\fBUseNamespace\fR \fIyes|no\fR
+Selects whether
+.B isync
+should select mailboxes using the namespace given by the NAMESPACE command.
+This is useful with broken IMAP servers. (Default:
+.I yes
+)
+..
 .TP
 \fBRequireSSL\fR \fIyes|no\fR
 .B isync
@@ -171,6 +181,30 @@ server can not be established.  (Default:
 .TP
 \fBCertificateFile\fR \fIpath\fR
 File containing X.509 CA certificates used to verify server identities.
+..
+.TP
+\fBUseSSLv2\fR \fIyes|no\fR
+Should
+.B isync
+use SSLv2 for communication with the IMAP server over SSL?  (Default:
+.I yes
+)
+..
+.TP
+\fBUseSSLv3\fR \fIyes|no\fR
+Should
+.B isync
+use SSLv3 for communication with the IMAP server over SSL?  (Default:
+.I yes
+)
+..
+.TP
+\fBUseTLSv1\fR \fIyes|no\fR
+Should
+.B isync
+use TLSv1 for communication with the IMAP server over SSL?  (Default:
+.I yes
+)
 ..
 .P
 Configuration commands that appear prior to the first
