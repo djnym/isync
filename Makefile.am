@@ -8,7 +8,7 @@ log:
 	@echo "melkins:'Michael Elkins <me@sigpipe.org>'" >> .usermap
 	@echo "ossi:'Oswald Buddenhagen <ossi@users.sf.net>'" >> .usermap
 	cvs2cl -U .usermap --no-wrap --separate-header
-	@rm .usermap
+	@rm -f .usermap ChangeLog.bak
 
 rpm:
 	make dist
