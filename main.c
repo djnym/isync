@@ -285,7 +285,7 @@ main (int argc, char **argv)
 
 	if (!fast)
 	{
-	    if (expunge && (imap->deleted || mail->deleted))
+	    if ((expunge || box->expunge) && (imap->deleted || mail->deleted))
 	    {
 		/* remove messages marked for deletion */
 		if (!quiet)
