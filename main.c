@@ -66,7 +66,7 @@ static void
 usage (void)
 {
     printf ("%s %s IMAP4 to maildir synchronizer\n", PACKAGE, VERSION);
-    puts ("Copyright (C) 2000 Michael R. Elkins <me@mutt.org>");
+    puts ("Copyright (C) 2000-1 Michael R. Elkins <me@mutt.org>");
     printf ("usage: %s [ flags ] mailbox [mailbox ...]\n", PACKAGE);
     puts ("  -a, --all	Synchronize all defined mailboxes");
     puts ("  -c, --config CONFIG	read an alternate config file (default: ~/.isyncrc)");
@@ -80,6 +80,12 @@ usage (void)
     puts ("  -u, --user USER	IMAP user name");
     puts ("  -v, --version		display version");
     puts ("  -V, --verbose		verbose mode (display network traffic)");
+    puts ("Compile time options:");
+#if HAVE_LIBSSL
+    puts ("  +HAVE_LIBSSL");
+#else
+    puts ("  -HAVE_LIBSSL");
+#endif
     exit (0);
 }
 
