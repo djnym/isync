@@ -110,6 +110,15 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    {
 		struct stat sb;
 
+		if ((cur->flags & D_DELETED) && (flags & SYNC_EXPUNGE))
+		{
+		  /*
+		   * This message is marked as deleted and we are
+		   * expunging.  Don't upload to the server.
+		   */
+		  continue;
+		}
+
 		if ((flags & SYNC_QUIET) == 0)
 		{
 		    if (!upload)
@@ -152,6 +161,10 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 		close (fd);
 	    }
+	    /*
+	     * message used to exist on server but no longer does (we know
+	     * this beacause it has a UID associated with it).
+	     */
 	    else if (flags & SYNC_DELETE)
 	    {
 		cur->flags |= D_DELETED;
