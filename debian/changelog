@@ -1,3 +1,9 @@
+isync (0.8-2) unstable; urgency=low
+
+  * 0.9
+
+ -- Michael Elkins <me@cs.hmc.edu>  Fri, 19 Apr 2002 14:32:25 -0700
+
 isync (0.8-1) unstable; urgency=low
 
   * Initial Release.

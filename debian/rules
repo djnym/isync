@@ -44,7 +44,7 @@ install: build
 	dh_installdirs
 
 	# Add here commands to install the package into debian/isync.
-	$(MAKE) install prefix=$(CURDIR)/debian/isync
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/isync
 
 
 # Build architecture-independent files here.
