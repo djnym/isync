@@ -1,0 +1,27 @@
+2000-12-20  Michael Elkins  <me@sigipe.org>
+
+	* configure: forgot to remove configure script
+
+	* INSTALL, Makefile.in, aclocal.m4, autogen.sh, install-sh, missing, mkinstalldirs:
+	added autogen.sh to regenerate the build environment
+
+	* COPYING, INSTALL, install-sh, missing, mkinstalldirs:
+	added missing files
+
+	* isync.1, sample.isyncrc: New file.
+
+	* isync.1, sample.isyncrc:
+	initial import
+
+	* TODO, configure, imap.c, maildir.c, sync.c:
+	New file.
+
+	* TODO, configure, imap.c, maildir.c, sync.c:
+	initial import
+
+	* AUTHORS, ChangeLog, INSTALL, Makefile.am, Makefile.in, NEWS, README, aclocal.m4, configure.in, isync.h, main.c:
+	New file.
+
+	* AUTHORS, ChangeLog, INSTALL, Makefile.am, Makefile.in, NEWS, README, aclocal.m4, configure.in, isync.h, main.c:
+	initial import
+
