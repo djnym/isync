@@ -148,6 +148,7 @@ const char *maildir, *xmaildir, *folder, *inbox;
 int o2o, altmap, delete, expunge;
 
 const char *Home;
+int HomeLen;
 
 int
 main( int argc, char **argv )
@@ -162,6 +163,7 @@ main( int argc, char **argv )
 		fputs( "Fatal: $HOME not set\n", stderr );
 		return 1;
 	}
+	HomeLen = strlen( Home );
 
 	/* defaults */
 	/* XXX the precedence is borked:

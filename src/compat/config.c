@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+static int local_home, local_root;
+
 static char *
 my_strndup( const char *s, size_t nchars )
 {
@@ -119,13 +121,16 @@ load_config( const char *path, config_t ***stor )
 			cfg = **stor = nfmalloc( sizeof(config_t) );
 			*stor = &cfg->next;
 			memcpy( cfg, &global, sizeof(config_t) );
-			if (val[0] == '~' && val[1] == '/')
+			if (val[0] == '~' && val[1] == '/') {
 				val += 2;
-			else {
-				int l = strlen( Home );
-				if (!memcmp( val, Home, l ) && val[l] == '/')
-					val += l + 1;
-			}
+				local_home = 1;
+			} else if (!memcmp( val, Home, HomeLen ) && val[HomeLen] == '/') {
+				val += HomeLen + 1;
+				local_home = 1;
+			} else if (val[0] == '/')
+				local_root = 1;
+			else
+				local_home = 1;
 			/* not expanded at this point */
 			cfg->path = nfstrdup( val );
 		} else if (!strcasecmp( "OneToOne", cmd )) {
@@ -343,7 +348,11 @@ write_config( int fd )
 		return;
 	}
 
-	fprintf( fp, "SyncState *\n\nMaildirStore local\nPath \"%s/\"\nAltMap %s\n\n", maildir, tb( altmap > 0 ) );
+	fprintf( fp, "SyncState *\n\n" );
+	if (local_home || o2o)
+		fprintf( fp, "MaildirStore local\nPath \"%s/\"\nAltMap %s\n\n", maildir, tb( altmap > 0 ) );
+	if (local_root)
+		fprintf( fp, "MaildirStore local_root\nPath /\nAltMap %s\n\n", tb( altmap > 0 ) );
 	if (o2o) {
 		write_imap_server( fp, &global );
 		write_imap_store( fp, &global );
@@ -417,8 +426,12 @@ write_config( int fd )
 			box->channels = 1;
 			box->channel_name = cn;
 		  gotchan:
-			fprintf( fp, "Channel %s\nMaster :%s:%s\nSlave :local:%s\n",
-			         box->channel_name, box->store_name, box->box, box->path );
+			if (box->path[0] == '/')
+				fprintf( fp, "Channel %s\nMaster :%s:%s\nSlave :local_root:%s\n",
+				         box->channel_name, box->store_name, box->box, box->path + 1 );
+			else
+				fprintf( fp, "Channel %s\nMaster :%s:%s\nSlave :local:%s\n",
+				         box->channel_name, box->store_name, box->box, box->path );
 			write_channel_parm( fp, box );
 		}
 				
@@ -433,6 +446,8 @@ find_box( const char *s )
 	config_t *p;
 	char *t;
 
+	if (!memcmp( s, Home, HomeLen ) && s[HomeLen] == '/')
+		s += HomeLen + 1;
 	for (p = boxes; p; p = p->next) {
 		if (!strcmp( s, p->path ) || (p->alias && !strcmp( s, p->alias )))
 			return p;

@@ -74,6 +74,7 @@ typedef struct config {
 extern int Quiet, Verbose, Debug;
 
 extern const char *Home;
+extern int HomeLen;
 
 extern config_t global, *boxes;
 
