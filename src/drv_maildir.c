@@ -981,7 +981,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 		return DRV_BOX_BAD;
 	}
 	close( fd );
-	nfsnprintf( nbuf, sizeof(nbuf), "%s%s/new/%s%s", prefix, box, base, fbuf );
+	nfsnprintf( nbuf, sizeof(nbuf), "%s%s/%s/%s%s", prefix, box, subdirs[!(data->flags & F_SEEN)], base, fbuf );
 	if (rename( buf, nbuf )) {
 		perror( nbuf );
 		return DRV_BOX_BAD;
@@ -1074,8 +1074,8 @@ maildir_trash_msg( store_t *gctx, message_t *gmsg )
 	for (;;) {
 		nfsnprintf( buf, sizeof(buf), "%s/%s/%s", gctx->path, subdirs[gmsg->status & M_RECENT], msg->base );
 		s = strstr( msg->base, ":2," );
-		nfsnprintf( nbuf, sizeof(nbuf), "%s%s/new/%ld.%d_%d.%s%s", gctx->conf->path, gctx->conf->trash,
-		            time( 0 ), Pid, ++MaildirCount, Hostname, s ? s : "" );
+		nfsnprintf( nbuf, sizeof(nbuf), "%s%s/%s/%ld.%d_%d.%s%s", gctx->conf->path, gctx->conf->trash,
+		            subdirs[gmsg->status & M_RECENT], time( 0 ), Pid, ++MaildirCount, Hostname, s ? s : "" );
 		if (!rename( buf, nbuf ))
 			break;
 		if (!stat( buf, &st )) {
