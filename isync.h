@@ -18,14 +18,18 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#if HAVE_LIBDB
 #define DB_DBM_HSEARCH 1
+#include <db.h>
+#else
+#include <ndbm.h>
+#endif
 
 #include <sys/types.h>
 #include <stdarg.h>
 #if HAVE_LIBSSL
 #include <openssl/ssl.h>
 #endif
-#include <db.h>
 #include "debug.h"
 
 typedef struct
