@@ -86,27 +86,6 @@ usage (void)
     exit (0);
 }
 
-static char *
-enter_password (void)
-{
-    struct termios t;
-    char pass[32];
-
-    tcgetattr (0, &t);
-    t.c_lflag &= ~ECHO;
-    tcsetattr (0, TCSANOW, &t);
-    printf ("Password: ");
-    fflush (stdout);
-    pass[sizeof (pass) - 1] = 0;
-    fgets (pass, sizeof (pass) - 1, stdin);
-    if (pass[0])
-	pass[strlen (pass) - 1] = 0;	/* kill newline */
-    t.c_lflag |= ECHO;
-    tcsetattr (0, TCSANOW, &t);
-    puts ("");
-    return strdup (pass);
-}
-
 /* set defaults from the global configuration section */
 static void
 config_defaults (config_t * conf)
@@ -383,12 +362,14 @@ main (int argc, char **argv)
 
     if (!box->pass)
     {
-	box->pass = enter_password ();
-	if (!box->pass)
+	char *pass = getpass ("Password:");
+
+	if (pass)
 	{
 	    puts ("Aborting, no password");
 	    exit (1);
 	}
+	box->pass = strdup (pass);
     }
 
     printf ("Reading %s\n", box->path);

@@ -47,6 +47,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
     char newpath[_POSIX_PATH_MAX];
     char *p;
     int fd;
+    int ret;
 
     for (cur = mbox->msgs; cur; cur = cur->next)
     {
@@ -132,19 +133,24 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags)
 		continue;
 	    }
 
-	    imap_fetch_message (imap, cur->uid, fd);
+	    ret = imap_fetch_message (imap, cur->uid, fd);
 
 	    close (fd);
 
-	    p = strrchr (path, '/');
+	    if (!ret)
+	    {
+		p = strrchr (path, '/');
 
-	    snprintf (newpath, sizeof (newpath), "%s/%s%s", mbox->path,
-		      (cur->flags & D_SEEN) ? "cur" : "new", p);
+		snprintf (newpath, sizeof (newpath), "%s/%s%s", mbox->path,
+			(cur->flags & D_SEEN) ? "cur" : "new", p);
 
-//          printf ("moving %s to %s\n", path, newpath);
+		//          printf ("moving %s to %s\n", path, newpath);
 
-	    if (rename (path, newpath))
-		perror ("rename");
+		if (rename (path, newpath))
+		    perror ("rename");
+	    }
+	    else
+		unlink(path);
 	}
     }
     puts ("");
