@@ -19,7 +19,8 @@ synced as well.
 handle custom imap flags. currently, isync just fails horribly if it
 encounters some.
 
-add option to suppress upload of messages (but not deletion).
+add options for fine-grained control of syncing operations (--new, --delete &
+--flags) and direction (--push & --pull).
 
 add support for syncing with other: and shared: via NAMESPACE
 
@@ -27,6 +28,8 @@ isync ignores asynchronous notifications (untagged responses), so mail
 arriving during a fetch will not be fetched in the current run any more.
 
 add a way to automatically create and sync IMAP subfolders.
+
+make the command line take precedence over the config file.
 
 possibly timestamp mails with remote arrival date.
 
