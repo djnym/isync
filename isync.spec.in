@@ -1,10 +1,10 @@
 Summary: Utility to synchronize IMAP mailboxes with local maildir folders
 Name: isync
-Version: 0.9
+Version: @VERSION@
 Release: 1
 Copyright: GPL
 Group: Applications/Internet
-Source: http://prdownloads.sf.net/@PACKAGE@/@PACKAGE@-@VERSION@.tar.gz?download
+Source: @PACKAGE@-@VERSION@.tar.gz
 URL: http://@PACKAGE@.sf.net/
 Packager: Oswald Buddenhagen <ossi@users.sf.net>
 BuildRoot: /var/tmp/%{name}-buildroot
@@ -28,6 +28,6 @@ make DESTDIR=$RPM_BUILD_ROOT install
 rm -rf $RPM_BUILD_ROOT
 
 %files
-%doc COPYING README TODO ChangeLog
+%doc AUTHORS COPYING README TODO ChangeLog isyncrc.sample
 /usr/bin/isync
 /usr/man/man1/isync.1.gz
