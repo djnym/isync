@@ -1,39 +1,51 @@
-change of UIDVALIDITY shouldn't be considered fatal for the imap connection.
-maybe the error handling needs to be cleaned up in general.
+make SSL certificate validation more automatic.
 
-don't require maildir_trash. currently MaxMessages gets into the way of
-simply removing it; that is fixable with some shuffling, though.
+add asynchronous operation to remote mailbox drivers. this is actually
+what prevents us from simply using c-client and thus becoming mailsync.
 
-refactor mailbox support. create proper mailbox drivers; handle imap and
-maildir (and anything else) symmetrically; decouple UID->message mapping
-from sync database - should use the same UID storing schemes as c-client
-(pine, uw-imap) does, at least optionally, i think.
+handle custom flags (keywords).
 
-add asynchrounous operation to remote mailbox drivers. this is actually
-what prevents us from simply using c-client for the previous point and
-thus simply becoming mailsync.
+fix maildir_{open_store,list} to handle partial names (last char not slash).
 
-store message flags in sync database, so _un_setting them will be properly
-synced as well.
+add a way to automatically create and sync subfolders.
 
-handle custom imap flags. currently, isync just fails horribly if it
-encounters some.
+could store TUID even when UIDPLUS is supported. would avoid duplicated
+messages after abort before new UID arrives.
 
-add options for fine-grained control of syncing operations (--new, --delete &
---flags) and direction (--push & --pull).
+decouple TUID search from append. that's a prerequisite for usable
+MULTIAPPEND, and is generally good for async. should be way faster, too,
+as it saves repeated mailbox rescans with single-file formats.
 
-add support for syncing with other: and shared: via NAMESPACE
+use MULTIAPPEND and FETCH with multiple messages.
 
-isync ignores asynchronous notifications (untagged responses), so mail 
-arriving during a fetch will not be fetched in the current run any more.
+create dummies describing MIME structure of messages bigger than MaxSize.
+flagging the dummy would fetch the real message. possibly remove --renew.
 
-add a way to automatically create and sync IMAP subfolders.
+don't SELECT boxes unless really needed; in particular not for appending,
+and in write-only mode not before changes are made.
 
-make the command line take precedence over the config file.
+possibly request message attributes on a per-message basis from the drivers.
+considerations:
+- record non-existing UID ranges in the sync database, so IMAP FETCHes needn't
+  to exclude anyway non-existing messages explicitly.
+- when detect unborn pairs and orphaned messages being gone? implied by expunge:
+  with trashing, by local driver, or of messages we deleted in this run. the
+  remaining cases could be handled by automatic periodical cleanup passes, an 
+  explicit --cleanup action, or be implied by one of the other actions.
+- the benefit of this is questionable, as fine-grained requests will result
+  in sending huge amounts of data, and upstream is often way slower than
+  downstream.
 
-possibly timestamp mails with remote arrival date.
+maildir: possibly timestamp mails with remote arrival date.
 
-possibly recover from UIDVALIDITY change by resyncing according to message
-IDs - this is a pretty common condition with uw-imap.
+maybe throw out the ctx->recent stuff - it's used only for one info message.
 
 possibly use ^[[1m to highlight error messages.
+
+consider alternative trash implementation: trash only messages we delete,
+and trash before marking them deleted in the mailbox. downside: all other
+programs have to do the same. and what if the deleted flag is unset?
+
+items out of scope of purely UID based approach:
+- detect message moves between folders
+- recovering from UIDVALIDITY change (uw-imap does this a lot)

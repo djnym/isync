@@ -1,8 +1,7 @@
-/* $Id$
- *
- * isync - IMAP4 to maildir mailbox synchronizer
+/*
+ * mbsync - mailbox synchronizer
  * Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
- * Copyright (C) 2002-2003 Oswald Buddenhagen <ossi@users.sf.net>
+ * Copyright (C) 2002-2004 Oswald Buddenhagen <ossi@users.sf.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,7 +17,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  * 
- * As a special exception, isync may be linked with the OpenSSL library,
+ * As a special exception, mbsync may be linked with the OpenSSL library,
  * despite that library's more restrictive license.
  */
 
@@ -33,254 +32,411 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-config_t *boxes = 0;
+store_conf_t *stores;
+channel_conf_t *channels;
+group_conf_t *groups;
+int global_mops, global_sops;
+char *global_sync_state;
 
-/* set defaults from the global configuration section */
-static void
-config_defaults (config_t * conf)
+int
+parse_bool( conffile_t *cfile )
 {
-    memcpy (conf, &global, sizeof (config_t));
+	if (!strcasecmp( cfile->val, "yes" ) ||
+	    !strcasecmp( cfile->val, "true" ) ||
+	    !strcasecmp( cfile->val, "on" ) ||
+	    !strcmp( cfile->val, "1" ))
+		return 1;
+	if (strcasecmp( cfile->val, "no" ) &&
+	    strcasecmp( cfile->val, "false" ) &&
+	    strcasecmp( cfile->val, "off" ) &&
+	    strcmp( cfile->val, "0" ))
+		fprintf( stderr, "%s:%d: invalid boolean value '%s'\n",
+		         cfile->file, cfile->line, cfile->val );
+	return 0;
 }
 
-static char *
-my_strndup (const char *s, size_t nchars)
+int
+parse_int( conffile_t *cfile )
 {
-    char *r = malloc (sizeof (char) * (nchars + 1));
-    if (r)
-    {
-	memcpy (r, s, nchars);
-	r[nchars] = 0;
-    }
-    return r;
-}
-
-char *
-expand_strdup (const char *s)
-{
-    char path[_POSIX_PATH_MAX];
-    struct passwd *pw;
-    const char *p;
-
-    if (*s == '~')
-    {
-	s++;
-	if (*s == '/')
-	{
-	    /* current user */
-	    pw = getpwuid (getuid ());
-	    p = s + 1;
+	char *p;
+	int ret;
+    
+	ret = strtol( cfile->val, &p, 10 );
+	if (*p) {
+		fprintf( stderr, "%s:%d: invalid integer value '%s'\n",
+		         cfile->file, cfile->line, cfile->val );
+		return 0;
 	}
-	else
-	{
-	    char *user;
+	return ret;
+}
 
-	    p = strchr (s, '/');
-	    if (p)
-	    {
-		user = my_strndup (s, (int)(p - s));
+int
+parse_size( conffile_t *cfile )
+{
+	char *p;
+	int ret;
+
+	ret = strtol (cfile->val, &p, 10);
+	if (*p == 'k' || *p == 'K')
+		ret *= 1024, p++;
+	else if (*p == 'm' || *p == 'M')
+		ret *= 1024 * 1024, p++;
+	if (*p == 'b' || *p == 'B')
 		p++;
-	    }
-	    else
-		user = strdup (s);
-	    pw = getpwnam (user);
-	    free (user);
+	if (*p) {
+		fprintf (stderr, "%s:%d: invalid size '%s'\n",
+		         cfile->file, cfile->line, cfile->val);
+		return 0;
 	}
-	if (!pw)
-	    return 0;
-	snprintf (path, sizeof (path), "%s/%s", pw->pw_dir, p ? p : "");
-	s = path;
-    }
-    else if (*s != '/')
-    {
-	snprintf (path, sizeof (path), "%s/%s",
-		  global.maildir ? global.maildir : "", s);
-	s = path;
-    }
-    return strdup (s);
+	return ret;
 }
 
-static int
-is_true (const char *val)
+static int 
+getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_state )
 {
-    return
-	!strcasecmp (val, "yes") ||
-	!strcasecmp (val, "true") ||
-	!strcasecmp (val, "on") ||
-	!strcmp (val, "1");
+	char *arg;
+
+	if (!strcasecmp( "Sync", cfile->cmd )) {
+		arg = cfile->val;
+		do
+			if (!strcasecmp( "Push", arg ))
+				*cops |= XOP_PUSH;
+			else if (!strcasecmp( "Pull", arg ))
+				*cops |= XOP_PULL;
+			else if (!strcasecmp( "ReNew", arg ))
+				*cops |= OP_RENEW;
+			else if (!strcasecmp( "New", arg ))
+				*cops |= OP_NEW;
+			else if (!strcasecmp( "Delete", arg ))
+				*cops |= OP_DELETE;
+			else if (!strcasecmp( "Flags", arg ))
+				*cops |= OP_FLAGS;
+			else if (!strcasecmp( "PullReNew", arg ))
+				*sops |= OP_RENEW;
+			else if (!strcasecmp( "PullNew", arg ))
+				*sops |= OP_NEW;
+			else if (!strcasecmp( "PullDelete", arg ))
+				*sops |= OP_DELETE;
+			else if (!strcasecmp( "PullFlags", arg ))
+				*sops |= OP_FLAGS;
+			else if (!strcasecmp( "PushReNew", arg ))
+				*mops |= OP_RENEW;
+			else if (!strcasecmp( "PushNew", arg ))
+				*mops |= OP_NEW;
+			else if (!strcasecmp( "PushDelete", arg ))
+				*mops |= OP_DELETE;
+			else if (!strcasecmp( "PushFlags", arg ))
+				*mops |= OP_FLAGS;
+			else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg ))
+				*cops |= XOP_PULL|XOP_PUSH;
+			else if (strcasecmp( "None", arg ) && strcasecmp( "Noop", arg ))
+				fprintf( stderr, "%s:%d: invalid Sync arg '%s'\n",
+				         cfile->file, cfile->line, arg );			
+		while ((arg = next_arg( &cfile->rest )));
+		*mops |= XOP_HAVE_TYPE;
+	} else if (!strcasecmp( "Expunge", cfile->cmd )) {
+		arg = cfile->val;
+		do
+			if (!strcasecmp( "Both", arg ))
+				*cops |= OP_EXPUNGE;
+			else if (!strcasecmp( "Master", arg ))
+				*mops |= OP_EXPUNGE;
+			else if (!strcasecmp( "Slave", arg ))
+				*sops |= OP_EXPUNGE;
+			else if (strcasecmp( "None", arg ))
+				fprintf( stderr, "%s:%d: invalid Expunge arg '%s'\n",
+				         cfile->file, cfile->line, arg );			
+		while ((arg = next_arg( &cfile->rest )));
+		*mops |= XOP_HAVE_EXPUNGE;
+	} else if (!strcasecmp( "Create", cfile->cmd )) {
+		arg = cfile->val;
+		do
+			if (!strcasecmp( "Both", arg ))
+				*cops |= OP_CREATE;
+			else if (!strcasecmp( "Master", arg ))
+				*mops |= OP_CREATE;
+			else if (!strcasecmp( "Slave", arg ))
+				*sops |= OP_CREATE;
+			else if (strcasecmp( "None", arg ))
+				fprintf( stderr, "%s:%d: invalid Create arg '%s'\n",
+				         cfile->file, cfile->line, arg );			
+		while ((arg = next_arg( &cfile->rest )));
+		*mops |= XOP_HAVE_CREATE;
+	} else if (!strcasecmp( "SyncState", cfile->cmd ))
+		*sync_state = expand_strdup( cfile->val );
+	else
+		return 0;
+	return 1;
+}
+
+int
+getcline( conffile_t *cfile )
+{
+	char *p;
+
+	while (fgets( cfile->buf, cfile->bufl, cfile->fp )) {
+		cfile->line++;
+		p = cfile->buf;
+		if (!(cfile->cmd = next_arg( &p )))
+			return 1;
+		if (*cfile->cmd == '#')
+			continue;
+		if (!(cfile->val = next_arg( &p ))) {
+			fprintf( stderr, "%s:%d: parameter missing\n",
+			         cfile->file, cfile->line );
+			continue;
+		}
+		cfile->rest = p;
+		return 1;
+	}
+	return 0;
+}
+
+/* XXX - this does not detect None conflicts ... */
+int
+merge_ops( int cops, int *mops, int *sops )
+{
+	int aops;
+
+	aops = *mops | *sops;
+	if (*mops & XOP_HAVE_TYPE) {
+		if (aops & OP_MASK_TYPE) {
+			if (aops & cops & OP_MASK_TYPE) {
+			  cfl:
+				fprintf( stderr, "Conflicting Sync args specified.\n" );
+				return 1;
+			}
+			*mops |= cops & OP_MASK_TYPE;
+			*sops |= cops & OP_MASK_TYPE;
+			if (cops & XOP_PULL) {
+				if (*sops & OP_MASK_TYPE)
+					goto cfl;
+				*sops |= OP_MASK_TYPE;
+			}
+			if (cops & XOP_PUSH) {
+				if (*mops & OP_MASK_TYPE)
+					goto cfl;
+				*mops |= OP_MASK_TYPE;
+			}
+		} else if (cops & (OP_MASK_TYPE|XOP_MASK_DIR)) {
+			if (!(cops & OP_MASK_TYPE))
+				cops |= OP_MASK_TYPE;
+			else if (!(cops & XOP_MASK_DIR))
+				cops |= XOP_PULL|XOP_PUSH;
+			if (cops & XOP_PULL)
+				*sops |= cops & OP_MASK_TYPE;
+			if (cops & XOP_PUSH)
+				*mops |= cops & OP_MASK_TYPE;
+		}
+	}
+	if (*mops & XOP_HAVE_EXPUNGE) {
+		if (aops & cops & OP_EXPUNGE) {
+			fprintf( stderr, "Conflicting Expunge args specified.\n" );
+			return 1;
+		}
+		*mops |= cops & OP_EXPUNGE;
+		*sops |= cops & OP_EXPUNGE;
+	}
+	if (*mops & XOP_HAVE_CREATE) {
+		if (aops & cops & OP_CREATE) {
+			fprintf( stderr, "Conflicting Create args specified.\n" );
+			return 1;
+		}
+		*mops |= cops & OP_CREATE;
+		*sops |= cops & OP_CREATE;
+	}
+	return 0;
+}
+
+int
+load_config( const char *where, int pseudo )
+{
+	conffile_t cfile;
+	store_conf_t *store, **storeapp = &stores, **sptarg;
+	channel_conf_t *channel, **channelapp = &channels;
+	group_conf_t *group, **groupapp = &groups;
+	string_list_t *chanlist, **chanlistapp;
+	char *arg, *p, **ntarg;
+	int err, len, cops, gcops, max_size;
+	char path[_POSIX_PATH_MAX];
+	char buf[1024];
+
+	if (!where) {
+		nfsnprintf( path, sizeof(path), "%s/." EXE "rc", Home );
+		cfile.file = path;
+	} else
+		cfile.file = where;
+
+	if (!pseudo)
+		info( "Reading configuration file %s\n", cfile.file );
+
+	if (!(cfile.fp = fopen( cfile.file, "r" ))) {
+		perror( "Cannot open config file" );
+		return 1;
+	}
+	buf[sizeof(buf) - 1] = 0;
+	cfile.buf = buf;
+	cfile.bufl = sizeof(buf) - 1;
+	cfile.line = 0;
+
+	gcops = err = 0;
+  reloop:
+	while (getcline( &cfile )) {
+		if (!cfile.cmd)
+			continue;
+		if (imap_driver.parse_store( &cfile, &store, &err ) ||
+		    maildir_driver.parse_store( &cfile, &store, &err ))
+		{
+			if (store) {
+				if (!store->path)
+					store->path = "";
+				*storeapp = store;
+				storeapp = &store->next;
+				*storeapp = 0;
+			}
+		}
+		else if (!strcasecmp( "Channel", cfile.cmd ))
+		{
+			channel = nfcalloc( sizeof(*channel) );
+			channel->name = nfstrdup( cfile.val );
+			cops = 0;
+			max_size = -1;
+			while (getcline( &cfile ) && cfile.cmd) {
+				if (!strcasecmp( "MaxSize", cfile.cmd ))
+					max_size = parse_size( &cfile );
+				else if (!strcasecmp( "MaxMessages", cfile.cmd ))
+					channel->max_messages = parse_int( &cfile );
+				else if (!strcasecmp( "Pattern", cfile.cmd ) ||
+				         !strcasecmp( "Patterns", cfile.cmd ))
+				{
+					arg = cfile.val;
+					do
+						add_string_list( &channel->patterns, arg );
+					while ((arg = next_arg( &cfile.rest )));
+				}
+				else if (!strcasecmp( "Master", cfile.cmd )) {
+					sptarg = &channel->master;
+					ntarg = &channel->master_name;
+					goto linkst;
+				} else if (!strcasecmp( "Slave", cfile.cmd )) {
+					sptarg = &channel->slave;
+					ntarg = &channel->slave_name;
+				  linkst:
+					if (*cfile.val != ':' || !(p = strchr( cfile.val + 1, ':' ))) {
+						fprintf( stderr, "%s:%d: malformed mailbox spec\n",
+						         cfile.file, cfile.line );
+						err = 1;
+						continue;
+					}
+					*p = 0;
+					for (store = stores; store; store = store->next)
+						if (!strcmp( store->name, cfile.val + 1 )) {
+							memset( sptarg, 0, sizeof(*sptarg) );
+							*sptarg = store;
+							goto stpcom;
+						}
+					fprintf( stderr, "%s:%d: unknown store '%s'\n",
+					         cfile.file, cfile.line, cfile.val + 1 );
+					err = 1;
+					continue;
+				  stpcom:
+					if (*++p)
+						*ntarg = nfstrdup( p );
+				} else if (!getopt_helper( &cfile, &cops, &channel->mops, &channel->sops, &channel->sync_state )) {
+					fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
+					         cfile.file, cfile.line, cfile.cmd );
+					err = 1;
+				}
+			}
+			if (!channel->master) {
+				fprintf( stderr, "channel '%s' refers to no master store\n", channel->name );
+				err = 1;
+			} else if (!channel->slave) {
+				fprintf( stderr, "channel '%s' refers to no slave store\n", channel->name );
+				err = 1;
+			} else if (merge_ops( cops, &channel->mops, &channel->sops ))
+				err = 1;
+			else {
+				if (max_size >= 0)
+					channel->master->max_size = channel->slave->max_size = max_size;
+				*channelapp = channel;
+				channelapp = &channel->next;
+			}
+		}
+		else if (!strcasecmp( "Group", cfile.cmd ))
+		{
+			group = nfmalloc( sizeof(*group) );
+			group->name = nfstrdup( cfile.val );
+			*groupapp = group;
+			groupapp = &group->next;
+			*groupapp = 0;
+			chanlistapp = &group->channels;
+			*chanlistapp = 0;
+			p = cfile.rest;
+			while ((arg = next_arg( &p ))) {
+			  addone:
+				len = strlen( arg );
+				chanlist = nfmalloc( sizeof(*chanlist) + len );
+				memcpy( chanlist->string, arg, len + 1 );
+				*chanlistapp = chanlist;
+				chanlistapp = &chanlist->next;
+				*chanlistapp = 0;
+			}
+			while (getcline( &cfile )) {
+				if (!cfile.cmd)
+					goto reloop;
+				if (!strcasecmp( "Channel", cfile.cmd ) ||
+				    !strcasecmp( "Channels", cfile.cmd ))
+				{
+					p = cfile.rest;
+					arg = cfile.val;
+					goto addone;
+				}
+				else
+				{
+					fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
+					         cfile.file, cfile.line, cfile.cmd );
+					err = 1;
+				}
+			}
+			break;
+		}
+		else if (!getopt_helper( &cfile, &gcops, &global_mops, &global_sops, &global_sync_state ))
+		{
+			fprintf( stderr, "%s:%d: unknown section keyword '%s'\n",
+			         cfile.file, cfile.line, cfile.cmd );
+			err = 1;
+			while (getcline( &cfile ))
+				if (!cfile.cmd)
+					goto reloop;
+			break;
+		}
+	}
+	fclose (cfile.fp);
+	err |= merge_ops( gcops, &global_mops, &global_sops );
+	if (!global_sync_state)
+		global_sync_state = expand_strdup( "~/." EXE "/" );
+	if (!err && pseudo)
+		unlink( where );
+	return err;
 }
 
 void
-load_config (const char *where, int *o2o)
+parse_generic_store( store_conf_t *store, conffile_t *cfg, int *err )
 {
-    char path[_POSIX_PATH_MAX];
-    char buf[1024];
-    struct passwd *pw;
-    config_t **stor = &boxes, *cfg;
-    int line = 0;
-    FILE *fp;
-    char *p, *cmd, *val;
-
-    if (!where)
-    {
-	pw = getpwuid (getuid ());
-	snprintf (path, sizeof (path), "%s/.isyncrc", pw->pw_dir);
-	where = path;
-    }
-
-    info ("Reading configuration file %s\n", where);
-
-    fp = fopen (where, "r");
-    if (!fp)
-    {
-	if (errno != ENOENT)
-	    perror ("fopen");
-	return;
-    }
-    buf[sizeof buf - 1] = 0;
-    cfg = &global;
-    while ((fgets (buf, sizeof (buf) - 1, fp)))
-    {
-	p = buf;
-	cmd = next_arg (&p);
-	val = next_arg (&p);
-	line++;
-	if (!cmd || *cmd == '#')
-	    continue;
-	if (!val) {
-	    fprintf (stderr, "%s:%d: parameter missing\n", path, line);
-	    continue;
+	if (!strcasecmp( "Trash", cfg->cmd ))
+		store->trash = nfstrdup( cfg->val );
+	else if (!strcasecmp( "TrashRemoteNew", cfg->cmd ))
+		store->trash_remote_new = parse_bool( cfg );
+	else if (!strcasecmp( "TrashNewOnly", cfg->cmd ))
+		store->trash_only_new = parse_bool( cfg );
+	else if (!strcasecmp( "MaxSize", cfg->cmd ))
+		store->max_size = parse_size( cfg );
+	else if (!strcasecmp( "MapInbox", cfg->cmd ))
+		store->map_inbox = nfstrdup( cfg->val );
+	else {
+		fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
+		         cfg->file, cfg->line, cfg->cmd );
+		*err = 1;
 	}
-	if (!strcasecmp ("mailbox", cmd))
-	{
-	    if (*o2o)
-		break;
-	    cfg = *stor = malloc (sizeof (config_t));
-	    stor = &cfg->next;
-	    config_defaults (cfg);
-	    /* not expanded at this point */
-	    cfg->path = strdup (val);
-	}
-	else if (!strcasecmp ("OneToOne", cmd))
-	{
-	    if (boxes) {
-	      forbid:
-		fprintf (stderr,
-			 "%s:%d: keyword '%s' allowed only in global section\n",
-			 path, line, cmd);
-		continue;
-	    }
-	    *o2o = is_true (val);
-	}
-	else if (!strcasecmp ("maildir", cmd))
-	{
-	    if (boxes)
-		goto forbid;
-	    /* this only affects the global setting */
-	    global.maildir = expand_strdup (val);
-	}
-	else if (!strcasecmp ("folder", cmd))
-	{
-	    if (boxes)
-		goto forbid;
-	    /* this only affects the global setting */
-	    global.folder = strdup (val);
-	}
-	else if (!strcasecmp ("inbox", cmd))
-	{
-	    if (boxes)
-		goto forbid;
-	    /* this only affects the global setting */
-	    global.inbox = strdup (val);
-	}
-	else if (!strcasecmp ("host", cmd))
-	{
-#if HAVE_LIBSSL
-	    if (!strncasecmp ("imaps:", val, 6))
-	    {
-		val += 6;
-		cfg->use_imaps = 1;
-		cfg->port = 993;
-		cfg->use_sslv2 = 1;
-		cfg->use_sslv3 = 1;
-	    }
-#endif
-	    cfg->host = strdup (val);
-	}
-	else if (!strcasecmp ("user", cmd))
-	    cfg->user = strdup (val);
-	else if (!strcasecmp ("pass", cmd))
-	    cfg->pass = strdup (val);
-	else if (!strcasecmp ("port", cmd))
-	    cfg->port = atoi (val);
-	else if (!strcasecmp ("box", cmd))
-	    cfg->box = strdup (val);
-	else if (!strcasecmp ("alias", cmd))
-	{
-	    if (!boxes) {
-		fprintf (stderr,
-			 "%s:%d: keyword 'alias' allowed only in mailbox specification\n",
-			 path, line);
-		continue;
-	    }
-	    cfg->alias = strdup (val);
-	}
-	else if (!strcasecmp ("maxsize", cmd))
-	    cfg->max_size = atol (val);
-	else if (!strcasecmp ("MaxMessages", cmd))
-	    cfg->max_messages = atol (val);
-	else if (!strcasecmp ("UseNamespace", cmd))
-	    cfg->use_namespace = is_true (val);
-	else if (!strcasecmp ("CopyDeletedTo", cmd))
-	    cfg->copy_deleted_to = strdup (val);
-	else if (!strcasecmp ("Tunnel", cmd))
-	    cfg->tunnel = strdup (val);
-	else if (!strcasecmp ("Expunge", cmd))
-	    cfg->expunge = is_true (val);
-	else if (!strcasecmp ("Delete", cmd))
-	    cfg->delete = is_true (val);
-#if HAVE_LIBSSL
-	else if (!strcasecmp ("CertificateFile", cmd))
-	    cfg->cert_file = expand_strdup (val);
-	else if (!strcasecmp ("RequireSSL", cmd))
-	    cfg->require_ssl = is_true (val);
-	else if (!strcasecmp ("UseSSLv2", cmd))
-	    cfg->use_sslv2 = is_true (val);
-	else if (!strcasecmp ("UseSSLv3", cmd))
-	    cfg->use_sslv3 = is_true (val);
-	else if (!strcasecmp ("UseTLSv1", cmd))
-	    cfg->use_tlsv1 = is_true (val);
-	else if (!strcasecmp ("RequireCRAM", cmd))
-	    cfg->require_cram = is_true (val);
-#endif
-	else if (buf[0])
-	    fprintf (stderr, "%s:%d: unknown keyword '%s'\n", path, line, cmd);
-    }
-    fclose (fp);
-}
-
-config_t *
-find_box (const char *s)
-{
-    config_t *p = boxes;
-
-    for (; p; p = p->next)
-    {
-	if (!strcmp (s, p->path) || (p->alias && !strcmp (s, p->alias)))
-	    return p;
-	else
-	{
-	    /* check to see if the full pathname was specified on the
-	     * command line.
-	     */
-	    char *t = expand_strdup (p->path);
-
-	    if (!strcmp (s, t))
-	    {
-		free (t);
-		return p;
-	    }
-	    free (t);
-	}
-    }
-    return 0;
 }

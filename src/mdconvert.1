@@ -1,0 +1,51 @@
+.ig
+\" mdconvert - Maildir mailbox UID storage scheme converter
+\" Copyright (C) 2004 Oswald Buddenhagen <ossi@users.sf.net>
+\"
+\"  This program is free software; you can redistribute it and/or modify
+\"  it under the terms of the GNU General Public License as published by
+\"  the Free Software Foundation; either version 2 of the License, or
+\"  (at your option) any later version.
+\"
+\"  This program is distributed in the hope that it will be useful,
+\"  but WITHOUT ANY WARRANTY; without even the implied warranty of
+\"  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+\"  GNU General Public License for more details.
+\"
+\"  You should have received a copy of the GNU General Public License
+\"  along with this program; if not, write to the Free Software
+\"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+..
+.TH mdconvert 1 "2004 Mar 27"
+..
+.SH NAME
+mdconvert - Maildir mailbox UID storage scheme converter
+..
+.SH SYNOPSIS
+\fBmdconvert\fR [\fIoptions\fR ...] \fImailbox\fR ...
+..
+.SH DESCRIPTION
+\fBmdconvert\fR converts Maildir mailboxes between the two UID storage schemes
+supported by \fBmbsync\fR. See \fBmbsync\fR's manual page for details on these
+schemes.
+..
+.SH OPTIONS
+.TP
+\fB-a\fR, \fB--alt\fR
+Convert to the \fBalternative\fR (Berkeley DB based) UID storage scheme.
+.TP
+\fB-n\fR, \fB--native\fR
+Convert to the \fBnative\fR (file name based) UID storage scheme.
+This is the default.
+.TP
+\fB-h\fR, \fB--help\fR
+Displays a summary of command line options.
+.TP
+\fB-v\fR, \fB--version\fR
+Displays version information.
+..
+.SH SEE ALSO
+mbsync(1)
+..
+.SH AUTHOR
+Written and maintained by Oswald Buddenhagen <ossi@users.sf.net>.

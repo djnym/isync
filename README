@@ -4,52 +4,69 @@
 | \__ \ |_| | | | | (__ 
 |_|___/\__, |_| |_|\___|
        |___/            
-isync - IMAP4 to maildir mailbox synchronization program
+isync/mbsync - free (GPL) mailbox synchronization program
 http://isync.sf.net/
 
-Author: Michael Elkins <me@mutt.org>
-Current maintainer: Oswald Buddenhagen <ossi@users.sf.net>
+See AUTHORS for contact information.
 
-``isync'' is a command line application which synchronizes a local
-maildir-style mailbox with a remote IMAP4 mailbox, suitable for use in
-IMAP-disconnected mode.  Multiple copies of the remote IMAP4 mailbox can be
-maintained, and all flags are synchronized.
+``mbsync'' is a command line application which synchronizes mailboxes;
+currently Maildir and IMAP4 mailboxes are supported. New messages, message
+deletions and flag changes can be propagated both ways.
+``mbsync'' is suitable for use in IMAP-disconnected mode.
 
-* Features:
+Synchronization is based on unique message identifiers (UIDs), so no
+identification conflicts can occur (as opposed to some other mail
+synchronizers).
+Synchronization state is kept in one local text file per mailbox pair;
+multiple replicas of a mailbox can be maintained.
 
-	* Fast mode for fetching new mail only
-	* Supports imaps: (port 993) TLS/SSL connections
-	* Supports STARTTLS (RFC2595) for confidentiality
-	* Supports NAMESPACE (RFC2342)
-	* Supports CRAM-MD5 (RFC2095) for authentication
+isync is the project name, while mbsync is the current executable name; this
+change was necessary because of massive changes in the user interface. An
+isync executable still exists; it is a compatibility wrapper around mbsync.
+
+* Features
+
+    * Fine-grained selection of synchronization operations to perform
+    * Synchronizes single mailboxes or entire mailbox collections
+    * Partial mirrors possible: keep only the latest messages locally
+    * Trash functionality: backup messages before removing them
+    * IMAP features:
+	* Supports TLS/SSL via imaps: (port 993) and STARTTLS (RFC2595)
+	* Supports CRAM-MD5 (RFC2195) for authentication
+	* Supports NAMESPACE (RFC2342) for simplified configuration
+	* Pipelining for maximum speed (currently only partially implemented)
 
 * Compatibility
 
-	``isync'' has been tested with the following IMAP servers:
+    isync should work fairly well with any IMAP4 compliant server;
+    particularily efficient with those that support the UIDPLUS and LITERAL+
+    extensions.
 
-	* Microsoft Exchange 2000 IMAP4rev1 server version 6.0.4417.0
-	* Courier-IMAP 1.2.3
-	* WU-IMAP 2000
-	* Domino IMAP4 Server Release 5.0.8
+    Courier 1.4.3 is known to be buggy, version 1.7.3 works fine.
+
+    c-client (UW-IMAP, Pine) is mostly fine, but tends to change UIDVALIDITY
+    pretty often when used with unix/mbox mailboxes, making isync refuse
+    synchronization.
+    The "cure" is to simply copy the new UIDVALIDITY from the affected
+    mailbox to mbsync's state file. This is a Bad Hack (TM), but it works -
+    use at your own risk (if the UIDVALIDITY change was genuine, this will
+    delete all messages in the affected mailbox - not that this ever
+    happened to me).
 
 * Platforms
 
-	``isync'' has successfully been compiled on:
-
-	* Linux
-	* Solaris 2.7
-	* OpenBSD 2.8
-	* FreeBSD 4.3
+    At some point, ``isync'' has successfully run on:
+    Linux, Solaris 2.7, OpenBSD 2.8, FreeBSD 4.3, Cygwin
 
 * Requirements
 
-	OpenSSL for TLS/SSL support (optional)
+    OpenSSL for TLS/SSL support (optional)
 
-* INSTALLING
+* Installation
 
-	./configure
-	make install
+    ./configure
+    make install
 
-* HELP
+* Help
 
-	Please see the man page for complete documentation.
+    Please see the man page for complete documentation.

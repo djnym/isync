@@ -1,31 +1,32 @@
 AC_INIT(src/isync.h)
 AM_CONFIG_HEADER(config.h)
-AM_INIT_AUTOMAKE(isync, 0.9.2)
+AM_INIT_AUTOMAKE(isync, 1.0.0alpha)
 
 AM_MAINTAINER_MODE
 
 AM_PROG_CC_STDC
 if test "$GCC" = yes; then
-    CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"
+    CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wstrict-prototypes"
 fi
 
-AC_CHECK_FUNCS(getopt_long)
+AC_CHECK_FUNCS(vasprintf)
 
-AC_CHECK_LIB(socket, socket)
-AC_CHECK_LIB(nsl, inet_ntoa)
+AC_CHECK_LIB(socket, socket, [SOCK_LIBS="-lsocket"])
+AC_CHECK_LIB(nsl, inet_ntoa, [SOCK_LIBS="$SOCK_LIBS -lnsl"])
+AC_SUBST(SOCK_LIBS)
 
 ssl=false
 AC_ARG_WITH(ssl,
-  [  --with-ssl=DIR	yes/no/OpenSSL installation root [detect]],
+  AS_HELP_STRING([--with-ssl=DIR], [yes/no/OpenSSL installation root [detect]]),
   [ob_cv_with_ssl=$withval])
 if test "x$ob_cv_with_ssl" != xno; then
     if test -d "$ob_cv_with_ssl/lib"; then
-	CPFLAGS="$CPPFLAGS -I$ob_cv_with_ssl/include"
-	LDFLAGS="$LDFLAGS -L$ob_cv_with_ssl/lib"
+      CPFLAGS="$CPPFLAGS -I$ob_cv_with_ssl/include"
+      LDFLAGS="$LDFLAGS -L$ob_cv_with_ssl/lib"
     fi
     AC_CHECK_LIB(crypto, ERR_error_string, [cryptolib=" -lcrypto"])
     AC_CHECK_LIB(ssl, SSL_library_init, [
-	LIBS="-lssl$cryptolib $LIBS"
+	SSL_LIBS="-lssl$cryptolib"
 	AC_DEFINE(HAVE_LIBSSL, 1, [Define if you want SSL support])
 	ssl=true
       ],[
@@ -34,19 +35,29 @@ if test "x$ob_cv_with_ssl" != xno; then
 	fi
       ])
 fi
+AC_SUBST(SSL_LIBS)
 
-AC_CACHE_CHECK(for db_create in -ldb, ac_cv_db_db_create,
-	[ac_cv_db_dbcreate=no
-	AC_TRY_LINK([#include <db.h>],
-		[db_create();],[ac_cv_db_db_create=yes])])
-if test $ac_cv_db_db_create=yes; then
-	LIBS="$LIBS -ldb"
-else
-	AC_MSG_ERROR([Berkley DB not found.
-You must install libdb including the respective development files/headers.])
+AC_CACHE_CHECK([for Berkley DB 4.2], ac_cv_berkdb4,
+  [ac_cv_berkdb4=no
+   AC_TRY_LINK([#include <db.h>],
+               [DB *db;
+	        db->truncate(db, 0, 0, 0);
+	        db->open(db, 0, "foo", "foo", DB_HASH, DB_CREATE, 0)],
+	       [ac_cv_berkdb4=yes])])
+if test "x$ac_cv_berkdb4" = xno; then
+  AC_MSG_ERROR([Berkley DB 4.2 not found.
+You must install libdb4.2 including the respective development files/headers.])
 fi
 
-AC_OUTPUT(Makefile src/Makefile isync.spec)
+AC_ARG_ENABLE(compat,
+  AS_HELP_STRING([--disable-compat], [don't include isync compatibility wrapper [no]]),
+  [ob_cv_enable_compat=$enableval])
+if test "x$ob_cv_enable_compat" != xno; then
+  AC_CHECK_FUNCS(getopt_long)
+fi
+AM_CONDITIONAL(with_compat, test "x$ob_cv_enable_compat" != xno)
+
+AC_OUTPUT(Makefile src/Makefile src/compat/Makefile isync.spec)
 
 if $ssl; then
     AC_MSG_RESULT([

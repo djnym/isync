@@ -41,9 +41,8 @@ binary-arch: build install
 	dh_testroot
 	dh_installchangelogs ChangeLog
 	dh_installdocs AUTHORS NEWS README TODO
-	dh_installexamples isyncrc.sample
+	dh_installexamples src/mbsyncrc.sample src/compat/isyncrc.sample
 	dh_installman
-	dh_installdebconf
 	dh_strip
 	dh_compress
 	dh_fixperms

@@ -7,12 +7,16 @@ build-stamp
 config.h
 config.h.in
 config.cache
+config.guess
 config.log
 config.status
+config.sub
 configure
 configure.lineno
 configure-stamp
 isync.spec
 isync-*.tar.gz
 patch-stamp
+stamp-h
+stamp-h.in
 stamp-h1

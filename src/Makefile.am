@@ -1,5 +1,16 @@
-bin_PROGRAMS = isync
-isync_SOURCES = main.c imap.c sync.c maildir.c list.c cram.c config.c dotlock.c
-noinst_HEADERS = isync.h dotlock.h
-INCLUDES=$(RPM_OPT_FLAGS)
-DISTCLEANFILES = *~
+if with_compat
+compat_dir = compat
+endif
+SUBDIRS = $(compat_dir)
+
+bin_PROGRAMS = mbsync mdconvert
+
+mbsync_SOURCES = main.c sync.c config.c util.c drv_imap.c drv_maildir.c
+mbsync_LDADD = -ldb $(SSL_LIBS) $(SOCK_LIBS)
+noinst_HEADERS = isync.h
+
+mdconvert_SOURCES = mdconvert.c
+mdconvert_LDADD = -ldb
+
+man_MANS = mbsync.1 mdconvert.1
+EXTRA_DIST = mbsyncrc.sample $(man_MANS)

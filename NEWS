@@ -1,3 +1,27 @@
+[1.0.0]
+
+Essentially a rewrite. Synchronization state storage concept, configuration
+and command line changed entirely.
+But you needn't to worry about the upgrade, as a fully automated migration
+path is provided, even for users of isync 0.7 and below.
+Still, you should re-read the manual to be able to take full advantage of the
+new features:
+
+The supported mailbox types can be freely paired.
+A possible application of this is using a local IMAP server to access
+mailboxes that are not natively supported yet.
+
+Message deletions (expunges) are now propagated both ways, so there is no need
+for using mutt with maildir_trash any more.
+
+Additional trash options added.
+
+`OneToOne' replaced by something more flexible.
+
+Partial support for IMAP pipelining (streaming, parallelization) added.
+Makes flag change propagation much faster - this affects every message that
+becomes Seen/Read.
+
 [0.9]
 
 Added Tunnel directive to allow the user to specify a shell command to run

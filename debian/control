@@ -4,21 +4,26 @@ Priority: optional
 Maintainer: Nicolas Boullis <nboullis@debian.org>
 Uploaders: Nicolas Boullis <nboullis@debian.org>, Theodore Y. Ts'o <tytso@mit.edu>
 Standards-Version: 3.6.1
-Build-Depends: libssl-dev, debhelper (>= 4.1.16), dpkg-dev (>= 1.9.0), libdb4.0-dev, dpatch
+Build-Depends: libssl-dev, debhelper (>= 4.1.16), dpkg-dev (>= 1.9.0), libdb4.2-dev, dpatch
 
 Package: isync
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Suggests: mutt
-Description: Synchronize a local maildir with a remote IMAP4 mailbox
- A command line application which synchronizes a local maildir-style
- mailbox with a remote IMAP4 mailbox, suitable for use in disconnected
- mode. Multiple copies of the remote IMAP4 mailbox can be maintained,
- and all flags and messages are synchronized.
+Description: Synchronize Maildir and IMAP4 mailboxes
+ A command line application which synchronizes mailboxes; currently
+ Maildir and IMAP4 mailboxes are supported.
+ New messages, message deletions and flag changes can be propagated both ways.
+ It is useful for working in disconnected mode, such as on a laptop or with a
+ non-permanent internet collection (dIMAP).
  .
  Features:
-  * Fast mode for fetching new mail only
-  * Supports imaps: (port 993) TLS/SSL connections
-  * Supports STARTTLS (RFC2595) for confidentiality
-  * Supports NAMESPACE (RFC2342)
-  * Supports CRAM-MD5 (RFC2095) for authentication
+  * Fine-grained selection of synchronization operations to perform
+  * Synchronizes single mailboxes or entire mailbox collections
+  * Partial mirrors possible: keep only the latest messages locally
+  * Trash functionality: backup messages before removing them
+  * IMAP features:
+    * Supports TLS/SSL via imaps: (port 993) and STARTTLS (RFC2595)
+    * Supports CRAM-MD5 (RFC2195) for authentication
+    * Supports NAMESPACE (RFC2342) for simplified configuration
+    * Pipelining for maximum speed (currently only partially implemented)

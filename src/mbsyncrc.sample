@@ -1,0 +1,82 @@
+# Global configuration section
+#   Values here are used as defaults for any following Channel section that
+#   doesn't specify them.
+Expunge None
+Create Both
+
+MaildirStore local
+Path ~/Mail/
+Trash Trash
+
+
+IMAPStore work
+Host work.host.com
+Pass xxxxxxxx
+CertificateFile /etc/ssl/certs/ca-certificates.crt
+
+Channel work
+Master :work:
+Slave :local:work
+Expunge Slave
+Sync PullNew Push
+
+
+IMAPStore personal
+Host host.play.com
+Port 6789
+RequireSSL no
+
+Channel personal
+Master :personal:
+Slave :local:personal
+Expunge Both
+MaxMessages 150
+MaxSize 200k
+
+IMAPStore remote
+Tunnel "ssh -q host.remote.com /usr/sbin/imapd"
+
+Channel remote
+Master :remote:
+Slave :local:remote
+
+
+Group boxes
+Channels work personal remote
+
+
+IMAPStore st1
+Host st1.domain.com
+RequireCRAM yes
+CertificateFile ~/.st1-certificate.crt
+
+IMAPStore st2
+Host imap.another-domain.com
+Path non-standard/
+RequireSSL no
+UseTLSv1 no
+
+Channel rst
+Master :st1:somebox
+Slave :st2:
+
+
+IMAPAccount server
+Host imaps:foo.bar.com
+CertificateFile ~/.server-certificate.crt
+
+IMAPStore server
+Account server
+MapInbox inbox
+Trash ~/trash
+TrashRemoteNew yes
+
+MaildirStore mirror
+Path ~/Maildir/
+
+Channel o2o
+Master :server:
+Slave :mirror:
+Patterns %
+
+Group partial o2o:inbox,sent-mail,foobar

@@ -1,6 +1,6 @@
 SUBDIRS = src
-man_MANS = isync.1
-EXTRA_DIST = debian isyncrc.sample isync.spec $(man_MANS)
+bin_SCRIPTS = get-cert
+EXTRA_DIST = debian isync.spec $(bin_SCRIPTS)
 
 log:
 	@perl -p -e "s/^(\\S+)\\s+(\\S.+\\S)\\s+(\\S+)\\s*\$$/\$$1:'\$$2 <\$$3>'\\n/" < ../CVSROOT/accounts > .usermap
@@ -15,6 +15,9 @@ deb-clean:
 	fakeroot debian/rules unpatch
 
 distdir distclean: deb-clean
+
+dist-hook:
+	find $(distdir)/debian \( -name CVS -o -name .cvsignore -o -name .#\*# -o -type l \) -print0 | xargs -0r rm -rf
 
 rpm:
 	make dist

@@ -1,6 +1,7 @@
 .ig
-\" isync - IMAP4 to maildir mailbox synchronizer
+\" isync - mbsync wrapper: IMAP4 to Maildir mailbox synchronizer
 \" Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
+\" Copyright (C) 2002-2004 Oswald Buddenhagen <ossi@users.sf.net>
 \"
 \"  This program is free software; you can redistribute it and/or modify
 \"  it under the terms of the GNU General Public License as published by
@@ -16,26 +17,27 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 \"
-\" As a special exception, isync may be linked with the OpenSSL library,
-\" despite that library's more restrictive license.
 ..
-.TH isync 1 "2002 Dec 22"
+.TH isync 1 "2004 Mar 27"
 ..
 .SH NAME
-isync - synchronize IMAP4 and maildir mailboxes
+isync - synchronize IMAP4 and Maildir mailboxes
 ..
 .SH SYNOPSIS
-\fBisync\fR [\fIoptions...\fR] \fImailbox\fR [\fImailbox ...\fR]
-.br
-\fBisync\fR [\fIoptions...\fR] \fI-a\fR
-.br
-\fBisync\fR [\fIoptions...\fR] \fI-l\fR
+\fBisync\fR [\fIoptions\fR ...] {\fImailbox\fR ...|\fI-a\fR|\fI-l\fR}
 ..
 .SH DESCRIPTION
-\fBisync\fR is a command line application which synchronizes a local
-maildir-style mailbox with a remote IMAP4 mailbox, suitable for use in
-IMAP-disconnected mode.  Multiple copies of the remote IMAP4 mailbox can 
+\fBisync\fR is a command line application which synchronizes local
+Maildir mailboxes with remote IMAP4 mailboxes, suitable for use in
+IMAP-disconnected mode.  Multiple copies of the remote IMAP4 mailboxes can 
 be maintained, and all flags are synchronized.
+.br
+\fBisync\fR is only a wrapper binary around \fBmbsync\fR to simplify upgrades.
+It will automatically migrate the UID mapping from previous versions of
+\fBisync\fR (even before 0.8) to the new format, and transparently call
+\fBmbsync\fR. If you were using \fBisync\fR version 0.8 or 0.9.x you might
+want to use \fBmdconvert\fR to convert the mailboxes to the more efficient
+\fBnative\fR UID storage scheme after migrating them.
 ..
 .SH OPTIONS
 .TP
@@ -60,7 +62,7 @@ Synchronize all mailboxes (either specified in ~/.isyncrc or determined by the
 Don't synchronize anything, but list all mailboxes and exit.
 .TP
 \fB-L\fR, \fB--create-local\fR
-Automatically create the local maildir-style mailbox if it doesn't already
+Automatically create the local Maildir mailbox if it doesn't already
 exist.
 .TP
 \fB-R\fR, \fB--create-remote\fR
@@ -71,25 +73,23 @@ Automatically create any mailboxes if they don't already exist.
 This is simply a combination of -L and -R.
 .TP
 \fB-d\fR, \fB--delete\fR
-Causes \fBisync\fR to delete messages from the local maildir mailbox 
-which do not exist on the IMAP server.  By default, \fIdead\fR messages
-are \fBnot\fR deleted.
+Causes \fBisync\fR to propagate message deletions.
+By default, \fIdead\fR messages are \fBnot\fR deleted.
 .TP
 \fB-e\fR, \fB--expunge\fR
-Causes \fBisync\fR to permanently remove all messages marked for deletion
-in both the local maildir mailbox and the remote IMAP mailbox.  By default,
-\fIdeleted\fR messages are \fBnot\fR expunged.
+Causes \fBisync\fR to permanently remove all messages marked for deletion.
+By default, \fIdeleted\fR messages are \fBnot\fR expunged.
 .TP
 \fB-f\fR, \fB--fast\fR
-Causes \fBisync\fR to skip the step of synchronzing message flags between the
-local maildir mailbox and the IMAP mailbox.  Only new messages existing on the
-server will be fetched into the local mailbox.
+Only fetch new messages existing on the server into the local mailbox.
+Message deletions and flag changes will not be propagated.
 .TP
 \fB-h\fR, \fB--help\fR
 Displays a summary of command line options
 .TP
 \fB-p\fR, \fB--port\fR \fIport\fR
-Specifies the port on the IMAP server to connect to (default: 143)
+Specifies the port on the IMAP server to connect to (default: 143 for imap,
+993 for imaps)
 .TP
 \fB-q\fR, \fB--quiet\fR
 Suppress informational messages.
@@ -99,7 +99,7 @@ If specified twice, suppress warning messages as well.
 Specifies the name of the remote IMAP mailbox to synchronize with
 (Default: INBOX)
 .TP
-\fB-s\fR, \fB--host\fR \fB[\fRimaps:\fB]\fR\fIhost\fR
+\fB-s\fR, \fB--host\fR [\fBimaps:\fR]\fIhost\fR
 Specifies the hostname of the IMAP server
 .TP
 \fB-u\fR, \fB--user\fR \fIuser\fR
@@ -116,32 +116,49 @@ Displays \fBisync\fR version information.
 .TP
 \fB-V\fR, \fB--verbose\fR
 Enables \fIverbose\fR mode, which displays the IMAP4 network traffic.
+.TP
+\fB-D\fR, \fB--debug\fR
+Enable printing of \fIdebug\fR messages.
+.TP
+\fB-w\fR, \fB--write\fR
+Don't run \fBmbsync\fR, but instead write a permanent config file for it.
+The UID mappings of all configured mailboxes will be migrated.
+Note that some command line options that would affect an actual sync operation
+will be incorporated into the new config file as well.
+The name of the new config file is determined by replacing the last occurrence
+of "isync" with "mbsync", or appending ".mbsync" if "isync" was not found.
+.TP
+\fB-W\fR, \fB--writeto\fR \fIfile\fR
+Like \fB-w\fR, but use the specified name for the new config file.
 ..
 .SH CONFIGURATION
-\fBisync\fR reads \fI~/.isyncrc\fR to load default configuration data.
-Each line of the configuration file consists of a command.
+\fBisync\fR by default reads \fI~/.isyncrc\fR to load configuration data.
+Each non-empty line of the configuration file that does not start with a
+hash mark consists of a command.
 The following commands are understood:
 .TP
 \fBMailbox\fR \fIpath\fR
-Defines a local maildir mailbox.  All configuration commands following this
+Defines a local Maildir mailbox.  All configuration commands following this
 line, up until the next \fIMailbox\fR command, apply to this mailbox only.
 ..
 .TP
-\fBHost\fR \fB[\fRimaps:\fB]\fR\fIname\fR
+\fBHost\fR [\fBimaps:\fR]\fIname\fR
 Defines the DNS name or IP address of the IMAP server.  If the hostname is
-prefixed with \fIimaps:\fR the connection is assumed to be a SSL connection
+prefixed with \fBimaps:\fR the connection is assumed to be a SSL connection
 to port 993 (though you can change this by placing a \fBPort\fR command
-\fBafter\fR the \fBHost\fR command.  Note that some servers support SSL on 
-the default port 143. \fBisync\fR will always attempt to use SSL if available.
+\fBafter\fR the \fBHost\fR command).
+Note that modern servers support SSL on the default port 143.
+\fBisync\fR will always attempt to use SSL if available.
 ..
 .TP
 \fBPort\fR \fIport\fR
-Defines the TCP port number on the IMAP server to use (Default: 143)
+Defines the TCP port number of the IMAP server (Default: 143 for imap,
+993 for imaps)
 ..
 .TP
 \fBBox\fR \fImailbox\fR
 Defines the name of the remote IMAP mailbox associated with the local
-maildir mailbox (Default: INBOX)
+Maildir mailbox (Default: INBOX)
 ..
 .TP
 \fBUser\fR \fIusername\fR
@@ -161,19 +178,18 @@ command line.
 ..
 .TP
 \fBCopyDeletedTo\fR \fImailbox\fR
-Specifies the remote IMAP mailbox to copy deleted messages prior to
+Specifies the remote IMAP mailbox to copy deleted messages to prior to
 expunging (Default: none).
 ..
 .TP
 \fBDelete\fR \fIyes\fR|\fIno\fR
-Specifies whether messages in the local copy of the mailbox which don't
-exist on the server are automatically deleted.  (Default: no).
+Specifies whether message deletions are propagated.  (Default: no).
 \fBNOTE:\fR  The \fI-d\fR command line option overrides this setting when 
 set to \fIno\fR.
 ..
 .TP
 \fBExpunge\fR \fIyes\fR|\fIno\fR
-Specifies whether deleted messages are expunged by default (Default: no).
+Specifies whether deleted messages are expunged.  (Default: no).
 \fBNOTE:\fR  The \fI-e\fR command line option overrides this setting when 
 set to \fIno\fR.
 ..
@@ -181,7 +197,7 @@ set to \fIno\fR.
 \fBMailDir\fR \fIdirectory\fR
 Specifies the location of your local mailboxes if a relative path is
 specified in a \fIMailbox\fR command (Default: \fI~\fR).
-\fBNOTE:\fR This directive is only meaningful in the \fIglobal\fR
+\fBNOTE:\fR This directive is allowed only in the \fIglobal\fR
 section (see below).
 ..
 .TP
@@ -190,28 +206,28 @@ Specifies the location of your IMAP mailboxes
 specified in \fIBox\fR commands (Default: \fI""\fR).
 \fBNOTE:\fR You \fBmust\fR append the hierarchy delimiter (usually
 a slash) to this specification.
-\fBNOTE 2:\fR This directive is only meaningful in the \fIglobal\fR
+\fBNOTE 2:\fR This directive is allowed only in the \fIglobal\fR
 section (see below).
 ..
 .TP
 \fBMaxMessages\fR \fIcount\fR
-Sets the number of messages \fBisync\fR should keep in a mailbox.
-This is useful for mailboxes where you keep a complete archive on the
-server, but want to mirror only the last messages (for instance, for mailing
-lists.)
-The messages that were the first to arrive in the mailbox (independent of the
-actual date of the message) will automatically be deleted if you
-pass \fBisync\fR the delete (-d, --delete) flag.
-Messages that are flagged (marked as important) will not be automatically
-deleted.
-If \fIcount\fR is 0, the maximum number of messages is \fBunlimited\fR
-(Default: 0).
+Sets the number of messages \fBisync\fR should keep in the local copy of a
+mailbox.
+This is useful for mailboxes where you keep a complete archive on the server,
+but want to mirror only the last messages (for instance, for mailing lists).
+The messages that were the first to arrive in the mailbox (independently of the
+actual date of the message) will be deleted first.
+Messages that are flagged (marked as important) and recent messages will not be
+automatically deleted.
+If \fIcount\fR is 0, the maximum number of messages is \fBunlimited\fR.
+(Default: 0)
 ..
 .TP
 \fBMaxSize\fR \fIbytes\fR
-Sets a threshold for the maximum message size (in bytes) for which \fBisync\fR
-should transfer over the wire.  This is useful for weeding out messages with
-large attachments.  If \fIbytes\fR is 0, the maximum file size is \fBunlimited\fR.
+Messages larger than that many bytes will not be transferred over the wire.
+This is useful for weeding out messages with large attachments.
+If \fIbytes\fR is 0, the maximum file size is \fBunlimited\fR.
+(Default: 0)
 ..
 .TP
 \fBTunnel\fR \fIcommand\fR
@@ -220,19 +236,20 @@ socket.  This allows you to run an IMAP session over an SSH tunnel, for
 example.
 .TP
 \fBUseNamespace\fR \fIyes\fR|\fIno\fR
-Selects whether \fBisync\fR should select mailboxes using the namespace given 
-by the NAMESPACE command. This is useful with broken IMAP servers. (Default:
-\fIyes\fR)
+Selects whether the server's first "personal" NAMESPACE should be prefixed to
+mailbox names. Disabling this makes sense for some broken IMAP servers.
+This option is meaningless if a \fIFolder\fR was specified.
+(Default: \fIyes\fR)
 ..
 .TP
 \fBRequireCRAM\fR \fIyes\fR|\fIno\fR
-If set to \fIyes\fR, \fBisync\fR will require that the server accept CRAM-MD5 
-intead of PLAIN to authenticate the user.
+If set to \fIyes\fR, \fBisync\fR will abort the connection if no CRAM-MD5
+authentication is possible.  (Default: \fIno\fR)
 ..
 .TP
 \fBRequireSSL\fR \fIyes\fR|\fIno\fR
-\fBisync\fR will abort the connection if a TLS/SSL session to the IMAP
-server can not be established.  (Default: \fIyes\fR)
+\fBisync\fR will abort the connection if a TLS/SSL session cannot be
+established with the IMAP server.  (Default: \fIyes\fR)
 ..
 .TP
 \fBCertificateFile\fR \fIpath\fR
@@ -258,7 +275,7 @@ Should \fBisync\fR use TLSv1 for communication with the IMAP server over SSL?
 \fBisync\fR will ignore any \fIMailbox\fR specifications and instead pick up
 all mailboxes from the local \fIMailDir\fR and remote \fIFolder\fR and map 
 them 1:1 onto each other according to their names.
-\fBNOTE:\fR This directive is only meaningful in the \fIglobal\fR
+\fBNOTE:\fR This directive is allowed only in the \fIglobal\fR
 section (see below).
 ..
 .TP
@@ -278,63 +295,20 @@ the first \fBMailbox\fR command, and then leave out the \fBUser\fR command
 in the sections for each mailbox.
 \fBisync\fR will then use the global value by default.
 ..
-.SH MAIL USER AGENT INTERACTION
-To use \fBisync\fR effectively, you need a mail client that sets the T
-(trashed) flag when it deletes a message from a maildir mailbox, instead of
-just removing it altogether. Without such a client, \fBisync\fR will refetch the
-locally deleted messages from the server since they will never get expunged.
-Mutt (starting with version 1.3.27) is known to support this. Be sure to put
-.IP "" 2
-set maildir_trash
-.PP
-in your ~/.muttrc when using Mutt.
-.br
-\fBisync\fR can be integrated into Mutt fairly easily with a few hooks:
-.IP "" 2
-.nf
-folder-hook ~A bind index $ <sync-mailbox>
-.br
-folder-hook +\fImdir\fR 'macro index $ "<sync-mailbox>!isync -e \fImdir\fR\\n"'
-.fi
-.PP
-where \fImdir\fR is the name of the local mailbox (or its \fIalias\fR).
-This works well so long as you are not modifying the IMAP mailbox outside of
-Mutt.  However, if you are using another mail program simultaneously Mutt
-will have the wrong idea of the local mailbox flags and messages will start
-disappearing from its index display (don't worry, they are still on disk).
-..
 .SH FILES
 .TP
 .B ~/.isyncrc
 Default configuration file
 ..
 .SH BUGS
-No support for IMAP subfolders.
-.P
-\fBisync\fR does not use NFS-safe locking.  It will correctly prevent 
-concurrent synchronization of a mailbox on the same host, but not across NFS.
-.P
-When synchronizing multiple mailboxes on the same IMAP server, it is not
-possible to select different SSL options for each mailbox.  Only the options
-from the first mailbox are applied since the SSL session is reused.
-.P
-If new mail arrives in the IMAP mailbox after \fBisync\fR
-has retrieved the initial message list, the new mail will not be fetched
-until the next time \fBisync\fR is invoked.
-.P
-It is currently impossible to unset the \\Flagged attribute of a message
-once it is set.  It has to be manually unset everywhere since isync
-doesn't have enough information to know which was the last status of the
-message.
-.P
-The ndbm database created for each mailbox is not portable across different
-architectures.  It currently stores the UID in host byte order.
-.P
 The configuration file takes precedence over command line options.
 .br
 Use -c /dev/null to work around.
+.P
+See the \fBINHERENT PROBLEMS\fR section in the \fBmbsync\fR man page, too.
+..
 .SH SEE ALSO
-mutt(1), maildir(5)
+mbsync(1), mdconvert(1), mutt(1), maildir(5)
 .P
 Up to date information on \fBisync\fR can be found at http://isync.sf.net/
 ..
