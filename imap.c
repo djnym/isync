@@ -401,6 +401,18 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    {
 		parse_response_code (imap, cmd);
 	    }
+	    else if (!strcmp ("CAPABILITY", arg))
+	    {
+#if HAVE_LIBSSL
+		while ((arg = next_arg (&cmd)))
+		{
+		    if (!strcmp ("STARTTLS", arg))
+			imap->have_starttls = 1;
+		    else if (!strcmp ("AUTH=CRAM-MD5", arg))
+			imap->have_cram = 1;
+		}
+#endif
+	    }
 	    else if ((arg1 = next_arg (&cmd)))
 	    {
 		if (!strcmp ("EXISTS", arg1))
@@ -428,6 +440,26 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 		return -1;
 	    }
 	}
+#if HAVE_LIBSSL
+	else if (*arg == '+')
+	{
+	    char *resp;
+
+	    if (!imap->cram)
+	    {
+		puts ("Error, not doing CRAM-MD5 authentication");
+		return -1;
+	    }
+	    resp = cram (cmd, imap->box->user, imap->box->pass);
+
+	    socket_write (imap->sock, resp, strlen (resp));
+	    if (Verbose)
+		puts (resp);
+	    socket_write (imap->sock, "\r\n", 2);
+	    free (resp);
+	    imap->cram = 0;
+	}
+#endif
 	else if ((size_t) atol (arg) != Tag)
 	{
 	    puts ("wrong tag");
@@ -510,17 +542,23 @@ imap_open (config_t * box, unsigned int minuid)
 #if HAVE_LIBSSL
     if (!box->use_imaps)
     {
+	/* let's see what this puppy can do... */
+	ret = imap_exec (imap, "CAPABILITY");
+
 	/* always try to select SSL support if available */
-	ret = imap_exec (imap, "STARTTLS");
-	if (!ret)
+	if (imap->have_starttls && !imap_exec (imap, "STARTTLS"))
 	    use_ssl = 1;
-	else if (box->require_ssl)
+
+	if (!use_ssl)
 	{
-	    puts ("Error, SSL support not available");
-	    return 0;
+	    if (box->require_ssl)
+	    {
+		puts ("Error, SSL support not available");
+		return 0;
+	    }
+	    else
+		puts ("Warning, SSL support not available");
 	}
-	else
-	    puts ("Warning, SSL support not available");
     }
     else
 	use_ssl = 1;
@@ -543,11 +581,31 @@ imap_open (config_t * box, unsigned int minuid)
 
 	imap->sock->use_ssl = 1;
 	puts ("SSL support enabled");
+
+	if (box->use_imaps)
+	    ret = imap_exec (imap, "CAPABILITY");
     }
+#else
+    ret = imap_exec (imap, "CAPABILITY");
 #endif
 
     puts ("Logging in...");
-    ret = imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user, box->pass);
+#if HAVE_LIBSSL
+    if (imap->have_cram)
+    {
+	puts ("Authenticating with CRAM-MD5");
+	imap->cram = 1;
+	ret = imap_exec (imap, "AUTHENTICATE CRAM-MD5");
+    }
+    else
+#endif
+    {
+#if HAVE_LIBSSL
+	if (!use_ssl)
+#endif
+	    puts ("*** Warning *** Password is being sent in the clear");
+	ret = imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user, box->pass);
+    }
 
     if (!ret)
     {

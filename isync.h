@@ -130,6 +130,11 @@ typedef struct
     list_t *ns_personal;
     list_t *ns_other;
     list_t *ns_shared;
+#if HAVE_LIBSSL
+    unsigned int have_cram:1;
+    unsigned int have_starttls:1;
+    unsigned int cram:1;
+#endif
 }
 imap_t;
 
@@ -144,6 +149,8 @@ extern int Verbose;
 
 #if HAVE_LIBSSL
 extern SSL_CTX *SSLContext;
+
+char *cram (const char *, const char *, const char *);
 #endif
 
 char *next_arg (char **);

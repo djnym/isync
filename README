@@ -18,8 +18,9 @@ maintained, and all flags are synchronized.
 
 	* Fast mode for fetching new mail only
 	* Supports imaps: (port 993) TLS/SSL connections
-	* Supports STARTTLS (RFC2595)
+	* Supports STARTTLS (RFC2595) for confidentiality
 	* Supports NAMESPACE (RFC2342)
+	* Supports CRAM-MD5 (RFC2095) for authentication
 
 * Compatibility
 
