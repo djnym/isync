@@ -16,7 +16,7 @@
 \"  along with this program; if not, write to the Free Software
 \"  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ..
-.TH isync 1 "2001 Jan 16"
+.TH isync 1 "2001 Oct 02"
 ..
 .SH NAME
 isync - synchronize IMAP4 and maildir mailboxes
@@ -162,6 +162,11 @@ Specifies the remote IMAP mailbox to copy deleted messages prior to
 expunging (Default: none).
 ..
 .TP
+\fBDelete\fR \fIyes|no\fR
+Specifies whether messages in the local copy of the mailbox which don't
+exist on the server are automatically deleted.  (Default: no).
+..
+.TP
 \fBExpunge\fR \fIyes|no\fR
 Specifies whether deleted messages are expunged by default (Default: no).
 \fBNOTE:\fR  The
@@ -289,6 +294,11 @@ has retrieved the initial message list, the new mail will not be fetched
 until the next time
 .B isync
 is invoked.
+.P
+It is currently impossible to unset the \\Flagged attribute of a message
+once it is set.  It has to be manually unset everywhere since isync
+doesn't have enough information to know which was the last status of the
+message.
 .SH SEE ALSO
 mutt(1), maildir(5)
 .P

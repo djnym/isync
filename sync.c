@@ -104,7 +104,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 
 		    continue;	/* not fatal */
 		}
-		if (sb.st_size > imap->box->max_size)
+		if (imap->box->max_size > 0 && sb.st_size > imap->box->max_size)
 		{
 		    printf
 			("Warning, local message is too large (%ld), skipping...\n",

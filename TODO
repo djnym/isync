@@ -2,6 +2,8 @@ add support for syncing with other: and shared: via NAMESPACE
 
 finish implementing --quiet
 
+--fast downloads the last message again if no new messages have arrived
+
 isync gets confused when new mail is delivered while in the middle of an
 IMAP session.  need to handled those asynchronous notifications properly.
 

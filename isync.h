@@ -71,6 +71,7 @@ struct config
 #endif
     unsigned int use_namespace:1;
     unsigned int expunge:1;
+    unsigned int delete:1;
 };
 
 /* struct representing local mailbox file */

@@ -5,6 +5,10 @@
 # by default, expunge deleted messages (same as -e on command line)
 Expunge yes
 
+# by default delete messages in the local mailbox which no longer exist
+# on the server
+Delete yes
+
 # copy deleted messages to the IMAP "Trash" folder
 CopyDeletedTo "Trash"
 

@@ -1,3 +1,8 @@
+[0.6]
+
+Added `Delete' configuration option to correspond to the -d command line
+option.
+
 [0.5]
 
 Updated SSL support.

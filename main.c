@@ -278,7 +278,7 @@ main (int argc, char **argv)
 
 	if (!quiet)
 	    puts ("Synchronizing");
-	i = delete ? SYNC_DELETE : 0;
+	i = (delete || box->delete) ? SYNC_DELETE : 0;
 	i |= (expunge || box->expunge) ? SYNC_EXPUNGE : 0;
 	if (sync_mailbox (mail, imap, i, box->max_size))
 	    exit (1);
