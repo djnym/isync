@@ -152,8 +152,8 @@ main (int argc, char **argv)
      * case people forget to turn it on
      */
     global.require_ssl = 1;
-    global.use_sslv2 = 1;
-    global.use_sslv3 = 1;
+    global.use_sslv2 = 0;
+    global.use_sslv3 = 0;
     global.use_tlsv1 = 1;
 #endif
 

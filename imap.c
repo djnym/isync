@@ -120,6 +120,9 @@ verify_cert (SSL * ssl)
 static int
 init_ssl (config_t * conf)
 {
+    SSL_METHOD *method;
+    int options = 0;
+
     if (!conf->cert_file)
     {
 	puts ("Error, CertificateFile not defined");
@@ -127,7 +130,14 @@ init_ssl (config_t * conf)
     }
     SSL_library_init ();
     SSL_load_error_strings ();
-    SSLContext = SSL_CTX_new (SSLv23_client_method ());
+
+    if (conf->use_tlsv1 && !conf->use_sslv2 && !conf->use_sslv3)
+	method = TLSv1_client_method ();
+    else
+	method = SSLv23_client_method ();
+
+    SSLContext = SSL_CTX_new (method);
+
     if (access (conf->cert_file, F_OK))
     {
 	if (errno != ENOENT)
@@ -148,11 +158,13 @@ init_ssl (config_t * conf)
     }
 
     if (!conf->use_sslv2)
-	SSL_CTX_set_options (SSLContext, SSL_OP_NO_SSLv2);
+	options |= SSL_OP_NO_SSLv2;
     if (!conf->use_sslv3)
-	SSL_CTX_set_options (SSLContext, SSL_OP_NO_SSLv3);
+	options |= SSL_OP_NO_SSLv3;
     if (!conf->use_tlsv1)
-	SSL_CTX_set_options (SSLContext, SSL_OP_NO_TLSv1);
+	options |= SSL_OP_NO_TLSv1;
+
+    SSL_CTX_set_options (SSLContext, options);
 
     /* we check the result of the verification after SSL_connect() */
     SSL_CTX_set_verify (SSLContext, SSL_VERIFY_NONE, 0);
@@ -178,6 +190,40 @@ socket_write (Socket_t * sock, char *buf, size_t len)
 	return SSL_write (sock->ssl, buf, len);
 #endif
     return write (sock->fd, buf, len);
+}
+
+static void
+socket_perror (const char *func, Socket_t *sock, int ret)
+{
+#if HAVE_LIBSSL
+    int err;
+
+    if (sock->use_ssl)
+    {
+	switch ((err = SSL_get_error (sock->ssl, ret)))
+	{
+	    case SSL_ERROR_SYSCALL:
+	    case SSL_ERROR_SSL:
+		if ((err = ERR_get_error ()) == 0)
+		{
+		    if (ret == 0)
+			fprintf (stderr, "SSL_%s:got EOF\n", func);
+		    else
+			fprintf (stderr, "SSL_%s:%d:%s\n", func,
+				errno, strerror (errno));
+		}
+		else
+		    fprintf (stderr, "SSL_%s:%d:%s\n", func, err,
+			    ERR_error_string (err, 0));
+		return;
+	    default:
+		fprintf (stderr, "SSL_%s:%d:unhandled SSL error\n", func, err);
+		break;
+	}
+	return;
+    }
+#endif
+    perror (func);
 }
 
 /* simple line buffering */
@@ -215,10 +261,7 @@ buffer_gets (buffer_t * b, char **s)
 
 	    if (n <= 0)
 	    {
-		if (n == -1)
-		    perror ("read");
-		else
-		    puts ("EOF");
+		socket_perror ("read", b->sock, n);
 		return -1;
 	    }
 
@@ -367,6 +410,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     char *cmd;
     char *arg;
     char *arg1;
+    int n;
 
     va_start (ap, fmt);
     vsnprintf (tmp, sizeof (tmp), fmt, ap);
@@ -375,7 +419,12 @@ imap_exec (imap_t * imap, const char *fmt, ...)
     snprintf (buf, sizeof (buf), "%d %s\r\n", ++Tag, tmp);
     if (Verbose)
 	fputs (buf, stdout);
-    socket_write (imap->sock, buf, strlen (buf));
+    n = socket_write (imap->sock, buf, strlen (buf));
+    if (n <= 0)
+    {
+	socket_perror ("write", imap->sock, n);
+	return -1;
+    }
 
     for (;;)
     {
@@ -459,10 +508,20 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    }
 	    resp = cram (cmd, imap->box->user, imap->box->pass);
 
-	    socket_write (imap->sock, resp, strlen (resp));
+	    n = socket_write (imap->sock, resp, strlen (resp));
+	    if (n <= 0)
+	    {
+		socket_perror ("write", imap->sock, n);
+		return -1;
+	    }
 	    if (Verbose)
 		puts (resp);
-	    socket_write (imap->sock, "\r\n", 2);
+	    n = socket_write (imap->sock, "\r\n", 2);
+	    if (n <= 0)
+	    {
+		socket_perror ("write", imap->sock, n);
+		return -1;
+	    }
 	    free (resp);
 	    imap->cram = 0;
 	}
@@ -629,10 +688,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 		ret = SSL_connect (imap->sock->ssl);
 		if (ret <= 0)
 		{
-		    ret = SSL_get_error (imap->sock->ssl, ret);
-		    printf ("Error, SSL_connect: %s\n",
-			    ERR_error_string (ret, 0));
-		    ret = -1;
+		    socket_perror ("connect", imap->sock, ret);
 		    break;
 		}
 
@@ -680,7 +736,10 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 		    (ret =
 		     imap_exec (imap, "LOGIN \"%s\" \"%s\"", box->user,
 				box->pass)))
+		{
+		    puts ("Error, LOGIN failed");
 		    break;
+		}
 	    }
 
 	    /* get NAMESPACE info */
@@ -701,7 +760,9 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 
 	fputs ("Selecting mailbox... ", stdout);
 	fflush (stdout);
-	if ((ret = imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)))
+	if (
+	    (ret =
+	     imap_exec (imap, "SELECT \"%s%s\"", imap->prefix, box->box)))
 	    break;
 	printf ("%d messages, %d recent\n", imap->count, imap->recent);
 
@@ -754,22 +815,30 @@ write_strip (int fd, char *buf, size_t len)
     return 0;
 }
 
-static void
+static int
 send_server (Socket_t * sock, const char *fmt, ...)
 {
     char buf[128];
     char cmd[128];
     va_list ap;
+    int n;
 
     va_start (ap, fmt);
     vsnprintf (buf, sizeof (buf), fmt, ap);
     va_end (ap);
 
     snprintf (cmd, sizeof (cmd), "%d %s\r\n", ++Tag, buf);
-    socket_write (sock, cmd, strlen (cmd));
+    n = socket_write (sock, cmd, strlen (cmd));
+    if (n <= 0)
+    {
+	socket_perror ("write", sock, n);
+	return -1;
+    }
 
     if (Verbose)
 	fputs (cmd, stdout);
+
+    return 0;
 }
 
 int
@@ -847,10 +916,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
 		}
 		else
 		{
-		    if (n == (size_t) - 1)
-			perror ("read");
-		    else
-			puts ("EOF");
+		    socket_perror ("read", imap->sock, n);
 		    return -1;
 		}
 	    }
@@ -906,7 +972,8 @@ imap_expunge (imap_t * imap)
 int
 imap_copy_message (imap_t * imap, unsigned int uid, const char *mailbox)
 {
-    return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, imap->prefix, mailbox);
+    return imap_exec (imap, "UID COPY %u \"%s%s\"", uid, imap->prefix,
+		      mailbox);
 }
 
 int
@@ -969,7 +1036,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
     }
 
     send_server (imap->sock, "APPEND %s%s %s{%d}",
-	      imap->prefix, imap->box->box, flagstr, msg->size + lines);
+		 imap->prefix, imap->box->box, flagstr, msg->size + lines);
 
     if (buffer_gets (imap->buf, &s))
 	return -1;

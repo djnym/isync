@@ -105,16 +105,15 @@ load_config (const char *where)
 	snprintf (path, sizeof (path), "%s/.isyncrc", pw->pw_dir);
 	where = path;
     }
+
     printf ("Reading %s\n", where);
 
     fp = fopen (where, "r");
     if (!fp)
     {
 	if (errno != ENOENT)
-	{
 	    perror ("fopen");
-	    return;
-	}
+	return;
     }
     buf[sizeof buf - 1] = 0;
     while ((fgets (buf, sizeof (buf) - 1, fp)))
@@ -149,11 +148,15 @@ load_config (const char *where)
 		{
 		    (*cur)->use_imaps = 1;
 		    (*cur)->port = 993;
+		    (*cur)->use_sslv2 = 1;
+		    (*cur)->use_sslv3 = 1;
 		}
 		else
 		{
 		    global.use_imaps = 1;
 		    global.port = 993;
+		    global.use_sslv2 = 1;
+		    global.use_sslv3 = 1;
 		}
 	    }
 #endif

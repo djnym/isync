@@ -231,7 +231,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 	    /* construct the flags part of the file name. */
 
 	    *suffix = 0;
-	    if (cur->flags)
+	    if (cur->flags & ~D_RECENT)
 	    {
 		snprintf (suffix, sizeof (suffix), ":2,%s%s%s%s",
 			  (cur->flags & D_FLAGGED) ? "F" : "",
@@ -275,7 +275,7 @@ sync_mailbox (mailbox_t * mbox, imap_t * imap, int flags,
 		p = strrchr (path, '/');
 
 		snprintf (newpath, sizeof (newpath), "%s/%s%s", mbox->path,
-			  cur->flags ? "cur" : "new", p);
+			  (cur->flags & ~D_RECENT) ? "cur" : "new", p);
 
 		/* its ok if this fails, the next time we sync the message
 		 * will get pulled down
