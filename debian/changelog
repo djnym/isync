@@ -6,6 +6,17 @@ isync (0.9.2-1) unstable; urgency=low
 
  -- Theodore Y. Ts'o <tytso@mit.edu>  Sun, 11 Jan 2004 02:38:48 -0500
 
+isync (0.9.1-4) unstable; urgency=low
+
+  * The "Why do I keep adding such stupid bugs?" release.
+  * Remove the extra parenthesis that caused UID FETCH syntax errors,
+    thanks to Niels den Otter for pointing the bug and giving the
+    solution. (Closes: #224803)
+  * Use configure's --build and --host options to prevent wrong
+    optimizations (such as building for sparc64 rather than for sparc).
+
+ -- Nicolas Boullis <nboullis@debian.org>  Wed,  7 Jan 2004 01:06:53 +0100
+
 isync (0.9.1-3) unstable; urgency=low
 
   * Do not segfault when using both tunneled end non-tunneled connections,
