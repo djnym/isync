@@ -57,6 +57,17 @@ config_defaults (config_t * conf)
 #endif
 }
 
+#ifndef HAVE_STRNDUP
+static char *
+strndup (const char *s, size_t nchars)
+{
+    char *r = malloc (sizeof (char) * (nchars + 1));
+    strncpy (r, s, nchars);
+    r[nchars] = 0;
+    return r;
+}
+#endif /* ! HAVE_STRNDUP */
+
 char *
 expand_strdup (const char *s)
 {
