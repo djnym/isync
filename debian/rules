@@ -15,7 +15,8 @@ DEB_BUILD_GNU_TYPE := $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
 build: build-stamp
 build-stamp: patch-stamp
 	dh_testdir
-	touch configure.in ; touch aclocal.m4 ;	touch configure
+	touch configure.in ; touch Makefile.am ; touch aclocal.m4 
+	touch Makefile.in ; touch configure 
 	./configure --build=$(DEB_BUILD_GNU_TYPE) --host=$(DEB_HOST_GNU_TYPE) --prefix=/usr --mandir=/usr/share/man 
 	$(MAKE) CFLAGS="$(CFLAGS)"
 	touch build-stamp
