@@ -2,7 +2,7 @@
  *
  * isync - IMAP4 to maildir mailbox synchronizer
  * Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
- * Copyright (C) 2002-2003 Oswald Buddenhagen <ossi@users.sf.net>
+ * Copyright (C) 2002-2004 Oswald Buddenhagen <ossi@users.sf.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,6 +41,8 @@
 #if HAVE_LIBSSL
 # include <openssl/err.h>
 #endif
+
+static int Tag;
 
 const char *Flags[] = {
     "\\Seen",
@@ -578,7 +580,7 @@ imap_exec (imap_t * imap, const char *fmt, ...)
 	    imap->cram = 0;
 	}
 #endif
-	else if ((size_t) atol (arg) != Tag)
+	else if (atoi (arg) != Tag)
 	{
 	    fprintf (stderr, "IMAP error: wrong tag\n");
 	    return -1;
@@ -1130,7 +1132,7 @@ imap_fetch_message (imap_t * imap, unsigned int uid, int fd)
     else
     {
       arg = next_arg (&cmd);
-      if (!arg || (size_t) atoi (arg) != Tag)
+      if (!arg || atoi (arg) != Tag)
       {
 	fprintf (stderr, "IMAP error: wrong tag\n");
 	return -1;
@@ -1300,7 +1302,7 @@ imap_append_message (imap_t * imap, int fd, message_t * msg)
     {
       /* XXX just ignore it for now */
     }
-    else if (atoi (arg) != (int) Tag)
+    else if (atoi (arg) != Tag)
     {
       fprintf (stderr, "IMAP error: wrong tag\n");
       return -1;
