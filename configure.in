@@ -33,28 +33,8 @@ if test "x$ob_cv_with_ssl" != xno; then
       ])
 fi
 
-AC_CACHE_CHECK(for dbm_open, ac_cv_dbmopen,
-	[ac_cv_dbmopen=no
-	AC_TRY_LINK([#include <ndbm.h>],
-		[dbm_open(0,0,0);],[ac_cv_dbmopen=yes])])
-if test $ac_cv_dbmopen = no; then
-	AC_CACHE_CHECK([for dbm_open in -ldb], ac_cv_libdb,
-		[save_LIBS="$LIBS"
-		LIBS="$LIBS -ldb"
-		ac_cv_libdb=no
-		AC_TRY_LINK([#define DB_DBM_HSEARCH 1
-#include <db.h>],
-			[dbm_open(0,0,0);],
-			[ac_cv_libdb=yes])
-		LIBS="$save_LIBS"])
-
-	if test $ac_cv_libdb = yes; then
-		LIBS="$LIBS -ldb"
-		AC_DEFINE(HAVE_LIBDB, 1, [Define if you have libdb])
-	else
-		AC_MSG_ERROR([Could not find dbm_open(), you must install libdb])
-	fi
-fi
+AC_CHECK_LIB(db, db_create, [LIBS="$LIBS -ldb"], [AC_MSG_ERROR([Berkley DB not found.])])
+AC_CHECK_HEADER(db.h, , [AC_MSG_ERROR([Berkley DB header file not found.])])
 
 AC_OUTPUT(Makefile src/Makefile debian/Makefile isync.spec)
 

@@ -46,17 +46,24 @@ find_msg (message_t * list, unsigned int uid)
 }
 
 static int
-set_uid (DBM * db, const char *f, unsigned int uid)
+set_uid (DB * db, const char *f, unsigned int uid)
 {
     char *s;
-    datum key, val;
+    DBT key, val;
+    int ret;
 
-    key.dptr = (void *) f;
+    memset (&key, 0, sizeof(key));
+    memset (&val, 0, sizeof(val));
+    key.data = (void *) f;
     s = strchr (f, ':');
-    key.dsize = s ? (size_t) (s - key.dptr) : strlen (f);
-    val.dptr = (void *) &uid;
-    val.dsize = sizeof (uid);
-    dbm_store (db, key, val, DBM_REPLACE);
+    key.size = s ? (size_t) (s - f) : strlen (f);
+    val.data = (void *) &uid;
+    val.size = sizeof (uid);
+    ret = db->put (db, 0, &key, &val, 0);
+    if (ret < 0)
+	fprintf (stderr, "Unexpected error (%d) from db_put(%.*s, %d)\n", 
+		 ret, key.size, f, uid);
+    db->sync(db, 0);
     return 0;
 }
 

@@ -125,8 +125,8 @@ maildir_open (const char *path, int flags)
     int count = 0;
     struct stat sb;
     const char *subdirs[] = { "cur", "new", "tmp" };
-    int i;
-    datum key;
+    int i, ret;
+    DBT key, value;
 
     m = calloc (1, sizeof (mailbox_t));
     m->lockfd = -1;
@@ -200,8 +200,18 @@ maildir_open (const char *path, int flags)
     if (read_uid (m->path, "isyncmaxuid", &m->maxuid) == -1)
 	goto err;
 
-    snprintf (buf, sizeof (buf), "%s/isyncuidmap", m->path);
-    m->db = dbm_open (buf, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    snprintf (buf, sizeof (buf), "%s/isyncuidmap.db", m->path);
+    if (db_create (&m->db, 0, 0)) {
+	    fputs ("dbcreate failed\n", stderr);
+	    goto err;
+    }
+    if ((ret = m->db->set_pagesize (m->db, 4096)) != 0 ||
+	(ret = m->db->set_h_ffactor (m->db, 40)) != 0 ||
+	(ret = m->db->set_h_nelem (m->db, 1)) != 0) {
+	    fputs ("Error configuring database\n", stderr);
+	    goto err;
+    }
+    m->db->open (m->db, buf, 0, DB_HASH, DB_CREATE, S_IRUSR | S_IWUSR);
     if (m->db == NULL)
     {
 	fputs ("ERROR: unable to open UID db\n", stderr);
@@ -237,19 +247,24 @@ maildir_open (const char *path, int flags)
 	    /* determine the UID for this message.  The basename (sans
 	     * flags) is used as the key in the db
 	     */
-	    key.dptr = p->file;
-	    s = strchr (key.dptr, ':');
-	    key.dsize = s ? (size_t) (s - key.dptr) : strlen (key.dptr);
-	    key = dbm_fetch (m->db, key);
-	    if (key.dptr)
-	    {
-		p->uid = *(int *) key.dptr;
+	    memset (&key, 0, sizeof(key));
+	    memset (&value, 0, sizeof(value));
+	    key.data = p->file;
+	    s = strchr (p->file, ':');
+	    key.size = s ? (size_t) (s - p->file) : strlen (p->file);
+	    ret = m->db->get (m->db, 0, &key, &value, 0);
+	    if (ret == DB_NOTFOUND) {
+		/* Every locally generated message triggers this ... */
+		/*printf ("Warning, no UID for message %.*s\n",
+			key.size, p->file);*/
+	    } else if (ret) {
+		fprintf (stderr, "Unexpected error (%d) from db_get(%.*s)\n", 
+			 ret, key.size, p->file);
+	    } else if (ret == 0) {
+		p->uid = *((int *) value.data);
 		if (p->uid > m->maxuid)
 		    m->maxuid = p->uid;
 	    }
-	    else /* XXX remove. every locally generated message triggers this */
-		puts ("Warning, no UID for message");
-
 	    if (s)
 		parse_info (p, s + 1);
 	    if (p->flags & D_DELETED)
@@ -262,7 +277,7 @@ maildir_open (const char *path, int flags)
 
   err:
     if (m->db)
-	dbm_close (m->db);
+	m->db->close (m->db, 0);
     dotlock_unlock (&m->lockfd);
     free (m->path);
     free (m);
@@ -278,7 +293,7 @@ maildir_expunge (mailbox_t * mbox, int dead)
     message_t **cur = &mbox->msgs;
     message_t *tmp;
     char *s;
-    datum key;
+    DBT key;
     char path[_POSIX_PATH_MAX];
 
     while (*cur)
@@ -292,10 +307,12 @@ maildir_expunge (mailbox_t * mbox, int dead)
 	    if (unlink (path))
 		perror (path);
 	    /* remove the message from the UID map */
-	    key.dptr = tmp->file;
-	    s = strchr (key.dptr, ':');
-	    key.dsize = s ? (size_t) (s - key.dptr) : strlen (key.dptr);
-	    dbm_delete (mbox->db, key);
+	    memset (&key, 0, sizeof(key));
+	    key.data = tmp->file;
+	    s = strchr (tmp->file, ':');
+	    key.size = s ? (size_t) (s - tmp->file) : strlen (key.data);
+	    mbox->db->del (mbox->db, 0, &key, 0);
+	    mbox->db->sync (mbox->db, 0);
 	    *cur = (*cur)->next;
 	    free (tmp->file);
 	    free (tmp);
@@ -386,7 +403,7 @@ void
 maildir_close (mailbox_t * mbox)
 {
     if (mbox->db)
-	dbm_close (mbox->db);
+	mbox->db->close (mbox->db, 0);
 
     /* release the mutex on the mailbox */
     dotlock_unlock (&mbox->lockfd);

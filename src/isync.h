@@ -26,12 +26,7 @@
 
 #include <sys/types.h>
 
-#if HAVE_LIBDB
-# define DB_DBM_HSEARCH 1
-# include <db.h>
-#else
-# include <ndbm.h>
-#endif
+#include <db.h>
 
 #if HAVE_LIBSSL
 # include <openssl/ssl.h>
@@ -94,7 +89,7 @@ struct config
 /* struct representing local mailbox file */
 struct mailbox
 {
-    DBM *db;
+    DB *db;
     char *path;
     message_t *msgs;
     int lockfd;
