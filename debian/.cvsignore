@@ -1,5 +1,5 @@
-Makefile
-Makefile.in
 files
 isync
+isync.postrm.debhelper
 isync.substvars
+patched

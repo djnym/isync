@@ -12,4 +12,6 @@ configure
 configure.lineno
 configure-stamp
 isync.spec
+isync-*.tar.gz
+patch-stamp
 stamp-h1
