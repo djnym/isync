@@ -57,6 +57,7 @@ struct config
     char *box;
     char *alias;
     char *copy_deleted_to;
+    int poll;	/* how often to poll (in seconds)  0 = OFF */
     off_t max_size;
     config_t *next;
 #if HAVE_LIBSSL

@@ -44,6 +44,7 @@ config_defaults (config_t * conf)
     conf->copy_deleted_to = global.copy_deleted_to;
     conf->use_namespace = global.use_namespace;
     conf->expunge = global.expunge;
+    conf->poll = global.poll;
 #if HAVE_LIBSSL
     conf->require_ssl = global.require_ssl;
     conf->use_imaps = global.use_imaps;
@@ -234,6 +235,13 @@ load_config (const char *where)
 		(*cur)->expunge = (strcasecmp (val, "yes") == 0);
 	    else
 		global.expunge = (strcasecmp (val, "yes") == 0);
+	}
+	else if (!strncasecmp ("Poll", cmd, 4))
+	{
+	    if (*cur)
+		(*cur)->poll = atoi (val);
+	    else
+		global.poll = atoi (val);
 	}
 #if HAVE_LIBSSL
 	else if (!strncasecmp ("CertificateFile", cmd, 15))
