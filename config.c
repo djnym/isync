@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include "isync.h"
 
-static config_t *box = 0;
+config_t *boxes = 0;
 
 /* set defaults from the global configuration section */
 void
@@ -95,7 +95,7 @@ load_config (const char *where)
     char path[_POSIX_PATH_MAX];
     char buf[1024];
     struct passwd *pw;
-    config_t **cur = &box;
+    config_t **cur = &boxes;
     int line = 0;
     FILE *fp;
     char *p, *cmd, *val;
@@ -280,7 +280,7 @@ load_config (const char *where)
 config_t *
 find_box (const char *s)
 {
-    config_t *p = box;
+    config_t *p = boxes;
 
     for (; p; p = p->next)
 	if (!strcmp (s, p->path) || (p->alias && !strcmp (s, p->alias)))

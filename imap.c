@@ -797,13 +797,16 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 void
 imap_close (imap_t * imap)
 {
-    imap_exec (imap, "LOGOUT");
-    close (imap->sock->fd);
-    free (imap->sock);
-    free (imap->buf);
-    free_message (imap->msgs);
-    memset (imap, 0xff, sizeof (imap_t));
-    free (imap);
+    if (imap)
+    {
+	imap_exec (imap, "LOGOUT");
+	close (imap->sock->fd);
+	free (imap->sock);
+	free (imap->buf);
+	free_message (imap->msgs);
+	memset (imap, 0xff, sizeof (imap_t));
+	free (imap);
+    }
 }
 
 /* write a buffer stripping all \r bytes */

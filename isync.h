@@ -150,6 +150,7 @@ imap_t;
 #define SYNC_EXPUNGE	(1<<1)	/* don't fetch deleted messages */
 
 extern config_t global;
+extern config_t *boxes;
 extern unsigned int Tag;
 extern char Hostname[256];
 extern int Verbose;

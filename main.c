@@ -33,6 +33,7 @@
 #include <getopt.h>
 
 struct option Opts[] = {
+    {"all", 0, NULL, 'a'},
     {"config", 1, NULL, 'c'},
     {"delete", 0, NULL, 'd'},
     {"expunge", 0, NULL, 'e'},
@@ -67,12 +68,10 @@ usage (void)
     printf ("%s %s IMAP4 to maildir synchronizer\n", PACKAGE, VERSION);
     puts ("Copyright (C) 2000 Michael R. Elkins <me@mutt.org>");
     printf ("usage: %s [ flags ] mailbox [mailbox ...]\n", PACKAGE);
-    puts
-	("  -c, --config CONFIG	read an alternate config file (default: ~/.isyncrc)");
-    puts
-	("  -d, --delete		delete local msgs that don't exist on the server");
-    puts
-	("  -e, --expunge		expunge	deleted messages from the server");
+    puts ("  -a, --all	Synchronize all defined mailboxes");
+    puts ("  -c, --config CONFIG	read an alternate config file (default: ~/.isyncrc)");
+    puts ("  -d, --delete		delete local msgs that don't exist on the server");
+    puts ("  -e, --expunge		expunge	deleted messages from the server");
     puts ("  -f, --fast		only fetch new messages");
     puts ("  -h, --help		display this help message");
     puts ("  -p, --port PORT	server IMAP port");
@@ -80,8 +79,7 @@ usage (void)
     puts ("  -s, --host HOST	IMAP server address");
     puts ("  -u, --user USER	IMAP user name");
     puts ("  -v, --version		display version");
-    puts
-	("  -V, --verbose		verbose mode (display network traffic)");
+    puts ("  -V, --verbose		verbose mode (display network traffic)");
     exit (0);
 }
 
@@ -127,7 +125,7 @@ int
 main (int argc, char **argv)
 {
     int i;
-    config_t *box;
+    config_t *box = 0;
     mailbox_t *mail;
     imap_t *imap = 0;
     int expunge = 0;		/* by default, don't delete anything */
@@ -136,6 +134,7 @@ main (int argc, char **argv)
     char *config = 0;
     struct passwd *pw;
     int quiet = 0;
+    int all = 0;
 
     pw = getpwuid (getuid ());
 
@@ -157,56 +156,61 @@ main (int argc, char **argv)
     global.use_tlsv1 = 1;
 #endif
 
+#define FLAGS "ac:defhp:qu:r:s:vV"
+
 #if HAVE_GETOPT_LONG
-    while ((i = getopt_long (argc, argv, "c:defhp:qu:r:s:vV", Opts, NULL)) != -1)
+    while ((i = getopt_long (argc, argv, FLAGS, Opts, NULL)) != -1)
 #else
-    while ((i = getopt (argc, argv, "c:defhp:u:qr:s:vV")) != -1)
+    while ((i = getopt (argc, argv, FLAGS)) != -1)
 #endif
     {
 	switch (i)
 	{
-	case 'c':
-	    config = optarg;
-	    break;
-	case 'd':
-	    delete = 1;
-	    break;
-	case 'e':
-	    expunge = 1;
-	    break;
-	case 'f':
-	    fast = 1;
-	    break;
-	case 'p':
-	    global.port = atoi (optarg);
-	    break;
-	case 'q':
-	    quiet = 1;
-	    Verbose = 0;
-	    break;
-	case 'r':
-	    global.box = optarg;
-	    break;
-	case 's':
-	    global.host = optarg;
-	    break;
-	case 'u':
-	    free (global.user);
-	    global.user = optarg;
-	    break;
-	case 'V':
-	    Verbose = 1;
-	    break;
-	case 'v':
-	    version ();
-	default:
-	    usage ();
+	    case 'a':
+		all = 1;
+		break;
+	    case 'c':
+		config = optarg;
+		break;
+	    case 'd':
+		delete = 1;
+		break;
+	    case 'e':
+		expunge = 1;
+		break;
+	    case 'f':
+		fast = 1;
+		break;
+	    case 'p':
+		global.port = atoi (optarg);
+		break;
+	    case 'q':
+		quiet = 1;
+		Verbose = 0;
+		break;
+	    case 'r':
+		global.box = optarg;
+		break;
+	    case 's':
+		global.host = optarg;
+		break;
+	    case 'u':
+		free (global.user);
+		global.user = optarg;
+		break;
+	    case 'V':
+		Verbose = 1;
+		break;
+	    case 'v':
+		version ();
+	    default:
+		usage ();
 	}
     }
 
-    if (!argv[optind])
+    if (!argv[optind] && !all)
     {
-	puts ("No box specified");
+	puts ("No mailbox specified");
 	usage ();
     }
 
@@ -214,21 +218,24 @@ main (int argc, char **argv)
 
     load_config (config);
 
-    for (; argv[optind]; optind++)
+    for (box = boxes; (all && box) || (!all && argv[optind]);
+	 box = box->next, optind++)
     {
-	box = find_box (argv[optind]);
-	if (!box)
+	if (!all)
 	{
-	    /* if enough info is given on the command line, don't worry if
-	     * the mailbox isn't defined.
-	     */
-	    if (!global.host)
+	    if (NULL == (box = find_box (argv[optind])))
 	    {
-		puts ("No such mailbox");
-		exit (1);
+		/* if enough info is given on the command line, don't worry if
+		 * the mailbox isn't defined.
+		 */
+		if (!global.host)
+		{
+		    fprintf (stderr, "%s: no such mailbox\n", argv[optind]);
+		    continue;
+		}
+		global.path = argv[optind];
+		box = &global;
 	    }
-	    global.path = argv[optind];
-	    box = &global;
 	}
 
 	if (!box->pass)
@@ -248,18 +255,22 @@ main (int argc, char **argv)
 	    box->pass = strdup (global.pass);
 	}
 
-	if(!quiet)
+	if (!quiet)
 	    printf ("Reading %s\n", box->path);
 	mail = maildir_open (box->path, fast);
 	if (!mail)
 	{
-	    puts ("Unable to load mailbox");
-	    exit (1);
+	    fprintf (stderr, "%s: unable to load mailbox\n", box->path);
+	    continue;
 	}
 
 	imap = imap_open (box, fast ? mail->maxuid + 1 : 1, imap);
 	if (!imap)
-	    exit (1);
+	{
+	    fprintf (stderr, "%s: skipping mailbox due to IMAP error\n",
+		     box->path);
+	    continue;
+	}
 
 	if (!quiet)
 	    puts ("Synchronizing");
@@ -274,7 +285,8 @@ main (int argc, char **argv)
 	    {
 		/* remove messages marked for deletion */
 		if (!quiet)
-		    printf ("Expunging %d messages from server\n", imap->deleted);
+		    printf ("Expunging %d messages from server\n",
+			    imap->deleted);
 		if (imap_expunge (imap))
 		    exit (1);
 		if (!quiet)
