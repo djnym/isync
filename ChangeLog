@@ -1,3 +1,33 @@
+2002-01-16  me  <me@sigpipe.org>
+
+	* debian/changelog, debian/control, debian/copyright, debian/dirs, debian/docs, debian/files, debian/rules, isync.1, maildir.c, sync.c:
+	added debian build files
+
+	fixed indentation
+
+	added bug note to manpage about db file format not being architecture
+	independent
+
+	* sync.c, maildir.c:
+	remove the uid from the db when a message is deleted from the maildir
+
+	optimize db fetch/store to not copy the base filename
+
+	* NEWS, TODO, config.c, configure.in, cram.c, debug.c, debug.h, imap.c, isync.1, isync.h, list.c, maildir.c, main.c, sync.c, ChangeLog:
+	updated year in copyright notice
+
+	the uid for each message in the maildir is now stored in a dbm database
+	rather than the filename.  this change was necessary because isync became
+	confused if you copied a message to another folder, in which case the uid
+	was invalid.
+
+	as a result of the above change, isync now acquires a mutex on the mailbox
+	to protect the dbm database from concurrent access.
+
+	main() was reworked to continue gracefully when an error is encountered, and
+	to always call maildir_close() so that the lock can be disabled, and the
+	database closed.
+
 2001-11-20  me  <me@sigpipe.org>
 
 	* ChangeLog, Makefile.am, isync.spec:

@@ -24,4 +24,4 @@ dnl test for gcc.  use the prefix so we know that gcc-3.0 is also gcc
 if test `echo $CC | sed 's/^gcc.*/gcc/'` = gcc; then
 	CFLAGS="$CFLAGS -pipe -W -Wall -Wshadow -Wmissing-prototypes"
 fi
-AC_OUTPUT(Makefile)
+AC_OUTPUT(Makefile debian/Makefile)

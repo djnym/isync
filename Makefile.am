@@ -1,3 +1,4 @@
+SUBDIRS=debian
 bin_PROGRAMS=isync
 isync_SOURCES=main.c imap.c sync.c maildir.c isync.h list.c cram.c config.c \
 	      debug.h
