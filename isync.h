@@ -47,7 +47,8 @@ typedef struct message message_t;
 
 struct config
 {
-    char *path;
+    char *maildir;
+    char *path;	/* path relative to .maildir, or absolute path */
     char *host;
     int port;
     char *user;

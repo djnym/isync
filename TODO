@@ -1,3 +1,3 @@
-add upload support to mirror local msgs on the server
-
 add support for syncing with other: and shared: via NAMESPACE
+
+finish implementing --quiet

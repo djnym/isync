@@ -727,7 +727,6 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap)
 void
 imap_close (imap_t * imap)
 {
-    puts ("Closing IMAP connection");
     imap_exec (imap, "LOGOUT");
     close (imap->sock->fd);
     free (imap->sock);

@@ -41,6 +41,7 @@ struct option Opts[] = {
     {"remote", 1, NULL, 'r'},
     {"host", 1, NULL, 's'},
     {"port", 1, NULL, 'p'},
+    {"quiet", 0, NULL, 'q'},
     {"user", 1, NULL, 'u'},
     {"version", 0, NULL, 'v'},
     {"verbose", 0, NULL, 'V'},
@@ -134,6 +135,7 @@ main (int argc, char **argv)
     int delete = 0;
     char *config = 0;
     struct passwd *pw;
+    int quiet = 0;
 
     pw = getpwuid (getuid ());
 
@@ -142,6 +144,7 @@ main (int argc, char **argv)
     global.port = 143;
     global.box = "INBOX";
     global.user = strdup (pw->pw_name);
+    global.maildir = strdup (pw->pw_dir);
     global.max_size = 0;
     global.use_namespace = 1;
 #if HAVE_LIBSSL
@@ -155,9 +158,9 @@ main (int argc, char **argv)
 #endif
 
 #if HAVE_GETOPT_LONG
-    while ((i = getopt_long (argc, argv, "c:defhp:u:r:s:vV", Opts, NULL)) != -1)
+    while ((i = getopt_long (argc, argv, "c:defhp:qu:r:s:vV", Opts, NULL)) != -1)
 #else
-    while ((i = getopt (argc, argv, "c:defhp:u:r:s:vV")) != -1)
+    while ((i = getopt (argc, argv, "c:defhp:u:qr:s:vV")) != -1)
 #endif
     {
 	switch (i)
@@ -176,6 +179,10 @@ main (int argc, char **argv)
 	    break;
 	case 'p':
 	    global.port = atoi (optarg);
+	    break;
+	case 'q':
+	    quiet = 1;
+	    Verbose = 0;
 	    break;
 	case 'r':
 	    global.box = optarg;
@@ -241,7 +248,8 @@ main (int argc, char **argv)
 	    box->pass = strdup (global.pass);
 	}
 
-	printf ("Reading %s\n", box->path);
+	if(!quiet)
+	    printf ("Reading %s\n", box->path);
 	mail = maildir_open (box->path, fast);
 	if (!mail)
 	{
@@ -253,7 +261,8 @@ main (int argc, char **argv)
 	if (!imap)
 	    exit (1);
 
-	puts ("Synchronizing");
+	if (!quiet)
+	    puts ("Synchronizing");
 	i = delete ? SYNC_DELETE : 0;
 	i |= (expunge || box->expunge) ? SYNC_EXPUNGE : 0;
 	if (sync_mailbox (mail, imap, i, box->max_size))
@@ -264,11 +273,13 @@ main (int argc, char **argv)
 	    if (expunge && (imap->deleted || mail->deleted))
 	    {
 		/* remove messages marked for deletion */
-		printf ("Expunging %d messages from server\n", imap->deleted);
+		if (!quiet)
+		    printf ("Expunging %d messages from server\n", imap->deleted);
 		if (imap_expunge (imap))
 		    exit (1);
-		printf ("Expunging %d messages from local mailbox\n",
-			mail->deleted);
+		if (!quiet)
+		    printf ("Expunging %d messages from local mailbox\n",
+			    mail->deleted);
 		if (maildir_expunge (mail, 0))
 		    exit (1);
 	    }
@@ -280,9 +291,13 @@ main (int argc, char **argv)
 		maildir_expunge (mail, 1);
 
 	    /* write changed flags back to the mailbox */
-	    printf ("Committing changes to %s\n", mail->path);
-	    if (maildir_sync (mail))
-		exit (1);
+	    if (mail->changed)
+	    {
+		if (!quiet)
+		    printf ("Committing changes to %s\n", mail->path);
+		if (maildir_sync (mail))
+		    exit (1);
+	    }
 	}
 
 	maildir_close (mail);

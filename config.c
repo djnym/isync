@@ -51,6 +51,43 @@ config_defaults (config_t * conf)
 #endif
 }
 
+/* `s' is destroyed by this call */
+static char *
+expand_strdup (char *s)
+{
+    char path[_POSIX_PATH_MAX];
+    struct passwd *pw;
+    char *p;
+
+    if (*s == '~')
+    {
+	s++;
+	if (*s == '/')
+	{
+	    /* current user */
+	    pw = getpwuid (getuid ());
+	    p = s + 1;
+	}
+	else
+	{
+	    p = strchr (s, '/');
+	    if (p)
+		*p++ = 0;
+	    pw = getpwnam (s);
+	}
+	if (!pw)
+	    return 0;
+	snprintf (path, sizeof (path), "%s/%s", pw->pw_dir, p ? p : "");
+	s = path;
+    }
+    else if (*s != '/')
+    {
+	snprintf (path, sizeof (path), "%s/%s", global.maildir, s);
+	s = path;
+    }
+    return strdup (s);
+}
+
 void
 load_config (const char *where)
 {
@@ -94,7 +131,13 @@ load_config (const char *where)
 		cur = &(*cur)->next;
 	    *cur = calloc (1, sizeof (config_t));
 	    config_defaults (*cur);
-	    (*cur)->path = strdup (val);
+	    (*cur)->path = expand_strdup (val);
+	}
+	else if (!strncasecmp ("maildir", cmd, 7))
+	{
+	    /* this only affects the global setting */
+	    free (global.maildir);
+	    global.maildir = expand_strdup (val);
 	}
 	else if (!strncasecmp ("host", cmd, 4))
 	{
@@ -184,9 +227,9 @@ load_config (const char *where)
 	else if (!strncasecmp ("CertificateFile", cmd, 15))
 	{
 	    if (*cur)
-		(*cur)->cert_file = strdup (val);
+		(*cur)->cert_file = expand_strdup (val);
 	    else
-		global.cert_file = strdup (val);
+		global.cert_file = expand_strdup (val);
 	}
 	else if (!strncasecmp ("RequireSSL", cmd, 10))
 	{
