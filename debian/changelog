@@ -1,8 +1,8 @@
-isync (0.8-2) unstable; urgency=low
+isync (0.9-1) unstable; urgency=low
 
-  * 0.9
+  * New upstream release
 
- -- Michael Elkins <me@cs.hmc.edu>  Fri, 19 Apr 2002 14:32:25 -0700
+ -- Michael Elkins <me@mutt.org>  Tue, 18 Jun 2002 17:36:21 -0700
 
 isync (0.8-1) unstable; urgency=low
 

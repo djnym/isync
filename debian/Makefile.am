@@ -1,1 +1,5 @@
-EXTRA_DIST=files dirs docs rules control copyright changelog
+EXTRA_DIST=docs rules control copyright changelog
+DISTCLEANFILES=files *.debhelper
+
+distclean-local:
+	rm -rf isync
