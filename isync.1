@@ -77,7 +77,7 @@ are \fBnot\fR deleted.
 \fB-e\fR, \fB--expunge\fR
 Causes \fBisync\fR to permanently remove all messages marked for deletion
 in both the local maildir mailbox and the remote IMAP mailbox.  By default,
-messages are \fBnot\fR expunged.
+\fIdeleted\fR messages are \fBnot\fR expunged.
 .TP
 \fB-f\fR, \fB--fast\fR
 Causes \fBisync\fR to skip the step of synchronzing message flags between the
@@ -208,7 +208,7 @@ If \fIcount\fR is 0, the maximum number of messages is \fBunlimited\fR
 .TP
 \fBMaxSize\fR \fIbytes\fR
 Sets a threshold for the maximum message size (in bytes) for which \fBisync\fR
-should fetch from the server.  This is useful for weeding out messages with
+should transfer over the wire.  This is useful for weeding out messages with
 large attachments.  If \fIbytes\fR is 0, the maximum file size is \fBunlimited\fR.
 ..
 .TP
