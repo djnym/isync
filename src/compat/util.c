@@ -65,14 +65,12 @@ vasprintf( char **strp, const char *fmt, va_list ap )
 	int len;
 	char tmp[1024];
 
-	if ((len = vsnprintf( tmp, sizeof(tmp), fmt, ap) ) < 0)
-		*strp = 0;
-	else if ((*strp = malloc( len + 1 ))) {
-		if (len >= sizeof(tmp))
-			vsprintf( *strp, fmt, ap );
-		else
-			memcpy( *strp, tmp, len + 1 );
-	}
+	if ((len = vsnprintf( tmp, sizeof(tmp), fmt, ap )) < 0 || !(*strp = malloc( len + 1 )))
+		return -1;
+	if (len >= (int)sizeof(tmp))
+		vsprintf( *strp, fmt, ap );
+	else
+		memcpy( *strp, tmp, len + 1 );
 	return len;
 }
 #endif
@@ -138,7 +136,7 @@ int
 nfvasprintf( char **str, const char *fmt, va_list va )
 {
 	int ret = vasprintf( str, fmt, va );
-	if (!*str)
+	if (ret < 0)
 		oom();
 	return ret;
 }
