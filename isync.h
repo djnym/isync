@@ -34,11 +34,10 @@
 
 typedef struct
 {
-    int rdfd;	/* read filedes */
-    int wrfd;	/* write filedes */
+  int fd;
 #if HAVE_LIBSSL
-    SSL *ssl;
-    unsigned int use_ssl:1;
+  SSL *ssl;
+  unsigned int use_ssl:1;
 #endif
 } Socket_t;
 

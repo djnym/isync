@@ -179,7 +179,7 @@ socket_read (Socket_t * sock, char *buf, size_t len)
     if (sock->use_ssl)
 	return SSL_read (sock->ssl, buf, len);
 #endif
-    return read (sock->rdfd, buf, len);
+    return read (sock->fd, buf, len);
 }
 
 static int
@@ -189,7 +189,7 @@ socket_write (Socket_t * sock, char *buf, size_t len)
     if (sock->use_ssl)
 	return SSL_write (sock->ssl, buf, len);
 #endif
-    return write (sock->wrfd, buf, len);
+    return write (sock->fd, buf, len);
 }
 
 static void
@@ -224,9 +224,11 @@ socket_perror (const char *func, Socket_t *sock, int ret)
     }
 #else
     (void) sock;
-    (void) ret;
 #endif
-    perror (func);
+    if (ret)
+      perror (func);
+    else
+      fprintf (stderr, "%s: unexpected EOF\n", func);
 }
 
 /* simple line buffering */
@@ -605,6 +607,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
     imap->sock = calloc (1, sizeof (Socket_t));
     imap->buf = calloc (1, sizeof (buffer_t));
     imap->buf->sock = imap->sock;
+    imap->sock->fd = -1;
   }
 
   imap->box = box;
@@ -613,44 +616,35 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 
   if (!reuse)
   {
+    int a[2];
+
     /* open connection to IMAP server */
 
     if (box->tunnel)
     {
-      int a[2];
-      int b[2];
-
-      printf ("Executing: %s...", box->tunnel);
+      printf ("Starting tunnel '%s'...", box->tunnel);
       fflush (stdout);
 
-      if (pipe (a))
+      if (socketpair (PF_UNIX, SOCK_STREAM, 0, a))
       {
-      }
-      if (pipe (b))
-      {
+	perror ("socketpair");
+	exit (1);
       }
 
       if (fork () == 0)
       {
-	if (dup2 (a[0],0))
+	if (dup2 (a[0],0) || dup2 (a[0], 1))
 	{
 	  _exit(127);
 	}
 	close (a[1]);
-	if (dup2 (b[1],1))
-	{
-	  _exit (127);
-	}
-	close (b[0]);
-	execl ("/bin/sh","sh","-c", box->tunnel);
+	execl ("/bin/sh", "sh", "-c", box->tunnel);
 	_exit (127);
       }
 
       close (a[0]);
-      close (b[1]);
 
-      imap->sock->rdfd = b[0];
-      imap->sock->wrfd = a[1];
+      imap->sock->fd = a[1];
 
       puts ("ok");
     }
@@ -684,8 +678,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
       }
       puts ("ok");
 
-      imap->sock->rdfd = s;
-      imap->sock->wrfd = s;
+      imap->sock->fd = s;
     }
   }
 
@@ -750,7 +743,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	  ret = -1;
 	  break;
 	}
-	else
+	else if (box->use_sslv2 || box->use_sslv3 || box->use_tlsv1)
 	  puts ("Warning, SSL support not available");
       }
       else
@@ -763,7 +756,7 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
 	}
 
 	imap->sock->ssl = SSL_new (SSLContext);
-	SSL_set_fd (imap->sock->ssl, imap->sock->rdfd);
+	SSL_set_fd (imap->sock->ssl, imap->sock->fd);
 	ret = SSL_connect (imap->sock->ssl);
 	if (ret <= 0)
 	{
@@ -796,6 +789,25 @@ imap_open (config_t * box, unsigned int minuid, imap_t * imap, int flags)
       if (!preauth)
       {
 	puts ("Logging in...");
+
+	if (!box->pass)
+	{
+	  /*
+	   * if we don't have a global password set, prompt the user for
+	   * it now.
+	   */
+	  if (!global.pass)
+	  {
+	    global.pass = getpass ("Password:");
+	    if (!global.pass)
+	    {
+	      fprintf (stderr, "Skipping %s, no password", box->path);
+	      break;
+	    }
+	  }
+	  box->pass = strdup (global.pass);
+	}
+
 #if HAVE_LIBSSL
 	if (imap->have_cram)
 	{
@@ -877,9 +889,7 @@ imap_close (imap_t * imap)
   if (imap)
   {
     imap_exec (imap, "LOGOUT");
-    close (imap->sock->rdfd);
-    if (imap->sock->rdfd != imap->sock->wrfd)
-      close (imap->sock->wrfd);
+    close (imap->sock->fd);
     free (imap->sock);
     free (imap->buf);
     free_message (imap->msgs);

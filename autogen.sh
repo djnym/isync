@@ -12,4 +12,4 @@ autoconf
 if test $? -ne 0; then
 	exit
 fi
-./configure $@
+./configure "$@"

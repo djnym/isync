@@ -261,23 +261,6 @@ main (int argc, char **argv)
 	}
 
 	do {
-	    if (!box->pass)
-	    {
-		/* if we don't have a global password set, prompt the user for
-		 * it now.
-		 */
-		if (!global.pass)
-		{
-		    global.pass = getpass ("Password:");
-		    if (!global.pass)
-		    {
-			fprintf (stderr, "Skipping %s, no password", box->path);
-			break;
-		    }
-		}
-		box->pass = strdup (global.pass);
-	    }
-
 	    if (!quiet)
 		printf ("Reading %s\n", box->path);
 	    i = 0;

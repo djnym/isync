@@ -31,19 +31,13 @@
 
 static struct flock lck = { 0, SEEK_SET, 0, 0, 0 };
 
-static void make_lock (int type)
-{
-  lck.l_type = type;
-  lck.l_pid = getpid ();
-}
-
 int dotlock_lock (const char *path, int *fd)
 {
   *fd = open (path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
   if (*fd == -1)
     return -1;
-  make_lock (F_WRLCK);
-  if (fcntl (*fd, F_SETLKW, &lck))
+  lck.l_type = F_WRLCK;
+  if (fcntl (*fd, F_SETLK, &lck))
   {
     close (*fd);
     *fd = -1;
@@ -58,7 +52,7 @@ int dotlock_unlock (int *fd)
 
   if (*fd != -1)
   {
-    make_lock (F_UNLCK);
+    lck.l_type = F_UNLCK;
     if (fcntl (*fd, F_SETLKW, &lck))
       r = -1;
     close (*fd);
@@ -81,7 +75,7 @@ int main (void)
   sleep(5);
   if (dotlock_unlock (&fd))
   {
-    perror ("dotlock_lock");
+    perror ("dotlock_unlock");
   }
 done:
   exit (0);
