@@ -2,6 +2,9 @@
 #   Values here are used as defaults for any following Mailbox section that
 #   doesn't specify it.
 
+# SSL server certificate file
+CertificateFile /etc/ssl/certs/ca-certificates.crt
+
 # by default, expunge deleted messages (same as -e on command line)
 Expunge yes
 
