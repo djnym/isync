@@ -1,5 +1,7 @@
 make SSL certificate validation more automatic.
 
+add deamon mode. primary goal: keep imap password in memory.
+
 add asynchronous operation to remote mailbox drivers. this is actually
 what prevents us from simply using c-client and thus becoming mailsync.
 
@@ -48,4 +50,4 @@ programs have to do the same. and what if the deleted flag is unset?
 
 items out of scope of purely UID based approach:
 - detect message moves between folders
-- recovering from UIDVALIDITY change (uw-imap does this a lot)
+- recovering from UIDVALIDITY change (uw-imap < 2004.352 does this a lot)
