@@ -1174,8 +1174,6 @@ do_cram_auth (imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt)
 	free( resp );
 	if (n != l)
 		return -1;
-	if (socket_write( &imap->buf.sock, "\r\n", 2 ) != 2)
-		return -1;
 	cmdp->cb.cont = 0;
 	return 0;
 }
