@@ -1,6 +1,23 @@
 [0.9]
 
-TODO
+Added Tunnel directive to allow the user to specify a shell command to run
+to set up an IMAP connection in place of a TCP socket (eg., to run over
+an SSH session).
+
+Added PREAUTH support (useful mostly in conjunction with Tunnel).
+
+Messages marked deleted are not uploaded when we are going to expunge.
+
+Locally generated messages are not re-fetched after uploading even if the
+UIDPLUS extension is not supported by the server.
+
+Added `OneToOne' configuration option: ignore any Mailbox specifications
+and instead pick up all mailboxes from the local MailDir and remote Folder
+and map them 1:1 onto each other according to their names.
+
+-C now creates both local and remote boxes; -L and -R create only local/remote.
+
+--quiet is now really quiet.
 
 [0.8]
 
