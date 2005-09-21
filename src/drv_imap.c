@@ -1229,7 +1229,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 				_exit( 127 );
 			close( a[0] );
 			close( a[1] );
-			execl( "/bin/sh", "sh", "-c", srvc->tunnel, 0 );
+			execl( "/bin/sh", "sh", "-c", srvc->tunnel, (char *)0 );
 			_exit( 127 );
 		}
 
