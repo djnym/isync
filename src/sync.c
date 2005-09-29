@@ -351,7 +351,7 @@ sync_old( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 				aflags &= F_DELETED;
 				dflags = 0;
 			}
-			switch (tdriver->set_flags( tctx, tmsg, tuid, aflags, dflags )) {
+			switch ((aflags | dflags) ? tdriver->set_flags( tctx, tmsg, tuid, aflags, dflags ) : DRV_OK) {
 			case DRV_STORE_BAD: return pull ? SYNC_SLAVE_BAD : SYNC_MASTER_BAD;
 			case DRV_BOX_BAD: return SYNC_FAIL;
 			default: /* ok */ break;
@@ -844,7 +844,7 @@ sync_boxes( store_t *mctx, const char *mname,
 			nflags = srec->flags;
 
 			if ((ret = sync_old( chan->mops, sctx, mctx, chan->master, jfp, 0, &nflags, srec, smsg, mmsg, dels, delm )) != SYNC_OK ||
-                            (ret = sync_old( chan->sops, mctx, sctx, chan->slave, jfp, 1, &nflags, srec, mmsg, smsg, delm, dels )) != SYNC_OK)
+			    (ret = sync_old( chan->sops, mctx, sctx, chan->slave, jfp, 1, &nflags, srec, mmsg, smsg, delm, dels )) != SYNC_OK)
 				goto finish;
 
 			if (srec->flags != nflags) {
