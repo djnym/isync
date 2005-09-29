@@ -1010,13 +1010,15 @@ maildir_set_flags( store_t *gctx, message_t *gmsg, int uid, int add, int del )
 
 	(void) uid;
 	bbl = nfsnprintf( buf, sizeof(buf), "%s/", gctx->path );
+	memcpy( nbuf, gctx->path, bbl - 1 );
+	memcpy( nbuf + bbl - 1, "/cur/", 5 );
 	for (;;) {
 		bl = bbl + nfsnprintf( buf + bbl, sizeof(buf) - bbl, "%s/", subdirs[gmsg->status & M_RECENT] );
 		ol = strlen( msg->base );
 		if ((int)sizeof(buf) - bl < ol + 3 + NUM_FLAGS)
 			oob();
 		memcpy( buf + bl, msg->base, ol + 1 );
-		memcpy( nbuf, buf, bl + ol + 1 );
+		memcpy( nbuf + bl, msg->base, ol + 1 );
 		if ((s = strstr( nbuf + bl, ":2," ))) {
 			s += 3;
 			fl = ol - (s - (nbuf + bl));
@@ -1047,6 +1049,7 @@ maildir_set_flags( store_t *gctx, message_t *gmsg, int uid, int add, int del )
 	memcpy( msg->base, nbuf + bl, tl + 1 );
 	msg->gen.flags |= add;
 	msg->gen.flags &= ~del;
+	gmsg->status &= ~M_RECENT;
 
 	return DRV_OK;
 }
