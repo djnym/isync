@@ -1001,7 +1001,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 				if (!strcmp( "NO", arg )) {
 					if (cmdp->cb.create && cmd && (cmdp->cb.trycreate || !memcmp( cmd, "[TRYCREATE]", 11 ))) { /* SELECT, APPEND or UID COPY */
 						p = strchr( cmdp->cmd, '"' );
-						if (!issue_imap_cmd( ctx, 0, "CREATE \"%.*s\"", strchr( p + 1, '"' ) - p + 1, p )) {
+						if (!issue_imap_cmd( ctx, 0, "CREATE %.*s", strchr( p + 1, '"' ) - p + 1, p )) {
 							resp = RESP_BAD;
 							goto normal;
 						}
