@@ -16,7 +16,7 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- * 
+ *
  * As a special exception, mbsync may be linked with the OpenSSL library,
  * despite that library's more restrictive license.
  */
@@ -60,7 +60,7 @@ parse_int( conffile_t *cfile )
 {
 	char *p;
 	int ret;
-    
+
 	ret = strtol( cfile->val, &p, 10 );
 	if (*p) {
 		fprintf( stderr, "%s:%d: invalid integer value '%s'\n",
@@ -91,7 +91,7 @@ parse_size( conffile_t *cfile )
 	return ret;
 }
 
-static int 
+static int
 getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_state )
 {
 	char *arg;
@@ -131,7 +131,7 @@ getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_s
 				*cops |= XOP_PULL|XOP_PUSH;
 			else if (strcasecmp( "None", arg ) && strcasecmp( "Noop", arg ))
 				fprintf( stderr, "%s:%d: invalid Sync arg '%s'\n",
-				         cfile->file, cfile->line, arg );			
+				         cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
 		*mops |= XOP_HAVE_TYPE;
 	} else if (!strcasecmp( "Expunge", cfile->cmd )) {
@@ -145,7 +145,7 @@ getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_s
 				*sops |= OP_EXPUNGE;
 			else if (strcasecmp( "None", arg ))
 				fprintf( stderr, "%s:%d: invalid Expunge arg '%s'\n",
-				         cfile->file, cfile->line, arg );			
+				         cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
 		*mops |= XOP_HAVE_EXPUNGE;
 	} else if (!strcasecmp( "Create", cfile->cmd )) {
@@ -159,7 +159,7 @@ getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_s
 				*sops |= OP_CREATE;
 			else if (strcasecmp( "None", arg ))
 				fprintf( stderr, "%s:%d: invalid Create arg '%s'\n",
-				         cfile->file, cfile->line, arg );			
+				         cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
 		*mops |= XOP_HAVE_CREATE;
 	} else if (!strcasecmp( "SyncState", cfile->cmd ))

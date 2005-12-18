@@ -446,7 +446,7 @@ main( int argc, char **argv )
 		merge_actions( chan, mops, sops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
 		merge_actions( chan, mops, sops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 		merge_actions( chan, mops, sops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
-	
+
 		mboxes = sboxes = cboxes = 0;
 		/* possible todo: handle master <-> slave swaps */
 		if (mctx) {
