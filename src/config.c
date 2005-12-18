@@ -331,7 +331,6 @@ load_config( const char *where, int pseudo )
 					*p = 0;
 					for (store = stores; store; store = store->next)
 						if (!strcmp( store->name, cfile.val + 1 )) {
-							memset( sptarg, 0, sizeof(*sptarg) );
 							*sptarg = store;
 							goto stpcom;
 						}
