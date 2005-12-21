@@ -244,7 +244,7 @@ maildir_validate( const char *prefix, const char *box, int create )
 		for (i = 0; i < 3; i++) {
 			memcpy( buf + bl, subdirs[i], 4 );
 			if (stat( buf, &st ) || !S_ISDIR(st.st_mode)) {
-				fprintf( stderr, "Maildir error: '%s' is no valid mailbox\n", buf );
+				fprintf( stderr, "Maildir error: '%.*s' is no valid mailbox\n", bl, buf );
 				return DRV_BOX_BAD;
 			}
 		}
