@@ -927,7 +927,7 @@ sync_boxes( store_t *mctx, const char *mname,
 		case EX_STORE_BAD: ret = SYNC_SLAVE_BAD; goto finish;
 		case EX_RSTORE_BAD: ret = SYNC_MASTER_BAD; goto finish;
 		default: ret = SYNC_FAIL; break;
-		case EX_OK: mex = 1;
+		case EX_OK: sex = 1;
 		}
 	}
 	if (mex || sex) {
