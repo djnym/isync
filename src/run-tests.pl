@@ -268,6 +268,11 @@ sub ckbox($$$@)
 			print STDERR "flag mismatch for $bn:$num - expected '$flg', got '$ms{$num}[1]', config: $cfg\n";
 			exit 1;
 		}
+		delete $ms{$num};
+	}
+	if (%ms) {
+		print STDERR "excess messages in '$bn': ".join(", ", sort({$a <=> $b } keys(%ms))).", config: $cfg\n";
+		exit 1;
 	}
 }
 
