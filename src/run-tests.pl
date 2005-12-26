@@ -11,6 +11,7 @@ sub test($$);
 
 ################################################################################
 
+# generic syncing tests
 my @x01 = (
  [ 8,
    1, 1, "F", 2, 2, "", 3, 3, "FS", 4, 4, "", 5, 5, "T", 6, 6, "F", 7, 7, "FT", 9, 0, "" ],
@@ -116,6 +117,46 @@ my @X08 = (
 );
 test(\@x01, \@X08);
 
+# size restriction tests
+
+my @x10 = (
+ [ 0,
+   1, 0, "", 2, 0, "*" ],
+ [ 0,
+   3, 0, "*" ],
+ [ 0, 0, 0,
+    ],
+);
+
+#show("10", "11", "MaxSize 1k\n", "MaxSize 1k\n", "");
+my @X11 = (
+ [ "MaxSize 1k\n", "MaxSize 1k\n", "" ],
+ [ 2,
+   1, 1, "", 2, 2, "*" ],
+ [ 2,
+   3, 1, "*", 1, 2, "" ],
+ [ 2, 0, 1,
+   -1, 1, "", 1, 2, "", 2, -1, "" ],
+);
+test(\@x10, \@X11);
+
+my @x20 = @X11[1,2,3];
+
+#show("20", "11", "MaxSize 1k\n", "MaxSize 1k\n", ""); # sic! - 11
+test(\@x20, \@X11);
+
+#show("20", "22", "", "MaxSize 1k\n", "");
+my @X22 = (
+ [ "", "MaxSize 1k\n", "" ],
+ [ 3,
+   1, 1, "", 2, 2, "*", 3, 3, "*" ],
+ [ 2,
+   3, 1, "*", 1, 2, "" ],
+ [ 2, 0, 1,
+   3, 1, "", 1, 2, "", 2, -1, "" ],
+);
+test(\@x20, \@X22);
+
 ################################################################################
 
 chdir "..";
@@ -190,15 +231,17 @@ sub readbox($)
 				exit 1;
 			}
 			open(FILE, "<", $bn."/".$d."/".$f) or die "Cannot read message '$f' in '$bn'.\n";
+			my $sz = 0;
 			while (<FILE>) {
 				/^Subject: (\d+)$/ && ($num = $1);
+				$sz += length($_);
 			}
 			close FILE;
 			if (!defined($num)) {
 				print STDERR "message '$f' in '$bn' has no identifier.\n";
 				exit 1;
 			}
-			@{ $ms{$num} } = ($uid, $flg);
+			@{ $ms{$num} } = ($uid, $flg.($sz>1000?"*":""));
 		}
 	}
 	return ($mu, %ms);
@@ -222,9 +265,10 @@ sub mkbox($$@)
 		} else {
 			$uid = "";
 		}
+		my $big = $flg =~ s/\*//;
 		open(FILE, ">", $bn."/cur/0.1_".$num.".local".$uid.":2,".$flg) or
 			die "Cannot create message $num in mailbox $bn.\n";
-		print FILE "From: foo\nTo: bar\nDate: Thu, 1 Jan 1970 00:00:00 +0000\nSubject: $num\n\n";
+		print FILE "From: foo\nTo: bar\nDate: Thu, 1 Jan 1970 00:00:00 +0000\nSubject: $num\n\n".(("A"x50)."\n")x($big*30);
 		close FILE;
 	}
 }
