@@ -316,10 +316,10 @@ sub showbox($$)
 	my ($bn) = @_;
 
 	my ($mu, %ms) = readbox($bn);
+	print " [ $mu,\n   ";
 	my $frst = 1;
 	for my $num (sort {$a <=> $b} keys %ms) {
 		if ($frst) {
-			print " [ $mu,\n   ";
 			$frst = 0;
 		} else {
 			print ", ";
@@ -338,18 +338,16 @@ sub showchan()
 		die "Cannot read sync state.\n";
 	$_ = <FILE>;
 	/^1:(\d+) 1:(\d+):(\d+)\n$/;
-	my ($mxm, $mms, $mxs) = ($1, $2, $3);
+	print " [ $1, $2, $3,\n   ";
 	my $frst = 1;
 	for (<FILE>) {
 		/^(\d+) (\d+) (.*)\n$/;
-		my ($mu, $su, $flg) = ($1, $2, $3);
 		if ($frst) {
-			print " [ $mxm, $mms, $mxs,\n   ";
 			$frst = 0;
 		} else {
 			print ", ";
 		}
-		print "$mu, $su, \"$flg\"";
+		print "$1, $2, \"$3\"";
 	}
 	print " ],\n";
 	close FILE;
