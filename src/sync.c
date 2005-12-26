@@ -263,7 +263,7 @@ sync_old( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 		/* c.4) d.9) / b.4) d.4) */
 		debug( pull ? "  master vanished\n" : "  slave vanished\n" );
 		if (tmsg && tmsg->flags != *nflags)
-			info( "Info: conflicting changes in (%d,%d)\n", srec->muid, srec->suid );
+			info( "Info: Conflicting changes in (%d,%d)\n", srec->muid, srec->suid );
 		if (tops & OP_DELETE) {
 			debug( pull ? "  -> pulling delete\n" : "  -> pushing delete\n" );
 			switch (tdriver->set_flags( tctx, tmsg, tuid, F_DELETED, 0 )) {
@@ -865,7 +865,7 @@ sync_boxes( store_t *mctx, const char *mname,
 		goto finish;
 
 	if ((chan->sops & (OP_NEW|OP_RENEW)) && chan->max_messages) {
-		debug( "expiring excessive entries\n" );
+		debug( "expiring excess entries\n" );
 		todel = sctx->count - chan->max_messages;
 		for (smsg = sctx->msgs; smsg && todel > 0; smsg = smsg->next)
 			if (!(smsg->status & M_DEAD) && (smsg->flags & F_DELETED))
