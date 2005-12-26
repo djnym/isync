@@ -354,7 +354,7 @@ sub ckbox($$$@)
 
 	my ($mu, %ms) = readbox($bn);
 	if ($mu != $MU) {
-		print STDERR "NEXTUID mismatch for $bn - expected $MU, got $mu, config: $cfg\n";
+		print STDERR "MAXUID mismatch for $bn - expected $MU, got $mu, config: $cfg\n";
 		exit 1;
 	}
 	while (@MS) {
