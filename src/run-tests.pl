@@ -323,7 +323,7 @@ sub showbox($$)
 	my ($mu, %ms) = readbox($bn);
 	print " [ $mu,\n   ";
 	my $frst = 1;
-	for my $num (sort {$a <=> $b} keys %ms) {
+	for my $num (sort {my ($ca, $cb) = ($ms{$a}[0], $ms{$b}[0]); ($ca?$ca:$a+1000) <=> ($cb?$cb:$b+1000)} keys %ms) {
 		if ($frst) {
 			$frst = 0;
 		} else {
