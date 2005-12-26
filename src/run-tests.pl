@@ -341,7 +341,10 @@ sub showchan()
 	print " [ $1, $2, $3,\n   ";
 	my $frst = 1;
 	for (<FILE>) {
-		/^(\d+) (\d+) (.*)\n$/;
+		if (!/^(-?\d+) (-?\d+) (.*)\n$/) {
+			print STDERR "Malformed sync state entry '$_'.\n";
+			next;
+		}
 		if ($frst) {
 			$frst = 0;
 		} else {
