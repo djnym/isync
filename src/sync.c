@@ -332,16 +332,15 @@ sync_old( int tops, store_t *sctx, store_t *tctx, store_conf_t *tconf, FILE *jfp
 			unex = 0;
 			if (srec->status & S_EXPIRED) {
 				if (!pull) {
-					if (sflags & F_DELETED) {
-						if (!(sflags & F_FLAGGED))
-							aflags &= ~F_DELETED;
-					} else
-						unex = 1;
+					if (aflags || dflags)
+						info( "Info: Flags of expired message changed in (%d,%d)\n", srec->muid, srec->suid );
+					return SYNC_OK;
 				} else {
 					if ((sflags & F_FLAGGED) && !(sflags & F_DELETED)) {
 						unex = 1;
 						dflags |= F_DELETED;
-					}
+					} else
+						return SYNC_OK;
 				}
 			}
 			rflags = (*nflags | aflags) & ~dflags;
