@@ -259,8 +259,11 @@ Slave :slave:
 SyncState *
 ".shift();
 	close FILE;
-	system "../mbsync -q -c .mbsyncrc test";
+	open FILE, "../mbsync -D -c .mbsyncrc test|";
+	my @out = <FILE>;
+	close FILE;
 	unlink ".mbsyncrc";
+	return @out;
 }
 
 # $path
@@ -516,7 +519,7 @@ sub test($$)
 	my ($sx, $tx) = @_;
 
 	mkchan($$sx[0], $$sx[1], @{ $$sx[2] });
-	&runsync(@{ $$tx[0] });
+	my @ret = &runsync(@{ $$tx[0] });
 	if (ckchan(fcfg(@{ $$tx[0] }), $$tx[1], $$tx[2], @{ $$tx[3] })) {
 		print "Input:\n";
 		printchan($$sx[0], $$sx[1], @{ $$sx[2] });
@@ -526,6 +529,8 @@ sub test($$)
 		printchan($$tx[1], $$tx[2], @{ $$tx[3] });
 		print "Actual result:\n";
 		showchan();
+		print "Debug output:\n";
+		print @ret;
 		exit 1;
 	}
 	rmtree "slave";
