@@ -306,6 +306,71 @@ sub readbox($)
 	return ($mu, %ms);
 }
 
+# $boxname
+sub showbox($)
+{
+	my ($bn) = @_;
+
+	my ($mu, %ms) = readbox($bn);
+	print " [ $mu,\n   ";
+	my $frst = 1;
+	for my $num (sort {my ($ca, $cb) = ($ms{$a}[0], $ms{$b}[0]); ($ca?$ca:$a+1000) <=> ($cb?$cb:$b+1000)} keys %ms) {
+		if ($frst) {
+			$frst = 0;
+		} else {
+			print ", ";
+		}
+		print "$num, $ms{$num}[0], \"$ms{$num}[1]\"";
+	}
+	print " ],\n";
+}
+
+# $num
+sub showchan()
+{
+	showbox("master");
+	showbox("slave");
+	open(FILE, "<", "slave/.mbsyncstate") or
+		die "Cannot read sync state.\n";
+	$_ = <FILE>;
+	/^1:(\d+) 1:(\d+):(\d+)\n$/;
+	print " [ $1, $2, $3,\n   ";
+	my $frst = 1;
+	for (<FILE>) {
+		if (!/^(-?\d+) (-?\d+) (.*)\n$/) {
+			print STDERR "Malformed sync state entry '$_'.\n";
+			next;
+		}
+		if ($frst) {
+			$frst = 0;
+		} else {
+			print ", ";
+		}
+		print "$1, $2, \"$3\"";
+	}
+	print " ],\n";
+	close FILE;
+}
+
+sub show($$@)
+{
+	my ($sx, $tx, @sfx) = @_;
+	my @sp;
+	eval "\@sp = \@x$sx";
+	mkchan($sp[0], $sp[1], @{ $sp[2] });
+	print "my \@x$sx = (\n";
+	showchan();
+	print ");\n";
+	&runsync(@sfx);
+	print "my \@X$tx = (\n";
+	print " [ ".join(", ", map('"'.qm($_).'"', @sfx))." ],\n";
+	showchan();
+	print ");\n";
+	print "test(\\\@x$sx, \\\@X$tx);\n\n";
+	rmtree "slave";
+	rmtree "master";
+}
+
 # $boxname, $maxuid, @msgs
 sub mkbox($$@)
 {
@@ -350,135 +415,119 @@ sub mkchan($$@)
 # $config, $boxname, $maxuid, @msgs
 sub ckbox($$$@)
 {
-	my ($cfg, $bn, $MU, @MS) = @_;
+	my ($bn, $MU, @MS) = @_;
 
 	my ($mu, %ms) = readbox($bn);
 	if ($mu != $MU) {
-		print STDERR "MAXUID mismatch for $bn - expected $MU, got $mu, config: $cfg\n";
-		exit 1;
+		print STDERR "MAXUID mismatch for '$bn'.\n";
+		return 1;
 	}
 	while (@MS) {
 		my ($num, $uid, $flg) = (shift @MS, shift @MS, shift @MS);
 		if (!defined $ms{$num}) {
-			print STDERR "no message $bn:$num, config: $cfg\n";
-			exit 1;
+			print STDERR "No message $bn:$num.\n";
+			return 1;
 		}
 		if ($ms{$num}[0] ne $uid) {
-			print STDERR "UID mismatch for $bn:$num - expected $uid, got $ms{$num}[0], config: $cfg\n";
-			exit 1;
+			print STDERR "UID mismatch for $bn:$num.\n";
+			return 1;
 		}
 		if ($ms{$num}[1] ne $flg) {
-			print STDERR "flag mismatch for $bn:$num - expected '$flg', got '$ms{$num}[1]', config: $cfg\n";
-			exit 1;
+			print STDERR "Flag mismatch for $bn:$num.\n";
+			return 1;
 		}
 		delete $ms{$num};
 	}
 	if (%ms) {
-		print STDERR "excess messages in '$bn': ".join(", ", sort({$a <=> $b } keys(%ms))).", config: $cfg\n";
-		exit 1;
+		print STDERR "Excess messages in '$bn': ".join(", ", sort({$a <=> $b } keys(%ms))).".\n";
+		return 1;
 	}
+	return 0;
 }
 
 # $config, \@master, \@slave, @syncstate
 sub ckchan($$$@)
 {
 	my ($cfg, $M, $S, @T) = @_;
+	my $rslt = 0;
 	open(FILE, "<", "slave/.mbsyncstate") or
 		die "Cannot read sync state.\n";
-	my $l = <FILE>;
-	my @ls = <FILE>;
+	chomp(my $l = <FILE>);
+	chomp(my @ls = <FILE>);
 	close FILE;
-	my $xl = "1:".shift(@T)." 1:".shift(@T).":".shift(@T)."\n";
+	my $xl = "1:".shift(@T)." 1:".shift(@T).":".shift(@T);
 	if ($l ne $xl) {
-		print STDERR "Sync state header mismatch.
-Expected: $xl"."Got:      $l"."Config:   $cfg
-";
-		exit 1;
-	}
-	for $l (@ls) {
-		$xl = shift(@T)." ".shift(@T)." ".shift(@T)."\n";
-		if ($l ne $xl) {
-			print STDERR "Sync state entry mismatch.
-Expected: $xl"."Got:      $l"."Config:   $cfg
-";
-			exit 1;
+		print STDERR "Sync state header mismatch: '$l' instead of '$xl'.\n";
+		$rslt = 1;
+	} else {
+		for $l (@ls) {
+			$xl = shift(@T)." ".shift(@T)." ".shift(@T);
+			if ($l ne $xl) {
+				print STDERR "Sync state entry mismatch: '$l' instead of '$xl'.\n";
+				$rslt = 1;
+				last;
+			}
 		}
 	}
-	&ckbox($cfg, "master", @{ $M });
-	&ckbox($cfg, "slave", @{ $S });
+	$rslt |= &ckbox("master", @{ $M });
+	$rslt |= &ckbox("slave", @{ $S });
+	return $rslt;
+}
+
+sub printbox($$@)
+{
+	my ($bn, $mu, @ms) = @_;
+
+	print " [ $mu,\n   ";
+	my $frst = 1;
+	while (@ms) {
+		if ($frst) {
+			$frst = 0;
+		} else {
+			print ", ";
+		}
+		print shift(@ms).", ".shift(@ms).", \"".shift(@ms)."\"";
+	}
+	print " ],\n";
+}
+
+sub printchan($$@)
+{
+	my ($m, $s, @t) = @_;
+
+	&printbox("master", @{ $m });
+	&printbox("slave", @{ $s });
+	print " [ ".shift(@t).", ".shift(@t).", ".shift(@t).",\n   ";
+	my $frst = 1;
+	while (@t) {
+		if ($frst) {
+			$frst = 0;
+		} else {
+			print ", ";
+		}
+		print shift(@t).", ".shift(@t).", \"".shift(@t)."\"";
+	}
+	print " ],\n";
+	close FILE;
 }
 
 sub test($$)
 {
 	my ($sx, $tx) = @_;
+
 	mkchan($$sx[0], $$sx[1], @{ $$sx[2] });
 	&runsync(@{ $$tx[0] });
-	ckchan(fcfg(@{ $$tx[0] }), $$tx[1], $$tx[2], @{ $$tx[3] });
-	rmtree "slave";
-	rmtree "master";
-}
-
-# $id, $boxname
-sub showbox($$)
-{
-	my ($bn) = @_;
-
-	my ($mu, %ms) = readbox($bn);
-	print " [ $mu,\n   ";
-	my $frst = 1;
-	for my $num (sort {my ($ca, $cb) = ($ms{$a}[0], $ms{$b}[0]); ($ca?$ca:$a+1000) <=> ($cb?$cb:$b+1000)} keys %ms) {
-		if ($frst) {
-			$frst = 0;
-		} else {
-			print ", ";
-		}
-		print "$num, $ms{$num}[0], \"$ms{$num}[1]\"";
+	if (ckchan(fcfg(@{ $$tx[0] }), $$tx[1], $$tx[2], @{ $$tx[3] })) {
+		print "Input:\n";
+		printchan($$sx[0], $$sx[1], @{ $$sx[2] });
+		print "Options:\n";
+		print " [ ".join(", ", map('"'.qm($_).'"', @{ $$tx[0] }))." ],\n";
+		print "Expected result:\n";
+		printchan($$tx[1], $$tx[2], @{ $$tx[3] });
+		print "Actual result:\n";
+		showchan();
+		exit 1;
 	}
-	print " ],\n";
-}
-
-# $num
-sub showchan()
-{
-	&showbox("master");
-	&showbox("slave");
-	open(FILE, "<", "slave/.mbsyncstate") or
-		die "Cannot read sync state.\n";
-	$_ = <FILE>;
-	/^1:(\d+) 1:(\d+):(\d+)\n$/;
-	print " [ $1, $2, $3,\n   ";
-	my $frst = 1;
-	for (<FILE>) {
-		if (!/^(-?\d+) (-?\d+) (.*)\n$/) {
-			print STDERR "Malformed sync state entry '$_'.\n";
-			next;
-		}
-		if ($frst) {
-			$frst = 0;
-		} else {
-			print ", ";
-		}
-		print "$1, $2, \"$3\"";
-	}
-	print " ],\n";
-	close FILE;
-}
-
-sub show($$@)
-{
-	my ($sx, $tx, @sfx) = @_;
-	my @sp;
-	eval "\@sp = \@x$sx";
-	mkchan($sp[0], $sp[1], @{ $sp[2] });
-	print "my \@x$sx = (\n";
-	showchan();
-	print ");\n";
-	&runsync(@sfx);
-	print "my \@X$tx = (\n";
-	print " [ ".join(", ", map('"'.qm($_).'"', @sfx))." ],\n";
-	showchan();
-	print ");\n";
-	print "test(\\\@x$sx, \\\@X$tx);\n\n";
 	rmtree "slave";
 	rmtree "master";
 }
