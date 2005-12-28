@@ -78,48 +78,6 @@ make_flags( int flags, char *buf )
 	return d;
 }
 
-static void
-dump_box( store_t *ctx )
-{
-	message_t *msg;
-	char fbuf[16]; /* enlarge when support for keywords is added */
-
-	if (Debug)
-		for (msg = ctx->msgs; msg; msg = msg->next) {
-			make_flags( msg->flags, fbuf );
-			printf( "  message %d, %s, %d\n", msg->uid, fbuf, msg->size );
-		}
-}
-
-static message_t *
-findmsg( store_t *ctx, int uid, message_t **nmsg, const char *who )
-{
-	message_t *msg;
-
-	if (uid > 0) {
-		if (*nmsg && (*nmsg)->uid == uid) {
-			debug( " %s came in sequence\n", who );
-			msg = *nmsg;
-		  found:
-			*nmsg = msg->next;
-			if (!(msg->status & M_DEAD)) {
-				msg->status |= M_PROCESSED;
-				return msg;
-			}
-			debug( "  ... but it vanished under our feet!\n" );
-		} else {
-			for (msg = ctx->msgs; msg; msg = msg->next)
-				if (msg->uid == uid) {
-					debug( " %s came out of sequence\n", who );
-					goto found;
-				}
-				debug( " %s not present\n", who );
-		}
-	} else
-		debug( " no %s expected\n", who );
-	return 0;
-}
-
 #define S_DEAD         (1<<0)
 #define S_EXPIRED      (1<<1)
 #define S_DEL(ms)      (1<<(2+(ms)))
@@ -129,8 +87,50 @@ typedef struct sync_rec {
 	struct sync_rec *next;
 	/* string_list_t *keywords; */
 	int uid[2];
+	message_t *msg[2];
 	unsigned char flags, status;
 } sync_rec_t;
+
+static void
+findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
+{
+	sync_rec_t *srec, *nsrec = 0;
+	message_t *msg;
+	const char *diag;
+	int uid;
+	char fbuf[16]; /* enlarge when support for keywords is added */
+
+	for (msg = ctx[t]->msgs; msg; msg = msg->next) {
+		uid = msg->uid;
+		if (Debug) {
+			make_flags( msg->flags, fbuf );
+			printf( ctx[t]->opts & OPEN_SIZE ? "  message %5d, %-4s, %6d: " : "  message %5d, %-4s: ", uid, fbuf, msg->size );
+		}
+		for (srec = nsrec; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			if (srec->uid[t] == uid) {
+				diag = srec == nsrec ? "adjacently" : "after gap";
+				goto found;
+			}
+		}
+		for (srec = srecs; srec != nsrec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			if (srec->uid[t] == uid) {
+				diag = "after reset";
+				goto found;
+			}
+		}
+		debug( "new\n" );
+		continue;
+	  found:
+		msg->status |= M_PROCESSED;
+		srec->msg[t] = msg;
+		nsrec = srec->next;
+		debug( "pairs %5d %s\n", srec->uid[1-t], diag );
+	}
+}
 
 
 /* cases:
@@ -177,7 +177,7 @@ int
 sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 {
 	driver_t *driver[2];
-	message_t *msg[2], *tmsg, *nmmsg, *nsmsg;
+	message_t *tmsg;
 	sync_rec_t *recs, *srec, **srecadd, *nsrec;
 	char *dname, *jname, *nname, *lname, *s, *cmname, *csname;
 	FILE *dfp, *jfp, *nfp;
@@ -195,8 +195,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 
 	ret = SYNC_OK;
 	recs = 0, srecadd = &recs;
-
-	nmmsg = nsmsg = 0;
 
 	opts[M] = opts[S] = 0;
 	for (t = 0; t < 2; t++) {
@@ -327,6 +325,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				srec->status = 0;
 			srec->flags = parse_flags( s );
 			debug( "  entry (%d,%d,%u,%s)\n", srec->uid[M], srec->uid[S], srec->flags, srec->status & S_EXPIRED ? "X" : "" );
+			srec->msg[M] = srec->msg[S] = 0;
 			srec->next = 0;
 			*srecadd = srec;
 			srecadd = &srec->next;
@@ -379,6 +378,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						srec->uid[S] = t2;
 						srec->flags = t3;
 						debug( "  new entry(%d,%d,%u)\n", t1, t2, t3 );
+						srec->msg[M] = srec->msg[S] = 0;
 						srec->status = 0;
 						srec->next = 0;
 						*srecadd = srec;
@@ -455,7 +455,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	case DRV_BOX_BAD: ret = SYNC_FAIL; goto bail;
 	}
 	info( "%d messages, %d recent\n", ctx[S]->count, ctx[S]->recent );
-	dump_box( ctx[S] );
+	findmsgs( recs, ctx, S );
 
 	if (suidval && suidval != ctx[S]->uidvalidity) {
 		fprintf( stderr, "Error: UIDVALIDITY of slave changed\n" );
@@ -495,7 +495,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			if (srec->status & S_DEAD)
 				continue;
 			if (srec->status & S_EXPIRED) {
-				if (!srec->uid[S] || ((ctx[S]->opts & OPEN_OLD) && !findmsg( ctx[S], srec->uid[S], &nsmsg, "slave" ))) {
+				if (!srec->uid[S] || ((ctx[S]->opts & OPEN_OLD) && !srec->msg[S])) {
 					srec->status |= S_EXP_S;
 					continue;
 				}
@@ -562,7 +562,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 	}
 	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
-	dump_box( ctx[M] );
+	findmsgs( recs, ctx, M );
 
 	if (muidval && muidval != ctx[M]->uidvalidity) {
 		fprintf( stderr, "Error: UIDVALIDITY of master changed\n" );
@@ -583,10 +583,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		if (srec->status & S_DEAD)
 			continue;
 		debug( "pair (%d,%d)\n", srec->uid[M], srec->uid[S] );
-		msg[M] = findmsg( ctx[M], srec->uid[M], &nmmsg, "master" );
-		msg[S] = (srec->status & S_EXP_S) ? 0 : findmsg( ctx[S], srec->uid[S], &nsmsg, "slave" );
-		nom = !msg[M] && (ctx[M]->opts & OPEN_OLD);
-		nos = !msg[S] && (ctx[S]->opts & OPEN_OLD);
+		nom = !srec->msg[M] && (ctx[M]->opts & OPEN_OLD);
+		nos = !srec->msg[S] && (ctx[S]->opts & OPEN_OLD);
 		if (nom && nos) {
 			debug( "  vanished\n" );
 			/* d.1) d.5) d.6) d.10) d.11) */
@@ -608,11 +606,11 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				} else if (del[1-t]) {
 					/* c.4) d.9) / b.4) d.4) */
 					debug( "  %s vanished\n", str_ms[1-t] );
-					if (msg[t] && msg[t]->flags != nflags)
+					if (srec->msg[t] && srec->msg[t]->flags != nflags)
 						info( "Info: conflicting changes in (%d,%d)\n", srec->uid[M], srec->uid[S] );
 					if (chan->ops[t] & OP_DELETE) {
 						debug( "  -> %s delete\n", str_hl[t] );
-						switch (driver[t]->set_flags( ctx[t], msg[t], srec->uid[t], F_DELETED, 0 )) {
+						switch (driver[t]->set_flags( ctx[t], srec->msg[t], srec->uid[t], F_DELETED, 0 )) {
 						case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 						default: /* ok */ break;
@@ -621,48 +619,48 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							srec->uid[1-t] = 0;
 						}
 					}
-				} else if (!msg[1-t])
+				} else if (!srec->msg[1-t])
 					/* c.1) c.2) d.7) d.8) / b.1) b.2) d.2) d.3) */
 					;
 				else if (srec->uid[t] < 0) {
 					/* b.2) / c.2) */
 					debug( "  no %s yet\n", str_ms[t] );
 					if (chan->ops[t] & OP_RENEW) {
-						if ((chan->ops[t] & OP_EXPUNGE) && (msg[1-t]->flags & F_DELETED)) {
+						if ((chan->ops[t] & OP_EXPUNGE) && (srec->msg[1-t]->flags & F_DELETED)) {
 							debug( "  -> not %sing - would be expunged anyway\n", str_hl[t] );
-							msg[1-t]->status |= M_NOT_SYNCED;
+							srec->msg[1-t]->status |= M_NOT_SYNCED;
 						} else {
-							if ((msg[1-t]->flags & F_FLAGGED) || !chan->stores[t]->max_size || msg[1-t]->size <= chan->stores[t]->max_size) {
+							if ((srec->msg[1-t]->flags & F_FLAGGED) || !chan->stores[t]->max_size || srec->msg[1-t]->size <= chan->stores[t]->max_size) {
 								debug( "  -> %sing it\n", str_hl[t] );
-								msgdata.flags = msg[1-t]->flags;
-								switch (driver[1-t]->fetch_msg( ctx[1-t], msg[1-t], &msgdata )) {
+								msgdata.flags = srec->msg[1-t]->flags;
+								switch (driver[1-t]->fetch_msg( ctx[1-t], srec->msg[1-t], &msgdata )) {
 								case DRV_STORE_BAD: ret = SYNC_BAD(1-t); goto finish;
 								case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
-								default: /* ok */ msg[1-t]->status |= M_NOT_SYNCED; break;
+								default: /* ok */ srec->msg[1-t]->status |= M_NOT_SYNCED; break;
 								case DRV_OK:
-									msg[1-t]->flags = msgdata.flags;
+									srec->msg[1-t]->flags = msgdata.flags;
 									switch (driver[t]->store_msg( ctx[t], &msgdata, &uid )) {
 									case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 									default: ret = SYNC_FAIL; goto finish;
 									case DRV_OK:
 										Fprintf( jfp, "%c %d %d %d\n", "<>"[t], srec->uid[M], srec->uid[S], uid );
 										srec->uid[t] = uid;
-										nflags = msg[1-t]->flags;
+										nflags = srec->msg[1-t]->flags;
 									}
 								}
 							} else {
 								debug( "  -> not %sing - still too big\n", str_hl[t] );
-								msg[1-t]->status |= M_NOT_SYNCED;
+								srec->msg[1-t]->status |= M_NOT_SYNCED;
 							}
 						}
 					} else
-						msg[1-t]->status |= M_NOT_SYNCED;
+						srec->msg[1-t]->status |= M_NOT_SYNCED;
 				} else if (!del[t]) {
 					/* a) & b.3) / c.3) */
 					debug( "  may %s\n", str_hl[t] );
 					if (chan->ops[t] & OP_FLAGS) {
 						debug( "  -> %sing flags\n", str_hl[t] );
-						sflags = msg[1-t]->flags;
+						sflags = srec->msg[1-t]->flags;
 						aflags = sflags & ~nflags;
 						dflags = ~sflags & nflags;
 						unex = 0;
@@ -686,7 +684,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							aflags &= F_DELETED;
 							dflags = 0;
 						}
-						switch ((aflags | dflags) ? driver[t]->set_flags( ctx[t], msg[t], srec->uid[t], aflags, dflags ) : DRV_OK) {
+						switch ((aflags | dflags) ? driver[t]->set_flags( ctx[t], srec->msg[t], srec->uid[t], aflags, dflags ) : DRV_OK) {
 						case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 						default: /* ok */ break;
@@ -708,9 +706,9 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				srec->flags = nflags;
 				Fprintf( jfp, "* %d %d %u\n", srec->uid[M], srec->uid[S], nflags );
 			}
-			if (msg[M] && (msg[M]->flags & F_DELETED))
+			if (srec->msg[M] && (srec->msg[M]->flags & F_DELETED))
 				srec->status |= S_DEL(M);
-			if (msg[S] && (msg[S]->flags & F_DELETED))
+			if (srec->msg[S] && (srec->msg[S]->flags & F_DELETED))
 				srec->status |= S_DEL(S);
 		}
 	}
@@ -795,15 +793,14 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			for (srec = recs; srec; srec = srec->next) {
 				if (srec->status & (S_DEAD|S_EXPIRED))
 					continue;
-				tmsg = findmsg( ctx[S], srec->uid[S], &nsmsg, "slave" );
-				if (tmsg && (tmsg->status & M_EXPIRED)) {
+				if (srec->msg[S] && (srec->msg[S]->status & M_EXPIRED)) {
 					debug( "  expiring pair(%d,%d)\n", srec->uid[M], srec->uid[S] );
 					/* log first, so deletion can't be misinterpreted! */
 					Fprintf( jfp, "~ %d %d 1\n", srec->uid[M], srec->uid[S] );
 					if (smaxxuid < srec->uid[S])
 						smaxxuid = srec->uid[S];
 					srec->status |= S_EXPIRED;
-					switch (driver[S]->set_flags( ctx[S], tmsg, 0, F_DELETED, 0 )) {
+					switch (driver[S]->set_flags( ctx[S], srec->msg[S], 0, F_DELETED, 0 )) {
 					case DRV_STORE_BAD: ret = SYNC_BAD(S); goto finish;
 					case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 					default: /* ok */ break;
