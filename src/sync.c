@@ -666,7 +666,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						unex = 0;
 						if (srec->status & S_EXPIRED) {
 							if (!t) {
-								if (aflags || dflags)
+								if ((aflags & ~F_DELETED) || dflags)
 									info( "Info: Flags of expired message changed in (%d,%d)\n", srec->uid[M], srec->uid[S] );
 								continue;
 							} else {
