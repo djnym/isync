@@ -495,11 +495,15 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			if (srec->status & S_DEAD)
 				continue;
 			if (srec->status & S_EXPIRED) {
-				if (!srec->uid[S] || ((ctx[S]->opts & OPEN_OLD) && !findmsg( ctx[S], srec->uid[S], &nsmsg, "slave" )))
+				if (!srec->uid[S] || ((ctx[S]->opts & OPEN_OLD) && !findmsg( ctx[S], srec->uid[S], &nsmsg, "slave" ))) {
 					srec->status |= S_EXP_S;
-				else if (minwuid > srec->uid[M])
-					minwuid = srec->uid[M];
-			} else if (smaxxuid < srec->uid[S] && minwuid > srec->uid[M])
+					continue;
+				}
+			} else {
+				if (smaxxuid >= srec->uid[S])
+					continue;
+			}
+			if (minwuid > srec->uid[M])
 				minwuid = srec->uid[M];
 		}
 		debug( "  min non-orphaned master uid is %d\n", minwuid );
