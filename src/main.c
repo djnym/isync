@@ -137,20 +137,20 @@ filter_boxes( string_list_t *boxes, string_list_t *patterns )
 }
 
 static void
-merge_actions( channel_conf_t *chan, int mops, int sops, int have, int mask, int def )
+merge_actions( channel_conf_t *chan, int ops[], int have, int mask, int def )
 {
-	if (mops & have) {
-		chan->mops &= ~mask;
-		chan->mops |= mops & mask;
-		chan->sops &= ~mask;
-		chan->sops |= sops & mask;
-	} else if (!(chan->mops & have)) {
-		if (global_mops & have) {
-			chan->mops |= global_mops & mask;
-			chan->sops |= global_sops & mask;
+	if (ops[M] & have) {
+		chan->ops[M] &= ~mask;
+		chan->ops[M] |= ops[M] & mask;
+		chan->ops[S] &= ~mask;
+		chan->ops[S] |= ops[S] & mask;
+	} else if (!(chan->ops[M] & have)) {
+		if (global_ops[M] & have) {
+			chan->ops[M] |= global_ops[M] & mask;
+			chan->ops[S] |= global_ops[S] & mask;
 		} else {
-			chan->mops |= def;
-			chan->sops |= def;
+			chan->ops[M] |= def;
+			chan->ops[S] |= def;
 		}
 	}
 }
@@ -159,14 +159,15 @@ int
 main( int argc, char **argv )
 {
 	channel_conf_t *chan;
-	store_conf_t *mconf, *sconf;
+	store_conf_t *conf[2];
 	group_conf_t *group;
-	driver_t *mdriver, *sdriver;
-	store_t *mctx, *sctx;
-	string_list_t *umboxes, *usboxes, *mboxes, *sboxes, *mbox, *sbox, **mboxp, **sboxp, *cboxes, *chanptr;
+	driver_t *driver[2];
+	store_t *ctx[2];
+	string_list_t *uboxes[2], *boxes[2], *mbox, *sbox, **mboxp, **sboxp, *cboxes, *chanptr;
 	char *config = 0, *channame, *boxlist, *opt, *ochar;
-	int all = 0, list = 0, cops = 0, mops = 0, sops = 0, gumboxes, gusboxes;
-	int oind, ret, op, multiple, pseudo = 0;
+	const char *names[2];
+	int all = 0, list = 0, cops = 0, ops[2] = { 0, 0 }, guboxes[2];
+	int oind, ret, op, multiple, pseudo = 0, t;
 
 	gethostname( Hostname, sizeof(Hostname) );
 	if ((ochar = strchr( Hostname, '.' )))
@@ -213,9 +214,9 @@ main( int argc, char **argv )
 					if (!Quiet)
 						Quiet = 1;
 				} else if (!strcmp( opt, "pull" ))
-					cops |= XOP_PULL, mops |= XOP_HAVE_TYPE;
+					cops |= XOP_PULL, ops[M] |= XOP_HAVE_TYPE;
 				else if (!strcmp( opt, "push" ))
-					cops |= XOP_PUSH, mops |= XOP_HAVE_TYPE;
+					cops |= XOP_PUSH, ops[M] |= XOP_HAVE_TYPE;
 				else if (!memcmp( opt, "create", 6 )) {
 					opt += 6;
 					op = OP_CREATE|XOP_HAVE_CREATE;
@@ -223,24 +224,24 @@ main( int argc, char **argv )
 					if (!*opt)
 						cops |= op;
 					else if (!strcmp( opt, "-master" ))
-						mops |= op, ochar++;
+						ops[M] |= op, ochar++;
 					else if (!strcmp( opt, "-slave" ))
-						sops |= op, ochar++;
+						ops[S] |= op, ochar++;
 					else
 						goto badopt;
-					mops |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
+					ops[M] |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
 				} else if (!memcmp( opt, "expunge", 7 )) {
 					opt += 7;
 					op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
 					goto lcop;
 				} else if (!strcmp( opt, "no-expunge" ))
-					mops |= XOP_HAVE_EXPUNGE;
+					ops[M] |= XOP_HAVE_EXPUNGE;
 				else if (!strcmp( opt, "no-create" ))
-					mops |= XOP_HAVE_CREATE;
+					ops[M] |= XOP_HAVE_CREATE;
 				else if (!strcmp( opt, "full" ))
-					mops |= XOP_HAVE_TYPE|XOP_PULL|XOP_PUSH;
+					ops[M] |= XOP_HAVE_TYPE|XOP_PULL|XOP_PUSH;
 				else if (!strcmp( opt, "noop" ))
-					mops |= XOP_HAVE_TYPE;
+					ops[M] |= XOP_HAVE_TYPE;
 				else if (!memcmp( opt, "pull", 4 )) {
 					op = XOP_PULL;
 				  lcac:
@@ -272,11 +273,11 @@ main( int argc, char **argv )
 						return 1;
 					}
 					switch (op & XOP_MASK_DIR) {
-					case XOP_PULL: sops |= op & OP_MASK_TYPE; break;
-					case XOP_PUSH: mops |= op & OP_MASK_TYPE; break;
+					case XOP_PULL: ops[S] |= op & OP_MASK_TYPE; break;
+					case XOP_PUSH: ops[M] |= op & OP_MASK_TYPE; break;
 					default: cops |= op; break;
 					}
-					mops |= XOP_HAVE_TYPE;
+					ops[M] |= XOP_HAVE_TYPE;
 				}
 				continue;
 			}
@@ -308,14 +309,14 @@ main( int argc, char **argv )
 			op = OP_CREATE|XOP_HAVE_CREATE;
 		  cop:
 			if (*ochar == 'm')
-				mops |= op, ochar++;
+				ops[M] |= op, ochar++;
 			else if (*ochar == 's')
-				sops |= op, ochar++;
+				ops[S] |= op, ochar++;
 			else if (*ochar == '-')
 				ochar++;
 			else
 				cops |= op;
-			mops |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
+			ops[M] |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
 			break;
 		case 'X':
 			op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
@@ -323,7 +324,7 @@ main( int argc, char **argv )
 		case 'F':
 			cops |= XOP_PULL|XOP_PUSH;
 		case '0':
-			mops |= XOP_HAVE_TYPE;
+			ops[M] |= XOP_HAVE_TYPE;
 			break;
 		case 'n':
 		case 'd':
@@ -346,13 +347,13 @@ main( int argc, char **argv )
 			}
 			if (op & OP_MASK_TYPE)
 				switch (op & XOP_MASK_DIR) {
-				case XOP_PULL: sops |= op & OP_MASK_TYPE; break;
-				case XOP_PUSH: mops |= op & OP_MASK_TYPE; break;
+				case XOP_PULL: ops[S] |= op & OP_MASK_TYPE; break;
+				case XOP_PUSH: ops[M] |= op & OP_MASK_TYPE; break;
 				default: cops |= op; break;
 				}
 			else
 				cops |= op;
-			mops |= XOP_HAVE_TYPE;
+			ops[M] |= XOP_HAVE_TYPE;
 			break;
 		case 'L':
 			op = XOP_PULL;
@@ -383,7 +384,7 @@ main( int argc, char **argv )
 		}
 	}
 
-	if (merge_ops( cops, &mops, &sops ))
+	if (merge_ops( cops, ops ))
 		return 1;
 
 	if (load_config( config, pseudo ))
@@ -401,11 +402,11 @@ main( int argc, char **argv )
 	ret = 0;
 	chan = channels;
 	chanptr = 0;
-	mctx = sctx = 0;
-	mconf = sconf = 0;	/* make-gcc-happy */
-	mdriver = sdriver = 0;	/* make-gcc-happy */
-	gumboxes = gusboxes = 0;
-	umboxes = usboxes = 0;
+	ctx[M] = ctx[S] = 0;
+	conf[M] = conf[S] = 0;	/* make-gcc-happy */
+	driver[M] = driver[S] = 0;	/* make-gcc-happy */
+	guboxes[M] = guboxes[S] = 0;
+	uboxes[M] = uboxes[S] = 0;
 	if (all)
 		multiple = channels->next != 0;
 	else if (argv[oind + 1])
@@ -443,48 +444,31 @@ main( int argc, char **argv )
 			goto gotnone;
 		  gotchan: ;
 		}
-		merge_actions( chan, mops, sops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
-		merge_actions( chan, mops, sops, XOP_HAVE_CREATE, OP_CREATE, 0 );
-		merge_actions( chan, mops, sops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
+		merge_actions( chan, ops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
+		merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
+		merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
 
-		mboxes = sboxes = cboxes = 0;
+		boxes[M] = boxes[S] = cboxes = 0;
 		/* possible todo: handle master <-> slave swaps */
-		if (mctx) {
-			if (mconf == chan->master)
-				goto gotmctx;
-			free_string_list( umboxes );
-			umboxes = 0;
-			gumboxes = 0;
-			if (mconf->driver != chan->master->driver) {
-				mdriver->close_store( mctx );
-				mctx = 0;
+		for (t = 0; t < 2; t++) {
+			if (ctx[t]) {
+				if (conf[t] == chan->stores[t])
+					continue;
+				free_string_list( uboxes[t] );
+				uboxes[t] = 0;
+				guboxes[t] = 0;
+				if (conf[t]->driver != chan->stores[t]->driver) {
+					driver[t]->close_store( ctx[t] );
+					ctx[t] = 0;
+				}
+			}
+			conf[t] = chan->stores[t];
+			driver[t] = conf[t]->driver;
+			if (!(ctx[t] = driver[t]->open_store( chan->stores[t], ctx[t] ))) {
+				ret = 1;
+				goto next;
 			}
 		}
-		mconf = chan->master;
-		mdriver = mconf->driver;
-		if (!(mctx = mdriver->open_store( chan->master, mctx ))) {
-			ret = 1;
-			goto next;
-		}
-	  gotmctx:
-		if (sctx) {
-			if (sconf == chan->slave)
-				goto gotsctx;
-			free_string_list( usboxes );
-			usboxes = 0;
-			gusboxes = 0;
-			if (sconf->driver != chan->slave->driver) {
-				sdriver->close_store( sctx );
-				sctx = 0;
-			}
-		}
-		sconf = chan->slave;
-		sdriver = sconf->driver;
-		if (!(sctx = sdriver->open_store( chan->slave, sctx ))) {
-			ret = 1;
-			goto next;
-		}
-	  gotsctx:
 		info( "Channel %s\n", chan->name );
 		if (list && multiple)
 			printf( "%s:\n", chan->name );
@@ -492,49 +476,36 @@ main( int argc, char **argv )
 			for (boxlist = strtok( boxlist, ",\n" ); boxlist; boxlist = strtok( 0, ",\n" ))
 				if (list)
 					puts( boxlist );
-				else
-					switch (sync_boxes( mctx, boxlist, sctx, boxlist, chan )) {
-					case SYNC_MASTER_BAD: goto screwm;
-					case SYNC_SLAVE_BAD: goto screws;
+				else {
+					names[M] = names[S] = boxlist;
+					switch (sync_boxes( ctx, names, chan )) {
+					case SYNC_BAD(M): t = M; goto screwt;
+					case SYNC_BAD(S): t = S; goto screwt;
 					case SYNC_FAIL: ret = 1;
 					}
+				}
 		} else if (chan->patterns) {
-			if (!gumboxes) {
-				if (mdriver->list( mctx, &umboxes ) != DRV_OK) {
-				  screwm:
-					mdriver->close_store( mctx );
-					free_string_list( umboxes );
-					umboxes = 0;
-					gumboxes = 0;
-					mctx = 0;
-					ret = 1;
-					goto next;
-				} else {
-					gumboxes = 1;
-					if (mctx->conf->map_inbox)
-						add_string_list( &umboxes, mctx->conf->map_inbox );
+			for (t = 0; t < 2; t++) {
+				if (!guboxes[t]) {
+					if (driver[t]->list( ctx[t], &uboxes[t] ) != DRV_OK) {
+					  screwt:
+						driver[t]->close_store( ctx[t] );
+						free_string_list( uboxes[t] );
+						uboxes[t] = 0;
+						guboxes[t] = 0;
+						ctx[t] = 0;
+						ret = 1;
+						goto next;
+					} else {
+						guboxes[t] = 1;
+						if (ctx[t]->conf->map_inbox)
+							add_string_list( &uboxes[t], ctx[t]->conf->map_inbox );
+					}
 				}
+				boxes[t] = filter_boxes( uboxes[t], chan->patterns );
 			}
-			if (!gusboxes) {
-				if (sdriver->list( sctx, &usboxes ) != DRV_OK) {
-				  screws:
-					sdriver->close_store( sctx );
-					free_string_list( usboxes );
-					usboxes = 0;
-					gusboxes = 0;
-					sctx = 0;
-					ret = 1;
-					goto next;
-				} else {
-					gusboxes = 1;
-					if (sctx->conf->map_inbox)
-						add_string_list( &usboxes, sctx->conf->map_inbox );
-				}
-			}
-			mboxes = filter_boxes( umboxes, chan->patterns );
-			sboxes = filter_boxes( usboxes, chan->patterns );
-			for (mboxp = &mboxes; (mbox = *mboxp); ) {
-				for (sboxp = &sboxes; (sbox = *sboxp); sboxp = &sbox->next)
+			for (mboxp = &boxes[M]; (mbox = *mboxp); ) {
+				for (sboxp = &boxes[S]; (sbox = *sboxp); sboxp = &sbox->next)
 					if (!strcmp( sbox->string, mbox->string )) {
 						*sboxp = sbox->next;
 						free( sbox );
@@ -549,48 +520,42 @@ main( int argc, char **argv )
 			for (mbox = cboxes; mbox; mbox = mbox->next)
 				if (list)
 					puts( mbox->string );
-				else
-					switch (sync_boxes( mctx, mbox->string, sctx, mbox->string, chan )) {
-					case SYNC_MASTER_BAD: goto screwm;
-					case SYNC_SLAVE_BAD: goto screws;
+				else {
+					names[M] = names[S] = mbox->string;
+					switch (sync_boxes( ctx, names, chan )) {
+					case SYNC_BAD(M): t = M; goto screwt;
+					case SYNC_BAD(S): t = S; goto screwt;
 					case SYNC_FAIL: ret = 1;
 					}
-			if ((chan->sops & OP_MASK_TYPE) && (chan->sops & OP_CREATE)) {
-				for (mbox = mboxes; mbox; mbox = mbox->next)
-					if (list)
-						puts( mbox->string );
-					else
-						switch (sync_boxes( mctx, mbox->string, sctx, mbox->string, chan )) {
-						case SYNC_MASTER_BAD: goto screwm;
-						case SYNC_SLAVE_BAD: goto screws;
-						case SYNC_FAIL: ret = 1;
+				}
+			for (t = 0; t < 2; t++)
+				if ((chan->ops[t] & OP_MASK_TYPE) && (chan->ops[t] & OP_CREATE)) {
+					for (mbox = boxes[t]; mbox; mbox = mbox->next)
+						if (list)
+							puts( mbox->string );
+						else {
+							names[M] = names[S] = mbox->string;
+							switch (sync_boxes( ctx, names, chan )) {
+							case SYNC_BAD(M): t = M; goto screwt;
+							case SYNC_BAD(S): t = S; goto screwt;
+							case SYNC_FAIL: ret = 1;
+							}
 						}
-			}
-			if ((chan->mops & OP_MASK_TYPE) && (chan->mops & OP_CREATE)) {
-				for (mbox = sboxes; mbox; mbox = mbox->next)
-					if (list)
-						puts( mbox->string );
-					else
-						switch (sync_boxes( mctx, mbox->string, sctx, mbox->string, chan )) {
-						case SYNC_MASTER_BAD: goto screwm;
-						case SYNC_SLAVE_BAD: goto screws;
-						case SYNC_FAIL: ret = 1;
-						}
-			}
+				}
 		} else
 			if (list)
-				printf( "%s <=> %s\n", chan->master_name, chan->slave_name );
+				printf( "%s <=> %s\n", chan->boxes[M], chan->boxes[S] );
 			else
-				switch (sync_boxes( mctx, chan->master_name, sctx, chan->slave_name, chan )) {
-				case SYNC_MASTER_BAD: goto screwm;
-				case SYNC_SLAVE_BAD: goto screws;
+				switch (sync_boxes( ctx, chan->boxes, chan )) {
+				case SYNC_BAD(M): t = M; goto screwt;
+				case SYNC_BAD(S): t = S; goto screwt;
 				case SYNC_FAIL: ret = 1;
 				}
 
 	  next:
 		free_string_list( cboxes );
-		free_string_list( mboxes );
-		free_string_list( sboxes );
+		free_string_list( boxes[M] );
+		free_string_list( boxes[S] );
 		if (all) {
 			if (!(chan = chan->next))
 				break;
@@ -602,12 +567,12 @@ main( int argc, char **argv )
 				break;
 		}
 	}
-	free_string_list( usboxes );
-	if (sctx)
-		sdriver->close_store( sctx );
-	free_string_list( umboxes );
-	if (mctx)
-		mdriver->close_store( mctx );
+	free_string_list( uboxes[S] );
+	if (ctx[S])
+		driver[S]->close_store( ctx[S] );
+	free_string_list( uboxes[M] );
+	if (ctx[M])
+		driver[M]->close_store( ctx[M] );
 
 	return ret;
 }

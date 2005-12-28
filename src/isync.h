@@ -73,8 +73,8 @@ typedef struct store_conf {
 	char *name;
 	driver_t *driver;
 	const char *path; /* should this be here? its interpretation is driver-specific */
-	char *map_inbox;
-	char *trash;
+	const char *map_inbox;
+	const char *trash;
 	unsigned max_size; /* off_t is overkill */
 	unsigned trash_remote_new:1, trash_only_new:1;
 } store_conf_t;
@@ -84,20 +84,23 @@ typedef struct string_list {
 	char string[1];
 } string_list_t;
 
+#define M 0 /* master */
+#define S 1 /* slave */
+
 typedef struct channel_conf {
 	struct channel_conf *next;
-	char *name;
-	store_conf_t *master, *slave;
-	char *master_name, *slave_name;
+	const char *name;
+	store_conf_t *stores[2];
+	const char *boxes[2];
 	char *sync_state;
 	string_list_t *patterns;
-	int mops, sops;
+	int ops[2];
 	unsigned max_messages; /* for slave only */
 } channel_conf_t;
 
 typedef struct group_conf {
 	struct group_conf *next;
-	char *name;
+	const char *name;
 	string_list_t *channels;
 } group_conf_t;
 
@@ -222,27 +225,24 @@ unsigned char arc4_getbyte( void );
 
 /* sync.c */
 
-#define SYNC_OK           0
-#define SYNC_FAIL         1
-#define SYNC_MASTER_BAD   2
-#define SYNC_SLAVE_BAD    3
+#define SYNC_OK      0
+#define SYNC_FAIL    1
+#define SYNC_BAD(ms) (2+(ms))
 
-int sync_boxes( store_t *, const char *,
-                store_t *, const char *,
-                channel_conf_t * );
+int sync_boxes( store_t *ctx[], const char *names[], channel_conf_t * );
 
 /* config.c */
 
 extern channel_conf_t *channels;
 extern group_conf_t *groups;
-extern int global_mops, global_sops;
+extern int global_ops[2];
 extern char *global_sync_state;
 
 int parse_bool( conffile_t *cfile );
 int parse_int( conffile_t *cfile );
 int parse_size( conffile_t *cfile );
 int getcline( conffile_t *cfile );
-int merge_ops( int cops, int *mops, int *sops );
+int merge_ops( int cops, int ops[] );
 int load_config( const char *filename, int pseudo );
 void parse_generic_store( store_conf_t *store, conffile_t *cfg, int *err );
 

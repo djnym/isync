@@ -35,7 +35,7 @@
 store_conf_t *stores;
 channel_conf_t *channels;
 group_conf_t *groups;
-int global_mops, global_sops;
+int global_ops[2];
 char *global_sync_state;
 
 int
@@ -92,7 +92,7 @@ parse_size( conffile_t *cfile )
 }
 
 static int
-getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_state )
+getopt_helper( conffile_t *cfile, int *cops, int ops[], char **sync_state )
 {
 	char *arg;
 
@@ -112,56 +112,56 @@ getopt_helper( conffile_t *cfile, int *cops, int *mops, int *sops, char **sync_s
 			else if (!strcasecmp( "Flags", arg ))
 				*cops |= OP_FLAGS;
 			else if (!strcasecmp( "PullReNew", arg ))
-				*sops |= OP_RENEW;
+				ops[S] |= OP_RENEW;
 			else if (!strcasecmp( "PullNew", arg ))
-				*sops |= OP_NEW;
+				ops[S] |= OP_NEW;
 			else if (!strcasecmp( "PullDelete", arg ))
-				*sops |= OP_DELETE;
+				ops[S] |= OP_DELETE;
 			else if (!strcasecmp( "PullFlags", arg ))
-				*sops |= OP_FLAGS;
+				ops[S] |= OP_FLAGS;
 			else if (!strcasecmp( "PushReNew", arg ))
-				*mops |= OP_RENEW;
+				ops[M] |= OP_RENEW;
 			else if (!strcasecmp( "PushNew", arg ))
-				*mops |= OP_NEW;
+				ops[M] |= OP_NEW;
 			else if (!strcasecmp( "PushDelete", arg ))
-				*mops |= OP_DELETE;
+				ops[M] |= OP_DELETE;
 			else if (!strcasecmp( "PushFlags", arg ))
-				*mops |= OP_FLAGS;
+				ops[M] |= OP_FLAGS;
 			else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg ))
 				*cops |= XOP_PULL|XOP_PUSH;
 			else if (strcasecmp( "None", arg ) && strcasecmp( "Noop", arg ))
 				fprintf( stderr, "%s:%d: invalid Sync arg '%s'\n",
 				         cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
-		*mops |= XOP_HAVE_TYPE;
+		ops[M] |= XOP_HAVE_TYPE;
 	} else if (!strcasecmp( "Expunge", cfile->cmd )) {
 		arg = cfile->val;
 		do
 			if (!strcasecmp( "Both", arg ))
 				*cops |= OP_EXPUNGE;
 			else if (!strcasecmp( "Master", arg ))
-				*mops |= OP_EXPUNGE;
+				ops[M] |= OP_EXPUNGE;
 			else if (!strcasecmp( "Slave", arg ))
-				*sops |= OP_EXPUNGE;
+				ops[S] |= OP_EXPUNGE;
 			else if (strcasecmp( "None", arg ))
 				fprintf( stderr, "%s:%d: invalid Expunge arg '%s'\n",
 				         cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
-		*mops |= XOP_HAVE_EXPUNGE;
+		ops[M] |= XOP_HAVE_EXPUNGE;
 	} else if (!strcasecmp( "Create", cfile->cmd )) {
 		arg = cfile->val;
 		do
 			if (!strcasecmp( "Both", arg ))
 				*cops |= OP_CREATE;
 			else if (!strcasecmp( "Master", arg ))
-				*mops |= OP_CREATE;
+				ops[M] |= OP_CREATE;
 			else if (!strcasecmp( "Slave", arg ))
-				*sops |= OP_CREATE;
+				ops[S] |= OP_CREATE;
 			else if (strcasecmp( "None", arg ))
 				fprintf( stderr, "%s:%d: invalid Create arg '%s'\n",
 				         cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
-		*mops |= XOP_HAVE_CREATE;
+		ops[M] |= XOP_HAVE_CREATE;
 	} else if (!strcasecmp( "SyncState", cfile->cmd ))
 		*sync_state = expand_strdup( cfile->val );
 	else
@@ -194,29 +194,29 @@ getcline( conffile_t *cfile )
 
 /* XXX - this does not detect None conflicts ... */
 int
-merge_ops( int cops, int *mops, int *sops )
+merge_ops( int cops, int ops[] )
 {
 	int aops;
 
-	aops = *mops | *sops;
-	if (*mops & XOP_HAVE_TYPE) {
+	aops = ops[M] | ops[S];
+	if (ops[M] & XOP_HAVE_TYPE) {
 		if (aops & OP_MASK_TYPE) {
 			if (aops & cops & OP_MASK_TYPE) {
 			  cfl:
 				fprintf( stderr, "Conflicting Sync args specified.\n" );
 				return 1;
 			}
-			*mops |= cops & OP_MASK_TYPE;
-			*sops |= cops & OP_MASK_TYPE;
+			ops[M] |= cops & OP_MASK_TYPE;
+			ops[S] |= cops & OP_MASK_TYPE;
 			if (cops & XOP_PULL) {
-				if (*sops & OP_MASK_TYPE)
+				if (ops[S] & OP_MASK_TYPE)
 					goto cfl;
-				*sops |= OP_MASK_TYPE;
+				ops[S] |= OP_MASK_TYPE;
 			}
 			if (cops & XOP_PUSH) {
-				if (*mops & OP_MASK_TYPE)
+				if (ops[M] & OP_MASK_TYPE)
 					goto cfl;
-				*mops |= OP_MASK_TYPE;
+				ops[M] |= OP_MASK_TYPE;
 			}
 		} else if (cops & (OP_MASK_TYPE|XOP_MASK_DIR)) {
 			if (!(cops & OP_MASK_TYPE))
@@ -224,26 +224,26 @@ merge_ops( int cops, int *mops, int *sops )
 			else if (!(cops & XOP_MASK_DIR))
 				cops |= XOP_PULL|XOP_PUSH;
 			if (cops & XOP_PULL)
-				*sops |= cops & OP_MASK_TYPE;
+				ops[S] |= cops & OP_MASK_TYPE;
 			if (cops & XOP_PUSH)
-				*mops |= cops & OP_MASK_TYPE;
+				ops[M] |= cops & OP_MASK_TYPE;
 		}
 	}
-	if (*mops & XOP_HAVE_EXPUNGE) {
+	if (ops[M] & XOP_HAVE_EXPUNGE) {
 		if (aops & cops & OP_EXPUNGE) {
 			fprintf( stderr, "Conflicting Expunge args specified.\n" );
 			return 1;
 		}
-		*mops |= cops & OP_EXPUNGE;
-		*sops |= cops & OP_EXPUNGE;
+		ops[M] |= cops & OP_EXPUNGE;
+		ops[S] |= cops & OP_EXPUNGE;
 	}
-	if (*mops & XOP_HAVE_CREATE) {
+	if (ops[M] & XOP_HAVE_CREATE) {
 		if (aops & cops & OP_CREATE) {
 			fprintf( stderr, "Conflicting Create args specified.\n" );
 			return 1;
 		}
-		*mops |= cops & OP_CREATE;
-		*sops |= cops & OP_CREATE;
+		ops[M] |= cops & OP_CREATE;
+		ops[S] |= cops & OP_CREATE;
 	}
 	return 0;
 }
@@ -252,12 +252,12 @@ int
 load_config( const char *where, int pseudo )
 {
 	conffile_t cfile;
-	store_conf_t *store, **storeapp = &stores, **sptarg;
+	store_conf_t *store, **storeapp = &stores;
 	channel_conf_t *channel, **channelapp = &channels;
 	group_conf_t *group, **groupapp = &groups;
 	string_list_t *chanlist, **chanlistapp;
-	char *arg, *p, **ntarg;
-	int err, len, cops, gcops, max_size;
+	char *arg, *p;
+	int err, len, cops, gcops, max_size, ms;
 	char path[_POSIX_PATH_MAX];
 	char buf[1024];
 
@@ -315,12 +315,10 @@ load_config( const char *where, int pseudo )
 					while ((arg = next_arg( &cfile.rest )));
 				}
 				else if (!strcasecmp( "Master", cfile.cmd )) {
-					sptarg = &channel->master;
-					ntarg = &channel->master_name;
+					ms = M;
 					goto linkst;
 				} else if (!strcasecmp( "Slave", cfile.cmd )) {
-					sptarg = &channel->slave;
-					ntarg = &channel->slave_name;
+					ms = S;
 				  linkst:
 					if (*cfile.val != ':' || !(p = strchr( cfile.val + 1, ':' ))) {
 						fprintf( stderr, "%s:%d: malformed mailbox spec\n",
@@ -331,7 +329,7 @@ load_config( const char *where, int pseudo )
 					*p = 0;
 					for (store = stores; store; store = store->next)
 						if (!strcmp( store->name, cfile.val + 1 )) {
-							*sptarg = store;
+							channel->stores[ms] = store;
 							goto stpcom;
 						}
 					fprintf( stderr, "%s:%d: unknown store '%s'\n",
@@ -340,24 +338,24 @@ load_config( const char *where, int pseudo )
 					continue;
 				  stpcom:
 					if (*++p)
-						*ntarg = nfstrdup( p );
-				} else if (!getopt_helper( &cfile, &cops, &channel->mops, &channel->sops, &channel->sync_state )) {
+						channel->boxes[ms] = nfstrdup( p );
+				} else if (!getopt_helper( &cfile, &cops, channel->ops, &channel->sync_state )) {
 					fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
 					         cfile.file, cfile.line, cfile.cmd );
 					err = 1;
 				}
 			}
-			if (!channel->master) {
+			if (!channel->stores[M]) {
 				fprintf( stderr, "channel '%s' refers to no master store\n", channel->name );
 				err = 1;
-			} else if (!channel->slave) {
+			} else if (!channel->stores[S]) {
 				fprintf( stderr, "channel '%s' refers to no slave store\n", channel->name );
 				err = 1;
-			} else if (merge_ops( cops, &channel->mops, &channel->sops ))
+			} else if (merge_ops( cops, channel->ops ))
 				err = 1;
 			else {
 				if (max_size >= 0)
-					channel->master->max_size = channel->slave->max_size = max_size;
+					channel->stores[M]->max_size = channel->stores[S]->max_size = max_size;
 				*channelapp = channel;
 				channelapp = &channel->next;
 			}
@@ -400,7 +398,7 @@ load_config( const char *where, int pseudo )
 			}
 			break;
 		}
-		else if (!getopt_helper( &cfile, &gcops, &global_mops, &global_sops, &global_sync_state ))
+		else if (!getopt_helper( &cfile, &gcops, global_ops, &global_sync_state ))
 		{
 			fprintf( stderr, "%s:%d: unknown section keyword '%s'\n",
 			         cfile.file, cfile.line, cfile.cmd );
@@ -412,7 +410,7 @@ load_config( const char *where, int pseudo )
 		}
 	}
 	fclose (cfile.fp);
-	err |= merge_ops( gcops, &global_mops, &global_sops );
+	err |= merge_ops( gcops, global_ops );
 	if (!global_sync_state)
 		global_sync_state = expand_strdup( "~/." EXE "/" );
 	if (!err && pseudo)
