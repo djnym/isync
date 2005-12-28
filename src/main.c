@@ -529,7 +529,7 @@ main( int argc, char **argv )
 					}
 				}
 			for (t = 0; t < 2; t++)
-				if ((chan->ops[t] & OP_MASK_TYPE) && (chan->ops[t] & OP_CREATE)) {
+				if ((chan->ops[1-t] & OP_MASK_TYPE) && (chan->ops[1-t] & OP_CREATE)) {
 					for (mbox = boxes[t]; mbox; mbox = mbox->next)
 						if (list)
 							puts( mbox->string );
