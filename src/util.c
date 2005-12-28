@@ -41,6 +41,7 @@ debug( const char *msg, ... )
 		va_start( va, msg );
 		vprintf( msg, va );
 		va_end( va );
+		fflush( stdout );
 	}
 }
 
