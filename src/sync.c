@@ -677,13 +677,13 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 									continue;
 							}
 						}
-						rflags = (nflags | aflags) & ~dflags;
-						if ((chan->ops[t] & OP_EXPUNGE) && (rflags & F_DELETED) &&
+						if ((chan->ops[t] & OP_EXPUNGE) && (sflags & F_DELETED) &&
 						    (!ctx[t]->conf->trash || ctx[t]->conf->trash_only_new))
 						{
 							aflags &= F_DELETED;
 							dflags = 0;
 						}
+						rflags = (nflags | aflags) & ~dflags;
 						switch ((aflags | dflags) ? driver[t]->set_flags( ctx[t], srec->msg[t], srec->uid[t], aflags, dflags ) : DRV_OK) {
 						case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
