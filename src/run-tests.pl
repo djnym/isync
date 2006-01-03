@@ -259,7 +259,7 @@ Slave :slave:
 SyncState *
 ".shift();
 	close FILE;
-	open FILE, "../mbsync -D -c .mbsyncrc test|";
+	open FILE, "../mbsync -D -c .mbsyncrc test 2>&1 |";
 	my @out = <FILE>;
 	close FILE;
 	unlink ".mbsyncrc";
