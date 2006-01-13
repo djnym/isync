@@ -449,7 +449,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	} else
 		maxwuid = 0;
 	info( "Selecting slave %s... ", ctx[S]->name );
-	debug( "selecting slave [1,%d]\n", maxwuid );
+	debug( maxwuid == INT_MAX ? "selecting slave [1,inf]\n" : "selecting slave [1,%d]\n", maxwuid );
 	switch (driver[S]->select( ctx[S], (ctx[S]->opts & OPEN_OLD) ? 1 : maxuid[S] + 1, maxwuid, 0, 0 )) {
 	case DRV_STORE_BAD: ret = SYNC_BAD(S); goto bail;
 	case DRV_BOX_BAD: ret = SYNC_FAIL; goto bail;
@@ -556,7 +556,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	} else
 		maxwuid = 0;
 	info( "Selecting master %s... ", ctx[M]->name );
-	debug( "selecting master [%d,%d]\n", minwuid, maxwuid );
+	debug( maxwuid == INT_MAX ? "selecting master [%d,inf]\n" : "selecting master [%d,%d]\n", minwuid, maxwuid );
 	switch (driver[M]->select( ctx[M], minwuid, maxwuid, mexcs, nmexcs )) {
 	case DRV_STORE_BAD: ret = SYNC_BAD(M); goto finish;
 	case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
