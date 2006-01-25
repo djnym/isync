@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <limits.h>
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
