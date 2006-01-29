@@ -259,10 +259,33 @@ Slave :slave:
 SyncState *
 ".shift();
 	close FILE;
-	open FILE, "../mbsync -D -c .mbsyncrc test 2>&1 |";
+	open FILE, "../mbsync -D -J -c .mbsyncrc test 2>&1 |";
 	my @out = <FILE>;
 	close FILE;
+	open(FILE, "<", "slave/.mbsyncstate") or
+		die "Cannot read old sync state.\n";
+	my @oss = <FILE>;
+	close FILE;
+	open(FILE, "<", "slave/.mbsyncstate.journal") or
+		die "Cannot read journal.\n";
+	my @nj = <FILE>;
+	close FILE;
+	open(FILE, "<", "slave/.mbsyncstate.new") or
+		die "Cannot read new sync state.\n";
+	my @nss = <FILE>;
+	close FILE;
+	open FILE, "../mbsync -D -c .mbsyncrc --noop test 2>&1 |";
+	my @jout = <FILE>;
+	close FILE;
+	open(FILE, "<", "slave/.mbsyncstate") or
+		die "Cannot read sync state.\n";
+	my @jss = <FILE>;
+	close FILE;
 	unlink ".mbsyncrc";
+	if ("@nss" ne "@jss") {
+		print "Journalling error.\nOld State:\n".join("", @oss)."\nJournal:\n".join("", @nj)."\nNew State:\n".join("", @jss)."\nExpected New State:\n".join("", @nss)."\n";
+		exit 1;
+	}
 	return @out;
 }
 
