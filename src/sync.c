@@ -236,7 +236,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				"INBOX" : names[t];
 		ctx[t]->uidvalidity = 0;
 		driver[t] = ctx[t]->conf->driver;
-		driver[t]->prepare( ctx[t], opts[t] );
+		driver[t]->prepare_paths( ctx[t] );
+		driver[t]->prepare_opts( ctx[t], opts[t] );
 	}
 
 	if (!strcmp( chan->sync_state ? chan->sync_state : global_sync_state, "*" )) {

@@ -171,7 +171,8 @@ struct driver {
 	store_t *(*open_store)( store_conf_t *conf, store_t *oldctx );
 	void (*close_store)( store_t *ctx );
 	int (*list)( store_t *ctx, string_list_t **boxes );
-	void (*prepare)( store_t *ctx, int opts );
+	void (*prepare_paths)( store_t *ctx );
+	void (*prepare_opts)( store_t *ctx, int opts );
 	int (*select)( store_t *ctx, int minuid, int maxuid, int *excs, int nexcs );
 	int (*fetch_msg)( store_t *ctx, message_t *msg, msg_data_t *data );
 	int (*store_msg)( store_t *ctx, msg_data_t *data, int *uid ); /* if uid is null, store to trash */

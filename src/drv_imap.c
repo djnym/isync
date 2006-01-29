@@ -1398,10 +1398,15 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 }
 
 static void
-imap_prepare( store_t *gctx, int opts )
+imap_prepare_paths( store_t *gctx )
 {
 	free_generic_messages( gctx->msgs );
 	gctx->msgs = 0;
+}
+
+static void
+imap_prepare_opts( store_t *gctx, int opts )
+{
 	gctx->opts = opts;
 }
 
@@ -1812,7 +1817,8 @@ struct driver imap_driver = {
 	imap_open_store,
 	imap_close_store,
 	imap_list,
-	imap_prepare,
+	imap_prepare_paths,
+	imap_prepare_opts,
 	imap_select,
 	imap_fetch_msg,
 	imap_store_msg,

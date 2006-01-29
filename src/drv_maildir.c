@@ -703,7 +703,7 @@ maildir_app_msg( maildir_store_t *ctx, message_t ***msgapp, msg_t *entry )
 }
 
 static void
-maildir_prepare( store_t *gctx, int opts )
+maildir_prepare_paths( store_t *gctx )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 
@@ -717,6 +717,11 @@ maildir_prepare( store_t *gctx, int opts )
 		gctx->path = nfstrdup( ((maildir_store_conf_t *)gctx->conf)->inbox );
 	else
 		nfasprintf( &gctx->path, "%s%s", gctx->conf->path, gctx->name );
+}
+
+static void
+maildir_prepare_opts( store_t *gctx, int opts )
+{
 	if (opts & OPEN_SETFLAGS)
 		opts |= OPEN_OLD;
 	if (opts & OPEN_EXPUNGE)
@@ -1188,7 +1193,8 @@ struct driver maildir_driver = {
 	maildir_open_store,
 	maildir_close_store,
 	maildir_list,
-	maildir_prepare,
+	maildir_prepare_paths,
+	maildir_prepare_opts,
 	maildir_select,
 	maildir_fetch_msg,
 	maildir_store_msg,
