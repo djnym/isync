@@ -126,6 +126,8 @@ findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
 		continue;
 	  found:
 		msg->status |= M_PROCESSED;
+		if (srec->uid[1-t] >= 0)
+			msg->status |= M_SYNCED;
 		srec->msg[t] = msg;
 		nsrec = srec->next;
 		debug( "pairs %5d %s\n", srec->uid[1-t], diag );
@@ -630,7 +632,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					if (chan->ops[t] & OP_RENEW) {
 						if ((chan->ops[t] & OP_EXPUNGE) && (srec->msg[1-t]->flags & F_DELETED)) {
 							debug( "  -> not %sing - would be expunged anyway\n", str_hl[t] );
-							srec->msg[1-t]->status |= M_NOT_SYNCED;
 						} else {
 							if ((srec->msg[1-t]->flags & F_FLAGGED) || !chan->stores[t]->max_size || srec->msg[1-t]->size <= chan->stores[t]->max_size) {
 								debug( "  -> %sing it\n", str_hl[t] );
@@ -638,7 +639,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 								switch (driver[1-t]->fetch_msg( ctx[1-t], srec->msg[1-t], &msgdata )) {
 								case DRV_STORE_BAD: ret = SYNC_BAD(1-t); goto finish;
 								case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
-								default: /* ok */ srec->msg[1-t]->status |= M_NOT_SYNCED; break;
+								default: /* ok */ break;
 								case DRV_OK:
 									srec->msg[1-t]->flags = msgdata.flags;
 									switch (driver[t]->store_msg( ctx[t], &msgdata, &uid )) {
@@ -647,16 +648,15 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 									case DRV_OK:
 										Fprintf( jfp, "%c %d %d %d\n", "<>"[t], srec->uid[M], srec->uid[S], uid );
 										srec->uid[t] = uid;
+										srec->msg[1-t]->status |= M_SYNCED;
 										nflags = srec->msg[1-t]->flags;
 									}
 								}
 							} else {
 								debug( "  -> not %sing - still too big\n", str_hl[t] );
-								srec->msg[1-t]->status |= M_NOT_SYNCED;
 							}
 						}
-					} else
-						srec->msg[1-t]->status |= M_NOT_SYNCED;
+					}
 				} else if (!del[t]) {
 					/* a) & b.3) / c.3) */
 					debug( "  may %s\n", str_hl[t] );
@@ -725,7 +725,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					debug( "new message %d on %s\n", tmsg->uid, str_ms[1-t] );
 					if ((chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
 						debug( "  not %sing - would be expunged anyway\n", str_hl[t] );
-						tmsg->status |= M_NOT_SYNCED;
 					} else {
 						if ((tmsg->flags & F_FLAGGED) || !chan->stores[t]->max_size || tmsg->size <= chan->stores[t]->max_size) {
 							debug( "  %sing it\n", str_hl[t] );
@@ -738,17 +737,16 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							switch (driver[1-t]->fetch_msg( ctx[1-t], tmsg, &msgdata )) {
 							case DRV_STORE_BAD: return SYNC_BAD(1-t);
 							case DRV_BOX_BAD: return SYNC_FAIL;
-							case DRV_MSG_BAD: /* ok */ tmsg->status |= M_NOT_SYNCED; continue;
+							case DRV_MSG_BAD: /* ok */ continue;
 							}
 							tmsg->flags = msgdata.flags;
 							switch (driver[t]->store_msg( ctx[t], &msgdata, &uid )) {
 							case DRV_STORE_BAD: return SYNC_BAD(t);
 							default: return SYNC_FAIL;
-							case DRV_OK: break;
+							case DRV_OK: tmsg->status |= M_SYNCED; break;
 							}
 						} else {
 							debug( "  not %sing - too big\n", str_hl[t] );
-							tmsg->status |= M_NOT_SYNCED;
 							uid = -1;
 						}
 						srec = nfmalloc( sizeof(*srec) );
@@ -765,8 +763,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							Fprintf( jfp, "%c %d\n", ")("[t], tmsg->uid );
 						}
 					}
-				} else
-					tmsg->status |= M_NOT_SYNCED;
+				}
 			}
 		if (nmsgs)
 			info( " %d messages\n", nmsgs );
@@ -782,7 +779,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		for (tmsg = ctx[S]->msgs; tmsg && todel > 0; tmsg = tmsg->next) {
 			if ((tmsg->status & M_DEAD) || (tmsg->flags & F_DELETED))
 				continue;
-			if ((tmsg->flags & F_FLAGGED) || (tmsg->status & M_NOT_SYNCED)) /* add M_DESYNCED? */
+			if ((tmsg->flags & F_FLAGGED) || !(tmsg->status & M_SYNCED)) /* add M_DESYNCED? */
 				todel--;
 			else if (!(tmsg->status & M_RECENT)) {
 				tmsg->status |= M_EXPIRED;
@@ -824,7 +821,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			for (tmsg = ctx[t]->msgs; tmsg; tmsg = tmsg->next)
 				if (tmsg->flags & F_DELETED) {
 					if (ctx[t]->conf->trash) {
-						if (!ctx[t]->conf->trash_only_new || (tmsg->status & M_NOT_SYNCED)) {
+						if (!ctx[t]->conf->trash_only_new || !(tmsg->status & M_SYNCED)) {
 							debug( "  trashing message %d\n", tmsg->uid );
 							switch (driver[t]->trash_msg( ctx[t], tmsg )) {
 							case DRV_OK: break;
@@ -834,7 +831,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						} else
 							debug( "  not trashing message %d - not new\n", tmsg->uid );
 					} else if (ctx[1-t]->conf->trash && ctx[1-t]->conf->trash_remote_new) {
-						if (tmsg->status & M_NOT_SYNCED) {
+						if (!(tmsg->status & M_SYNCED)) {
 							if (!ctx[1-t]->conf->max_size || tmsg->size <= ctx[1-t]->conf->max_size) {
 								debug( "  remote trashing message %d\n", tmsg->uid );
 								msgdata.flags = tmsg->flags;

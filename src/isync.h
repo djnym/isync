@@ -119,7 +119,7 @@ typedef struct group_conf {
 #define M_DEAD         (1<<1) /* expunged */
 #define M_FLAGS        (1<<2) /* flags fetched */
 #define M_PROCESSED    (1<<3) /* registered in pair */
-#define M_NOT_SYNCED   (1<<4) /* not in remote mailbox, yet */
+#define M_SYNCED       (1<<4) /* already propagated */
 #define M_EXPIRED      (1<<5) /* kicked out by MaxMessages */
 
 typedef struct message {
