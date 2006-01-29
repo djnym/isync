@@ -196,40 +196,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	ret = SYNC_OK;
 	recs = 0, srecadd = &recs;
 
-	opts[M] = opts[S] = 0;
-	for (t = 0; t < 2; t++) {
-		if (chan->ops[t] & (OP_DELETE|OP_FLAGS)) {
-			opts[t] |= OPEN_SETFLAGS;
-			opts[1-t] |= OPEN_OLD;
-			if (chan->ops[t] & OP_FLAGS)
-				opts[1-t] |= OPEN_FLAGS;
-		}
-		if (chan->ops[t] & (OP_NEW|OP_RENEW)) {
-			opts[t] |= OPEN_APPEND;
-			if (chan->ops[t] & OP_RENEW)
-				opts[1-t] |= OPEN_OLD;
-			if (chan->ops[t] & OP_NEW)
-				opts[1-t] |= OPEN_NEW;
-			if (chan->ops[t] & OP_EXPUNGE)
-				opts[1-t] |= OPEN_FLAGS;
-			if (chan->stores[t]->max_size)
-				opts[1-t] |= OPEN_SIZE;
-		}
-		if (chan->ops[t] & OP_EXPUNGE) {
-			opts[t] |= OPEN_EXPUNGE;
-			if (chan->stores[t]->trash) {
-				if (!chan->stores[t]->trash_only_new)
-					opts[t] |= OPEN_OLD;
-				opts[t] |= OPEN_NEW|OPEN_FLAGS;
-			} else if (chan->stores[1-t]->trash && chan->stores[1-t]->trash_remote_new)
-				opts[t] |= OPEN_NEW|OPEN_FLAGS;
-		}
-		if (chan->ops[t] & OP_CREATE)
-			opts[t] |= OPEN_CREATE;
-	}
-	if ((chan->ops[S] & (OP_NEW|OP_RENEW)) && chan->max_messages)
-		opts[S] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
-
 	for (t = 0; t < 2; t++) {
 		ctx[t]->name =
 			(!names[t] || (ctx[t]->conf->map_inbox && !strcmp( ctx[t]->conf->map_inbox, names[t] ))) ?
@@ -237,7 +203,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		ctx[t]->uidvalidity = 0;
 		driver[t] = ctx[t]->conf->driver;
 		driver[t]->prepare_paths( ctx[t] );
-		driver[t]->prepare_opts( ctx[t], opts[t] );
 	}
 
 	if (!strcmp( chan->sync_state ? chan->sync_state : global_sync_state, "*" )) {
@@ -439,6 +404,42 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		}
 	}
   skiprd:
+
+	opts[M] = opts[S] = 0;
+	for (t = 0; t < 2; t++) {
+		if (chan->ops[t] & (OP_DELETE|OP_FLAGS)) {
+			opts[t] |= OPEN_SETFLAGS;
+			opts[1-t] |= OPEN_OLD;
+			if (chan->ops[t] & OP_FLAGS)
+				opts[1-t] |= OPEN_FLAGS;
+		}
+		if (chan->ops[t] & (OP_NEW|OP_RENEW)) {
+			opts[t] |= OPEN_APPEND;
+			if (chan->ops[t] & OP_RENEW)
+				opts[1-t] |= OPEN_OLD;
+			if (chan->ops[t] & OP_NEW)
+				opts[1-t] |= OPEN_NEW;
+			if (chan->ops[t] & OP_EXPUNGE)
+				opts[1-t] |= OPEN_FLAGS;
+			if (chan->stores[t]->max_size)
+				opts[1-t] |= OPEN_SIZE;
+		}
+		if (chan->ops[t] & OP_EXPUNGE) {
+			opts[t] |= OPEN_EXPUNGE;
+			if (chan->stores[t]->trash) {
+				if (!chan->stores[t]->trash_only_new)
+					opts[t] |= OPEN_OLD;
+				opts[t] |= OPEN_NEW|OPEN_FLAGS;
+			} else if (chan->stores[1-t]->trash && chan->stores[1-t]->trash_remote_new)
+				opts[t] |= OPEN_NEW|OPEN_FLAGS;
+		}
+		if (chan->ops[t] & OP_CREATE)
+			opts[t] |= OPEN_CREATE;
+	}
+	if ((chan->ops[S] & (OP_NEW|OP_RENEW)) && chan->max_messages)
+		opts[S] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
+	driver[M]->prepare_opts( ctx[M], opts[M] );
+	driver[S]->prepare_opts( ctx[S], opts[S] );
 
 	if (ctx[S]->opts & OPEN_NEW)
 		maxwuid = INT_MAX;
