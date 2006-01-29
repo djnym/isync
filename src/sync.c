@@ -180,7 +180,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 {
 	driver_t *driver[2];
 	message_t *tmsg;
-	sync_rec_t *recs, *srec, **srecadd, *nsrec;
+	sync_rec_t *recs, *srec, **srecadd, *nsrec, **osrecadd;
 	char *dname, *jname, *nname, *lname, *s, *cmname, *csname;
 	FILE *dfp, *jfp, *nfp;
 	int opts[2];
@@ -581,9 +581,65 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	}
 
 	info( "Synchronizing...\n" );
+
+	debug( "synchronizing new entries\n" );
+	osrecadd = srecadd;
+	for (t = 0; t < 2; t++) {
+		int nmsgs, uid;
+
+		for (nmsgs = 0, tmsg = ctx[1-t]->msgs; tmsg; tmsg = tmsg->next)
+			if (!(tmsg->status & M_PROCESSED)) {
+				if (chan->ops[t] & OP_NEW) {
+					debug( "new message %d on %s\n", tmsg->uid, str_ms[1-t] );
+					if ((chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
+						debug( "  not %sing - would be expunged anyway\n", str_hl[t] );
+					} else {
+						if ((tmsg->flags & F_FLAGGED) || !chan->stores[t]->max_size || tmsg->size <= chan->stores[t]->max_size) {
+							debug( "  %sing it\n", str_hl[t] );
+							if (!nmsgs)
+								info( t ? "Pulling new messages..." : "Pushing new messages..." );
+							else
+								infoc( '.' );
+							nmsgs++;
+							msgdata.flags = tmsg->flags;
+							switch (driver[1-t]->fetch_msg( ctx[1-t], tmsg, &msgdata )) {
+							case DRV_STORE_BAD: return SYNC_BAD(1-t);
+							case DRV_BOX_BAD: return SYNC_FAIL;
+							case DRV_MSG_BAD: /* ok */ continue;
+							}
+							tmsg->flags = msgdata.flags;
+							switch (driver[t]->store_msg( ctx[t], &msgdata, &uid )) {
+							case DRV_STORE_BAD: return SYNC_BAD(t);
+							default: return SYNC_FAIL;
+							case DRV_OK: tmsg->status |= M_SYNCED; break;
+							}
+						} else {
+							debug( "  not %sing - too big\n", str_hl[t] );
+							uid = -1;
+						}
+						srec = nfmalloc( sizeof(*srec) );
+						srec->uid[1-t] = tmsg->uid;
+						srec->uid[t] = uid;
+						srec->flags = tmsg->flags;
+						srec->status = 0;
+						srec->next = 0;
+						*srecadd = srec;
+						srecadd = &srec->next;
+						Fprintf( jfp, "+ %d %d %u\n", srec->uid[M], srec->uid[S], srec->flags );
+						if (maxuid[1-t] < tmsg->uid) {
+							maxuid[1-t] = tmsg->uid;
+							Fprintf( jfp, "%c %d\n", ")("[t], tmsg->uid );
+						}
+					}
+				}
+			}
+		if (nmsgs)
+			info( " %d messages\n", nmsgs );
+	}
+
 	debug( "synchronizing old entries\n" );
 	Fprintf( jfp, "^\n" );
-	for (srec = recs; srec; srec = srec->next) {
+	for (srec = recs; srec != *osrecadd; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
 		debug( "pair (%d,%d)\n", srec->uid[M], srec->uid[S] );
@@ -713,60 +769,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			if (srec->msg[S] && (srec->msg[S]->flags & F_DELETED))
 				srec->status |= S_DEL(S);
 		}
-	}
-
-	debug( "synchronizing new entries\n" );
-	for (t = 0; t < 2; t++) {
-		int nmsgs, uid;
-
-		for (nmsgs = 0, tmsg = ctx[1-t]->msgs; tmsg; tmsg = tmsg->next)
-			if (!(tmsg->status & M_PROCESSED)) {
-				if (chan->ops[t] & OP_NEW) {
-					debug( "new message %d on %s\n", tmsg->uid, str_ms[1-t] );
-					if ((chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED)) {
-						debug( "  not %sing - would be expunged anyway\n", str_hl[t] );
-					} else {
-						if ((tmsg->flags & F_FLAGGED) || !chan->stores[t]->max_size || tmsg->size <= chan->stores[t]->max_size) {
-							debug( "  %sing it\n", str_hl[t] );
-							if (!nmsgs)
-								info( t ? "Pulling new messages..." : "Pushing new messages..." );
-							else
-								infoc( '.' );
-							nmsgs++;
-							msgdata.flags = tmsg->flags;
-							switch (driver[1-t]->fetch_msg( ctx[1-t], tmsg, &msgdata )) {
-							case DRV_STORE_BAD: return SYNC_BAD(1-t);
-							case DRV_BOX_BAD: return SYNC_FAIL;
-							case DRV_MSG_BAD: /* ok */ continue;
-							}
-							tmsg->flags = msgdata.flags;
-							switch (driver[t]->store_msg( ctx[t], &msgdata, &uid )) {
-							case DRV_STORE_BAD: return SYNC_BAD(t);
-							default: return SYNC_FAIL;
-							case DRV_OK: tmsg->status |= M_SYNCED; break;
-							}
-						} else {
-							debug( "  not %sing - too big\n", str_hl[t] );
-							uid = -1;
-						}
-						srec = nfmalloc( sizeof(*srec) );
-						srec->uid[1-t] = tmsg->uid;
-						srec->uid[t] = uid;
-						srec->flags = tmsg->flags;
-						srec->status = 0;
-						srec->next = 0;
-						*srecadd = srec;
-						srecadd = &srec->next;
-						Fprintf( jfp, "+ %d %d %u\n", srec->uid[M], srec->uid[S], srec->flags );
-						if (maxuid[1-t] < tmsg->uid) {
-							maxuid[1-t] = tmsg->uid;
-							Fprintf( jfp, "%c %d\n", ")("[t], tmsg->uid );
-						}
-					}
-				}
-			}
-		if (nmsgs)
-			info( " %d messages\n", nmsgs );
 	}
 
 	if ((chan->ops[S] & (OP_NEW|OP_RENEW)) && chan->max_messages) {
