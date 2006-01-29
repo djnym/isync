@@ -192,7 +192,12 @@ extern const char *Home;
 
 /* util.c */
 
-extern int Verbose, Quiet, Debug;
+#define DEBUG        1
+#define VERBOSE      2
+#define QUIET        4
+#define VERYQUIET    8
+
+extern int DFlags;
 
 void debug( const char *, ... );
 void info( const char *, ... );

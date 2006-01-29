@@ -203,17 +203,16 @@ main( int argc, char **argv )
 					usage( 0 );
 				else if (!strcmp( opt, "version" ))
 					version();
-				else if (!strcmp( opt, "quiet" ))
-					Quiet++;
-				else if (!strcmp( opt, "verbose" )) {
-					Verbose = 1;
-					if (!Quiet)
-						Quiet = 1;
-				} else if (!strcmp( opt, "debug" )) {
-					Debug = 1;
-					if (!Quiet)
-						Quiet = 1;
-				} else if (!strcmp( opt, "pull" ))
+				else if (!strcmp( opt, "quiet" )) {
+					if (DFlags & QUIET)
+						DFlags |= VERYQUIET;
+					else
+						DFlags |= QUIET;
+				} else if (!strcmp( opt, "verbose" ))
+					DFlags |= VERBOSE | QUIET;
+				else if (!strcmp( opt, "debug" ))
+					DFlags |= DEBUG | QUIET;
+				else if (!strcmp( opt, "pull" ))
 					cops |= XOP_PULL, ops[M] |= XOP_HAVE_TYPE;
 				else if (!strcmp( opt, "push" ))
 					cops |= XOP_PUSH, ops[M] |= XOP_HAVE_TYPE;
@@ -362,17 +361,16 @@ main( int argc, char **argv )
 			op = XOP_PUSH;
 			goto cac;
 		case 'q':
-			Quiet++;
+			if (DFlags & QUIET)
+				DFlags |= VERYQUIET;
+			else
+				DFlags |= QUIET;
 			break;
 		case 'V':
-			Verbose = 1;
-			if (!Quiet)
-				Quiet = 1;
+			DFlags |= VERBOSE | QUIET;
 			break;
 		case 'D':
-			Debug = 1;
-			if (!Quiet)
-				Quiet = 1;
+			DFlags |= DEBUG | QUIET;
 			break;
 		case 'v':
 			version();

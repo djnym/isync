@@ -398,7 +398,7 @@ buffer_gets( buffer_t * b, char **s )
 			if (b->buf[b->offset + 1] == '\n') {
 				b->buf[b->offset] = 0;  /* terminate the string */
 				b->offset += 2; /* next line */
-				if (Verbose)
+				if (DFlags & VERBOSE)
 					puts( *s );
 				return 0;
 			}
@@ -433,7 +433,7 @@ v_issue_imap_cmd( imap_store_t *ctx, struct imap_cmd_cb *cb,
 	bufl = nfsnprintf( buf, sizeof(buf), cmd->cb.data ? CAP(LITERALPLUS) ?
 	                   "%d %s{%d+}\r\n" : "%d %s{%d}\r\n" : "%d %s\r\n",
 	                   cmd->tag, cmd->cmd, cmd->cb.dlen );
-	if (Verbose) {
+	if (DFlags & VERBOSE) {
 		if (imap->num_in_progress)
 			printf( "(%d in progress) ", imap->num_in_progress );
 		if (memcmp( cmd->cmd, "LOGIN", 5 ))
@@ -1173,7 +1173,7 @@ do_cram_auth (imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt)
 
 	resp = cram( prompt, srvc->user, srvc->pass );
 
-	if (Verbose)
+	if (DFlags & VERBOSE)
 		printf( ">+> %s\n", resp );
 	l = strlen( resp );
 	n = socket_write( &imap->buf.sock, resp, l );

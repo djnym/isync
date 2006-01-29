@@ -102,7 +102,7 @@ findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
 
 	for (msg = ctx[t]->msgs; msg; msg = msg->next) {
 		uid = msg->uid;
-		if (Debug) {
+		if (DFlags & DEBUG) {
 			make_flags( msg->flags, fbuf );
 			printf( ctx[t]->opts & OPEN_SIZE ? "  message %5d, %-4s, %6d: " : "  message %5d, %-4s: ", uid, fbuf, msg->size );
 		}

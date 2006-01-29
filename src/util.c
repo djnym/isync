@@ -30,14 +30,14 @@
 #include <pwd.h>
 #include <ctype.h>
 
-int Verbose, Quiet, Debug;
+int DFlags;
 
 void
 debug( const char *msg, ... )
 {
 	va_list va;
 
-	if (Debug) {
+	if (DFlags & DEBUG) {
 		va_start( va, msg );
 		vprintf( msg, va );
 		va_end( va );
@@ -50,7 +50,7 @@ info( const char *msg, ... )
 {
 	va_list va;
 
-	if (!Quiet) {
+	if (!(DFlags & QUIET)) {
 		va_start( va, msg );
 		vprintf( msg, va );
 		va_end( va );
@@ -61,7 +61,7 @@ info( const char *msg, ... )
 void
 infoc( char c )
 {
-	if (!Quiet) {
+	if (!(DFlags & QUIET)) {
 		putchar( c );
 		fflush( stdout );
 	}
@@ -72,7 +72,7 @@ warn( const char *msg, ... )
 {
 	va_list va;
 
-	if (Quiet < 2) {
+	if (!(DFlags & VERYQUIET)) {
 		va_start( va, msg );
 		vfprintf( stderr, msg, va );
 		va_end( va );
