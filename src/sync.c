@@ -914,9 +914,11 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 
 	fclose( nfp );
 	fclose( jfp );
-	/* order is important! */
-	rename( nname, dname );
-	unlink( jname );
+	if (!(DFlags & KEEPJOURNAL)) {
+		/* order is important! */
+		rename( nname, dname );
+		unlink( jname );
+	}
 
   bail:
 	for (srec = recs; srec; srec = nsrec) {

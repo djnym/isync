@@ -372,6 +372,9 @@ main( int argc, char **argv )
 		case 'D':
 			DFlags |= DEBUG | QUIET;
 			break;
+		case 'J':
+			DFlags |= KEEPJOURNAL;
+			break;
 		case 'v':
 			version();
 		case 'h':

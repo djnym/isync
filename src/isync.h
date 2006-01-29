@@ -196,6 +196,7 @@ extern const char *Home;
 #define VERBOSE      2
 #define QUIET        4
 #define VERYQUIET    8
+#define KEEPJOURNAL  16
 
 extern int DFlags;
 
