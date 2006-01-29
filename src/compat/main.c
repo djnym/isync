@@ -331,8 +331,8 @@ main( int argc, char **argv )
 			while ((de = readdir( dir ))) {
 				if (*de->d_name == '.')
 					continue;
-				nfsnprintf( path1, sizeof(path1), "%s/%s/cur", xmaildir, de->d_name );
-				if (stat( path1, &st ) || !S_ISDIR( st.st_mode ))
+				nfsnprintf( path2, sizeof(path2), "%s/%s/cur", xmaildir, de->d_name );
+				if (stat( path2, &st ) || !S_ISDIR( st.st_mode ))
 					continue;
 				global.path = de->d_name;
 				global.box = (inbox && !strcmp( inbox, global.path )) ?
