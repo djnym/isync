@@ -665,6 +665,10 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		} else {
 			del[M] = nom && (srec->uid[M] > 0);
 			del[S] = nos && (srec->uid[S] > 0);
+			if (srec->msg[M] && (srec->msg[M]->flags & F_DELETED))
+				srec->status |= S_DEL(M);
+			if (srec->msg[S] && (srec->msg[S]->flags & F_DELETED))
+				srec->status |= S_DEL(S);
 			nflags = srec->flags;
 
 			for (t = 0; t < 2; t++) {
@@ -687,6 +691,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 						default: /* ok */ break;
 						case DRV_OK:
+							srec->status |= S_DEL(t);
 							Fprintf( jfp, "%c %d %d 0\n", "><"[t], srec->uid[M], srec->uid[S] );
 							srec->uid[1-t] = 0;
 						}
@@ -730,6 +735,10 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 						default: /* ok */ break;
 						case DRV_OK:
+							if (aflags & F_DELETED)
+								srec->status |= S_DEL(t);
+							else if (dflags & F_DELETED)
+								srec->status &= ~S_DEL(t);
 							nflags = (nflags | aflags) & ~dflags;
 							if (unex) {
 								debug( "unexpiring pair(%d,%d)\n", srec->uid[M], srec->uid[S] );
@@ -747,10 +756,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				srec->flags = nflags;
 				Fprintf( jfp, "* %d %d %u\n", srec->uid[M], srec->uid[S], nflags );
 			}
-			if (srec->msg[M] && (srec->msg[M]->flags & F_DELETED))
-				srec->status |= S_DEL(M);
-			if (srec->msg[S] && (srec->msg[S]->flags & F_DELETED))
-				srec->status |= S_DEL(S);
 		}
 	}
 
