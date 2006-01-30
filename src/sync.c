@@ -669,7 +669,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 
 			for (t = 0; t < 2; t++) {
 				int unex;
-				unsigned char sflags, aflags, dflags, rflags;
+				unsigned char sflags, aflags, dflags;
 
 				/* excludes (push) c.3) d.2) d.3) d.4) / (pull) b.3) d.7) d.8) d.9) */
 				if (!srec->uid[t]) {
@@ -725,13 +725,12 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							aflags &= F_DELETED;
 							dflags = 0;
 						}
-						rflags = (nflags | aflags) & ~dflags;
 						switch ((aflags | dflags) ? driver[t]->set_flags( ctx[t], srec->msg[t], srec->uid[t], aflags, dflags ) : DRV_OK) {
 						case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 						default: /* ok */ break;
 						case DRV_OK:
-							nflags = rflags;
+							nflags = (nflags | aflags) & ~dflags;
 							if (unex) {
 								debug( "unexpiring pair(%d,%d)\n", srec->uid[M], srec->uid[S] );
 								/* log last, so deletion can't be misinterpreted! */
