@@ -128,8 +128,6 @@ findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
 		continue;
 	  found:
 		msg->srec = srec;
-		if (srec->uid[1-t] >= 0)
-			msg->status |= M_SYNCED;
 		srec->msg[t] = msg;
 		nsrec = srec->next;
 		debug( "pairs %5d %s\n", srec->uid[1-t], diag );
@@ -622,7 +620,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						debug( "  not %sing - too big\n", str_hl[t] );
 						uid = -1;
 					}
-					tmsg->status |= M_SYNCED;
 					if (tmsg->srec) {
 						srec = tmsg->srec;
 						Fprintf( jfp, "%c %d %d %d\n", "<>"[t], srec->uid[M], srec->uid[S], uid );
@@ -768,7 +765,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		for (tmsg = ctx[S]->msgs; tmsg && todel > 0; tmsg = tmsg->next) {
 			if ((tmsg->status & M_DEAD) || (tmsg->flags & F_DELETED))
 				continue;
-			if ((tmsg->flags & F_FLAGGED) || !(tmsg->status & M_SYNCED)) /* add M_DESYNCED? */
+			if ((tmsg->flags & F_FLAGGED) || !tmsg->srec || tmsg->srec->uid[M] <= 0) /* add M_DESYNCED? */
 				todel--;
 			else if (!(tmsg->status & M_RECENT)) {
 				tmsg->status |= M_EXPIRED;
@@ -810,7 +807,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			for (tmsg = ctx[t]->msgs; tmsg; tmsg = tmsg->next)
 				if (tmsg->flags & F_DELETED) {
 					if (ctx[t]->conf->trash) {
-						if (!ctx[t]->conf->trash_only_new || !(tmsg->status & M_SYNCED)) {
+						if (!ctx[t]->conf->trash_only_new || !tmsg->srec || tmsg->srec->uid[1-t] < 0) {
 							debug( "  trashing message %d\n", tmsg->uid );
 							switch (driver[t]->trash_msg( ctx[t], tmsg )) {
 							case DRV_OK: break;
@@ -820,7 +817,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						} else
 							debug( "  not trashing message %d - not new\n", tmsg->uid );
 					} else if (ctx[1-t]->conf->trash && ctx[1-t]->conf->trash_remote_new) {
-						if (!(tmsg->status & M_SYNCED)) {
+						if (!tmsg->srec || tmsg->srec->uid[1-t] < 0) {
 							if (!ctx[1-t]->conf->max_size || tmsg->size <= ctx[1-t]->conf->max_size) {
 								debug( "  remote trashing message %d\n", tmsg->uid );
 								msgdata.flags = tmsg->flags;
