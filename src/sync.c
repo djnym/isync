@@ -184,7 +184,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	char *dname, *jname, *nname, *lname, *s, *cmname, *csname;
 	FILE *dfp, *jfp, *nfp;
 	int opts[2];
-	int nom, nos, del[2], ex[M];
+	int nom, nos, del[2], ex[2];
 	int muidval, suidval, smaxxuid, maxuid[2], minwuid, maxwuid;
 	int t1, t2, t3, t;
 	int lfd, ret, line, todel, delt, *mexcs, nmexcs, rmexcs;
