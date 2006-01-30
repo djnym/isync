@@ -772,7 +772,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			if ((tmsg->flags & F_FLAGGED) || !tmsg->srec || tmsg->srec->uid[M] <= 0) /* add M_DESYNCED? */
 				todel--;
 			else if (!(tmsg->status & M_RECENT)) {
-				tmsg->status |= M_EXPIRED;
+				tmsg->status |= M_EXPIRE;
 				delt++;
 				todel--;
 			}
@@ -782,7 +782,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			for (srec = recs; srec; srec = srec->next) {
 				if (srec->status & (S_DEAD|S_EXPIRED))
 					continue;
-				if (srec->msg[S] && (srec->msg[S]->status & M_EXPIRED)) {
+				if (srec->msg[S] && (srec->msg[S]->status & M_EXPIRE)) {
 					debug( "  expiring pair(%d,%d)\n", srec->uid[M], srec->uid[S] );
 					/* log first, so deletion can't be misinterpreted! */
 					Fprintf( jfp, "~ %d %d 1\n", srec->uid[M], srec->uid[S] );
