@@ -4,7 +4,8 @@ EXTRA_DIST = debian isync.spec $(bin_SCRIPTS)
 
 log:
 	@perl -p -e "s/^(\\S+)\\s+(\\S.+\\S)\\s+(\\S+)\\s*\$$/\$$1:'\$$2 <\$$3>'\\n/" < ../CVSROOT/accounts > .usermap
-	cvs2cl -U .usermap --no-wrap --separate-header -I ChangeLog -I NEWS -I TODO -I debian/
+	@if test -f CVS/Tag; then tag=`cut -c2- CVS/Tag`; else tag=trunk; fi; \
+	 cvs2cl -U .usermap -F $$tag --no-wrap --separate-header -I ChangeLog -I NEWS -I TODO -I debian/
 	@rm -f .usermap ChangeLog.bak
 
 deb:
