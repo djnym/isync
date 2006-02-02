@@ -118,7 +118,6 @@ typedef struct group_conf {
 #define M_RECENT       (1<<0) /* unsyncable flag; maildir_* depend on this being 1<<0 */
 #define M_DEAD         (1<<1) /* expunged */
 #define M_FLAGS        (1<<2) /* flags fetched */
-#define M_EXPIRE       (1<<3) /* kicked out by MaxMessages */
 
 typedef struct message {
 	struct message *next;
