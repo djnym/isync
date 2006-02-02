@@ -224,11 +224,6 @@ print "OK.\n";
 exit 0;
 
 
-sub fcfg(@)
-{
-	return join(" // ", map({ my $t = $_; chomp $t; $t =~ s/\n/ \/ /g; $t; } @_));
-}
-
 sub qm($)
 {
 	shift;
@@ -239,8 +234,8 @@ sub qm($)
 	return $_;
 }
 
-# $global, $master, $slave, $channel
-sub runsync($$$)
+# $global, $master, $slave
+sub writecfg($$$)
 {
 	open(FILE, ">", ".mbsyncrc") or
 		die "Cannot open .mbsyncrc.\n";
@@ -259,35 +254,22 @@ Slave :slave:
 SyncState *
 ".shift();
 	close FILE;
-	open FILE, "../mbsync -D -J -c .mbsyncrc test 2>&1 |";
-	my @out = <FILE>;
-	close FILE;
-	open(FILE, "<", "slave/.mbsyncstate") or
-		die "Cannot read old sync state.\n";
-	my @oss = <FILE>;
-	close FILE;
-	open(FILE, "<", "slave/.mbsyncstate.journal") or
-		die "Cannot read journal.\n";
-	my @nj = <FILE>;
-	close FILE;
-	open(FILE, "<", "slave/.mbsyncstate.new") or
-		die "Cannot read new sync state.\n";
-	my @nss = <FILE>;
-	close FILE;
-	open FILE, "../mbsync -D -c .mbsyncrc --noop test 2>&1 |";
-	my @jout = <FILE>;
-	close FILE;
-	open(FILE, "<", "slave/.mbsyncstate") or
-		die "Cannot read sync state.\n";
-	my @jss = <FILE>;
-	close FILE;
+}
+
+sub killcfg()
+{
 	unlink ".mbsyncrc";
-	if ("@nss" ne "@jss") {
-		print "Journalling error.\nOld State:\n".join("", @oss)."\nJournal:\n".join("", @nj)."\nNew State:\n".join("", @jss)."\nExpected New State:\n".join("", @nss)."\n";
-		exit 1;
-	}
+}
+
+# $options
+sub runsync($)
+{
+	open FILE, "../mbsync -D ".shift()." -c .mbsyncrc test 2>&1 |";
+	my @out = <FILE>;
+	close FILE or push(@out, $! ? "*** error closing mbsync: $!\n" : "*** mbsync exited with signal ".($?&127).", code ".($?>>8)."\n");
 	return @out;
 }
+
 
 # $path
 sub readbox($)
@@ -351,31 +333,52 @@ sub showbox($)
 	print " ],\n";
 }
 
-# $num
-sub showchan()
+# $filename
+sub showstate($)
 {
-	showbox("master");
-	showbox("slave");
-	open(FILE, "<", "slave/.mbsyncstate") or
-		die "Cannot read sync state.\n";
+	my ($fn) = @_;
+
+	if (!open(FILE, "<", $fn)) {
+		print STDERR " Cannot read sync state $fn: $!\n";
+		return;
+	}
 	$_ = <FILE>;
-	/^1:(\d+) 1:(\d+):(\d+)\n$/;
+	if (!defined $_) {
+		print STDERR " Missing sync state header.\n";
+		close FILE;
+		return;
+	}
+	if (!/^1:(\d+) 1:(\d+):(\d+)\n$/) {
+		print STDERR " Malformed sync state header '$_'.\n";
+		close FILE;
+		return;
+	}
 	print " [ $1, $2, $3,\n   ";
 	my $frst = 1;
 	for (<FILE>) {
-		if (!/^(-?\d+) (-?\d+) (.*)\n$/) {
-			print STDERR "Malformed sync state entry '$_'.\n";
-			next;
-		}
 		if ($frst) {
 			$frst = 0;
 		} else {
 			print ", ";
 		}
-		print "$1, $2, \"$3\"";
+		if (!/^(-?\d+) (-?\d+) (.*)\n$/) {
+			print "??, ??, \"??\"";
+		} else {
+			print "$1, $2, \"$3\"";
+		}
 	}
 	print " ],\n";
 	close FILE;
+}
+
+# $filename
+sub showchan($)
+{
+	my ($fn) = @_;
+
+	showbox("master");
+	showbox("slave");
+	showstate($fn);
 }
 
 sub show($$@)
@@ -385,12 +388,14 @@ sub show($$@)
 	eval "\@sp = \@x$sx";
 	mkchan($sp[0], $sp[1], @{ $sp[2] });
 	print "my \@x$sx = (\n";
-	showchan();
+	showchan("slave/.mbsyncstate");
 	print ");\n";
-	&runsync(@sfx);
+	&writecfg(@sfx);
+	runsync("");
+	killcfg();
 	print "my \@X$tx = (\n";
 	print " [ ".join(", ", map('"'.qm($_).'"', @sfx))." ],\n";
-	showchan();
+	showchan("slave/.mbsyncstate");
 	print ");\n";
 	print "test(\\\@x$sx, \\\@X$tx);\n\n";
 	rmtree "slave";
@@ -471,30 +476,40 @@ sub ckbox($$$@)
 	return 0;
 }
 
-# $config, \@master, \@slave, @syncstate
-sub ckchan($$$@)
+# $filename, @syncstate
+sub ckstate($@)
 {
-	my ($cfg, $M, $S, @T) = @_;
-	my $rslt = 0;
-	open(FILE, "<", "slave/.mbsyncstate") or
-		die "Cannot read sync state.\n";
-	chomp(my $l = <FILE>);
+	my ($fn, @T) = @_;
+	open(FILE, "<", $fn) or die "Cannot read sync state $fn.\n";
+	my $l = <FILE>;
 	chomp(my @ls = <FILE>);
 	close FILE;
+	if (!defined $l) {
+		print STDERR "Sync state header missing.\n";
+		return 1;
+	}
+	chomp($l);
 	my $xl = "1:".shift(@T)." 1:".shift(@T).":".shift(@T);
 	if ($l ne $xl) {
 		print STDERR "Sync state header mismatch: '$l' instead of '$xl'.\n";
-		$rslt = 1;
+		return 1;
 	} else {
 		for $l (@ls) {
 			$xl = shift(@T)." ".shift(@T)." ".shift(@T);
 			if ($l ne $xl) {
 				print STDERR "Sync state entry mismatch: '$l' instead of '$xl'.\n";
-				$rslt = 1;
-				last;
+				return 1;
 			}
 		}
 	}
+	return 0;
+}
+
+# \@master, \@slave, @syncstate
+sub ckchan($$@)
+{
+	my ($M, $S, @T) = @_;
+	my $rslt = ckstate("slave/.mbsyncstate.new", @T);
 	$rslt |= &ckbox("master", @{ $M });
 	$rslt |= &ckbox("slave", @{ $S });
 	return $rslt;
@@ -517,12 +532,11 @@ sub printbox($$@)
 	print " ],\n";
 }
 
-sub printchan($$@)
+# @syncstate
+sub printstate(@)
 {
-	my ($m, $s, @t) = @_;
+	my (@t) = @_;
 
-	&printbox("master", @{ $m });
-	&printbox("slave", @{ $s });
 	print " [ ".shift(@t).", ".shift(@t).", ".shift(@t).",\n   ";
 	my $frst = 1;
 	while (@t) {
@@ -537,21 +551,52 @@ sub printchan($$@)
 	close FILE;
 }
 
+# \@master, \@slave, @syncstate
+sub printchan($$@)
+{
+	my ($m, $s, @t) = @_;
+
+	&printbox("master", @{ $m });
+	&printbox("slave", @{ $s });
+	printstate(@t);
+}
+
 sub test($$)
 {
 	my ($sx, $tx) = @_;
 
 	mkchan($$sx[0], $$sx[1], @{ $$sx[2] });
-	my @ret = &runsync(@{ $$tx[0] });
-	if (ckchan(fcfg(@{ $$tx[0] }), $$tx[1], $$tx[2], @{ $$tx[3] })) {
+	&writecfg(@{ $$tx[0] });
+	my @ret = runsync("-J");
+	if (ckchan($$tx[1], $$tx[2], @{ $$tx[3] })) {
 		print "Input:\n";
 		printchan($$sx[0], $$sx[1], @{ $$sx[2] });
 		print "Options:\n";
-		print " [ ".join(", ", map('"'.qm($_).'"', @{ $$tx[0] }))." ],\n";
+		print " [ ".join(", ", map('"'.qm($_).'"', @{ $$tx[0] }))." ]\n";
 		print "Expected result:\n";
 		printchan($$tx[1], $$tx[2], @{ $$tx[3] });
 		print "Actual result:\n";
-		showchan();
+		showchan("slave/.mbsyncstate.new");
+		print "Debug output:\n";
+		print @ret;
+		exit 1;
+	}
+	open(FILE, "<", "slave/.mbsyncstate.journal") or
+		die "Cannot read journal.\n";
+	my @nj = <FILE>;
+	close FILE;
+	@ret = runsync("");
+	killcfg();
+	if (ckstate("slave/.mbsyncstate", @{ $$tx[3] })) {
+		print "Options:\n";
+		print " [ ".join(", ", map('"'.qm($_).'"', @{ $$tx[0] }))." ]\n";
+		print "Old State:\n";
+		printstate(@{ $$sx[2] });
+		print "Journal:\n".join("", @nj)."\n";
+		print "Expected New State:\n";
+		printstate(@{ $$tx[3] });
+		print "New State:\n";
+		showstate("slave/.mbsyncstate");
 		print "Debug output:\n";
 		print @ret;
 		exit 1;
