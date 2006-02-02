@@ -26,6 +26,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 int Pid;		/* for maildir and imap */
 char Hostname[256];	/* for maildir */
@@ -77,6 +80,34 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 #endif
 	, code ? stderr : stdout );
 	exit( code );
+}
+
+static void
+crashHandler( int n )
+{
+	int dpid;
+	char pbuf[10], pabuf[20];
+
+	close( 0 );
+	open( "/dev/tty", O_RDWR );
+	dup2( 0, 1 );
+	dup2( 0, 2 );
+	fprintf( stderr, "*** " EXE " caught signal %d. Starting debugger ...\n", n );
+	switch ((dpid = fork ())) {
+	case -1:
+		perror( "fork()" );
+		break;
+	case 0:
+		sprintf( pbuf, "%d", Pid );
+		sprintf( pabuf, "/proc/%d/exe", Pid );
+		execlp( "gdb", "gdb", pabuf, pbuf, (char *)0 );
+		perror( "execlp()" );
+		_exit( 1 );
+	default:
+		waitpid( dpid, 0, 0 );
+		break;
+	}
+	exit( 3 );
 }
 
 static int
@@ -383,6 +414,12 @@ main( int argc, char **argv )
 			fprintf( stderr, "Unknown option '-%c'\n", *(ochar - 1) );
 			return 1;
 		}
+	}
+
+	if (DFlags & DEBUG) {
+		signal( SIGSEGV, crashHandler );
+		signal( SIGBUS, crashHandler );
+		signal( SIGILL, crashHandler );
 	}
 
 	if (merge_ops( cops, ops ))
