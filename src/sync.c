@@ -188,7 +188,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	int opts[2];
 	int nom, nos, del[2], ex[2];
 	int muidval, suidval, smaxxuid, maxuid[2], minwuid, maxwuid;
-	int t1, t2, t3, t;
+	int t1, t2, t3, t, uid, nmsgs;
 	int lfd, ret, line, sline, todel, delt, *mexcs, nmexcs, rmexcs;
 	unsigned char nflags;
 	msg_data_t msgdata;
@@ -601,8 +601,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	debug( "synchronizing new entries\n" );
 	osrecadd = srecadd;
 	for (t = 0; t < 2; t++) {
-		int nmsgs, uid;
-
 		for (nmsgs = 0, tmsg = ctx[1-t]->msgs; tmsg; tmsg = tmsg->next)
 			if (tmsg->srec ? tmsg->srec->uid[t] < 0 && (chan->ops[t] & OP_RENEW) : (chan->ops[t] & OP_NEW)) {
 				debug( "new message %d on %s\n", tmsg->uid, str_ms[1-t] );
@@ -814,9 +812,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		}
 	}
 
-	/* Doing CLOSE here instead of EXPUNGE above saves network traffic.
-	   But it costs more server power for single-file formats. And it
-	   makes disk-full/quota-exceeded more probable. */
 	for (t = 0; t < 2; t++) {
 		ex[t] = 0;
 		if (chan->ops[t] & OP_EXPUNGE) {
