@@ -873,21 +873,20 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			if (srec->status & S_DEAD)
 				continue;
 			if (srec->uid[S] <= 0 || ((srec->status & S_DEL(S)) && ex[S])) {
-				if (srec->uid[M] <= 0 || ((srec->status & S_DEL(M)) && ex[M])) {
+				if (srec->uid[M] <= 0 || ((srec->status & S_DEL(M)) && ex[M]) ||
+				    ((srec->status & S_EXPIRED) && maxuid[M] >= srec->uid[M] && minwuid > srec->uid[M])) {
 					debug( "  -> killing (%d,%d)\n", srec->uid[M], srec->uid[S] );
 					srec->status = S_DEAD;
 					Fprintf( jfp, "- %d %d\n", srec->uid[M], srec->uid[S] );
-				} else if (srec->status & S_EXPIRED) {
-					if (maxuid[M] >= srec->uid[M] && minwuid > srec->uid[M]) {
-						debug( "  -> killing (%d,%d)\n", srec->uid[M], srec->uid[S] );
-						srec->status = S_DEAD;
-						Fprintf( jfp, "- %d %d\n", srec->uid[M], srec->uid[S] );
-					} else if (srec->uid[S]) {
-						debug( "  -> orphaning (%d,[%d])\n", srec->uid[M], srec->uid[S] );
-						Fprintf( jfp, "> %d %d 0\n", srec->uid[M], srec->uid[S] );
-						srec->uid[S] = 0;
-					}
+				} else if (srec->uid[S] > 0) {
+					debug( "  -> orphaning (%d,[%d])\n", srec->uid[M], srec->uid[S] );
+					Fprintf( jfp, "> %d %d 0\n", srec->uid[M], srec->uid[S] );
+					srec->uid[S] = 0;
 				}
+			} else if (srec->uid[M] > 0 && ((srec->status & S_DEL(M)) && ex[M])) {
+				debug( "  -> orphaning ([%d],%d)\n", srec->uid[M], srec->uid[S] );
+				Fprintf( jfp, "< %d %d 0\n", srec->uid[M], srec->uid[S] );
+				srec->uid[M] = 0;
 			}
 		}
 	}
