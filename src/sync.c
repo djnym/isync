@@ -694,11 +694,10 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					debug( "  no more %s\n", str_ms[t] );
 				} else if (del[1-t]) {
 					/* c.4) d.9) / b.4) d.4) */
-					debug( "  %s vanished\n", str_ms[1-t] );
 					if (srec->msg[t] && srec->msg[t]->flags != nflags)
 						info( "Info: conflicting changes in (%d,%d)\n", srec->uid[M], srec->uid[S] );
 					if (chan->ops[t] & OP_DELETE) {
-						debug( "  -> %s delete\n", str_hl[t] );
+						debug( "  %sing delete\n", str_hl[t] );
 						switch (driver[t]->set_flags( ctx[t], srec->msg[t], srec->uid[t], F_DELETED, 0 )) {
 						case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
@@ -708,7 +707,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							Fprintf( jfp, "%c %d %d 0\n", "><"[t], srec->uid[M], srec->uid[S] );
 							srec->uid[1-t] = 0;
 						}
-					}
+					} else
+						debug( "  not %sing delete\n", str_hl[t] );
 				} else if (!srec->msg[1-t])
 					/* c.1) c.2) d.7) d.8) / b.1) b.2) d.2) d.3) */
 					;
@@ -717,9 +717,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					; /* handled above */
 				else if (!del[t]) {
 					/* a) & b.3) / c.3) */
-					debug( "  may %s\n", str_hl[t] );
 					if (chan->ops[t] & OP_FLAGS) {
-						debug( "  -> %sing flags\n", str_hl[t] );
 						sflags = srec->msg[1-t]->flags;
 						aflags = sflags & ~nflags;
 						dflags = ~sflags & nflags;
@@ -743,6 +741,12 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							aflags &= F_DELETED;
 							dflags = 0;
 						}
+						if (DFlags & DEBUG) {
+							char afbuf[16], dfbuf[16]; /* enlarge when support for keywords is added */
+							make_flags( aflags, afbuf );
+							make_flags( dflags, dfbuf );
+							debug( "  %sing flags: +%s -%s\n", str_hl[t], afbuf, dfbuf );
+						}
 						switch ((aflags | dflags) ? driver[t]->set_flags( ctx[t], srec->msg[t], srec->uid[t], aflags, dflags ) : DRV_OK) {
 						case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
 						case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
@@ -760,7 +764,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 								srec->status &= ~S_EXPIRED;
 							}
 						}
-					}
+					} else
+						debug( "  not %sing flags\n", str_hl[t] );
 				} /* else b.4) / c.4) */
 			}
 
