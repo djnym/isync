@@ -175,6 +175,8 @@ clean_strdup( const char *s )
 	return cs;
 }
 
+#define JOURNAL_VERSION "1"
+
 int
 sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 {
@@ -187,7 +189,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	int nom, nos, del[2], ex[2];
 	int muidval, suidval, smaxxuid, maxuid[2], minwuid, maxwuid;
 	int t1, t2, t3, t;
-	int lfd, ret, line, todel, delt, *mexcs, nmexcs, rmexcs;
+	int lfd, ret, line, sline, todel, delt, *mexcs, nmexcs, rmexcs;
 	unsigned char nflags;
 	msg_data_t msgdata;
 	struct stat st;
@@ -236,6 +238,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 #if F_WRLCK != 0
 	lck.l_type = F_WRLCK;
 #endif
+	line = 0;
 	if ((lfd = open( lname, O_WRONLY|O_CREAT, 0666 )) < 0) {
 		if (errno != ENOENT) {
 		  lferr:
@@ -266,18 +269,18 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			ret = SYNC_FAIL;
 			goto bail;
 		}
-		line = 1;
+		sline = 1;
 		while (fgets( buf, sizeof(buf), dfp )) {
-			line++;
+			sline++;
 			if (!(t = strlen( buf )) || buf[t - 1] != '\n') {
-				fprintf( stderr, "Error: incomplete sync state entry at %s:%d\n", dname, line );
+				fprintf( stderr, "Error: incomplete sync state entry at %s:%d\n", dname, sline );
 				fclose( dfp );
 				ret = SYNC_FAIL;
 				goto bail;
 			}
 			fbuf[0] = 0;
 			if (sscanf( buf, "%d %d %15s", &t1, &t2, fbuf ) < 2) {
-				fprintf( stderr, "Error: invalid sync state entry at %s:%d\n", dname, line );
+				fprintf( stderr, "Error: invalid sync state entry at %s:%d\n", dname, sline );
 				fclose( dfp );
 				ret = SYNC_FAIL;
 				goto bail;
@@ -307,10 +310,23 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		}
 	}
 	if ((jfp = fopen( jname, "r" ))) {
-		if (!stat( nname, &st )) {
+		if (!stat( nname, &st ) && fgets( buf, sizeof(buf), jfp )) {
 			debug( "recovering journal ...\n" );
+			if (!(t = strlen( buf )) || buf[t - 1] != '\n') {
+				fprintf( stderr, "Error: incomplete journal header in %s\n", jname );
+				fclose( jfp );
+				ret = SYNC_FAIL;
+				goto bail;
+			}
+			if (memcmp( buf, JOURNAL_VERSION "\n", strlen(JOURNAL_VERSION) + 1 )) {
+				fprintf( stderr, "Error: incompatible journal version "
+				                 "(got %.*s, expected " JOURNAL_VERSION ")\n", t - 1, buf );
+				fclose( jfp );
+				ret = SYNC_FAIL;
+				goto bail;
+			}
 			srec = 0;
-			line = 0;
+			line = 1;
 			while (fgets( buf, sizeof(buf), jfp )) {
 				line++;
 				if (!(t = strlen( buf )) || buf[t - 1] != '\n') {
@@ -488,6 +504,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		goto bail;
 	}
 	setlinebuf( jfp );
+	if (!line)
+		Fprintf( jfp, JOURNAL_VERSION "\n" );
 
 	mexcs = 0;
 	nmexcs = rmexcs = 0;
