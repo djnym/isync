@@ -31,6 +31,9 @@
 
 #define as(ar) (sizeof(ar)/sizeof(ar[0]))
 
+#define __stringify(x) #x
+#define stringify(x) __stringify(x)
+
 #if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
 # define ATTR_UNUSED __attribute__((unused))
 # define ATTR_NORETURN __attribute__((noreturn))
@@ -137,6 +140,7 @@ typedef struct message {
 #define OPEN_EXPUNGE    (1<<5)
 #define OPEN_SETFLAGS   (1<<6)
 #define OPEN_APPEND     (1<<7)
+#define OPEN_FIND       (1<<8)
 
 typedef struct store {
 	store_conf_t *conf; /* foreign */
@@ -146,7 +150,7 @@ typedef struct store {
 	char *path; /* own */
 	message_t *msgs; /* own */
 	int uidvalidity;
-	unsigned char opts; /* maybe preset? */
+	unsigned opts; /* maybe preset? */
 	/* note that the following do _not_ reflect stats from msgs, but mailbox totals */
 	int count; /* # of messages */
 	int recent; /* # of recent messages - don't trust this beyond the initial read */
@@ -156,7 +160,6 @@ typedef struct {
 	char *data;
 	int len;
 	unsigned char flags;
-	unsigned char crlf:1;
 } msg_data_t;
 
 #define DRV_OK          0
@@ -164,7 +167,12 @@ typedef struct {
 #define DRV_BOX_BAD     -2
 #define DRV_STORE_BAD   -3
 
+#define DRV_CRLF        1
+
+#define TUIDL 12
+
 struct driver {
+	int flags;
 	int (*parse_store)( conffile_t *cfg, store_conf_t **storep, int *err );
 	store_t *(*open_store)( store_conf_t *conf, store_t *oldctx );
 	void (*close_store)( store_t *ctx );
@@ -174,6 +182,7 @@ struct driver {
 	int (*select)( store_t *ctx, int minuid, int maxuid, int *excs, int nexcs );
 	int (*fetch_msg)( store_t *ctx, message_t *msg, msg_data_t *data );
 	int (*store_msg)( store_t *ctx, msg_data_t *data, int *uid ); /* if uid is null, store to trash */
+	int (*find_msg)( store_t *ctx, const char *tuid, int *uid );
 	int (*set_flags)( store_t *ctx, message_t *msg, int uid, int add, int del ); /* msg can be null, therefore uid as a fallback */
 	int (*trash_msg)( store_t *ctx, message_t *msg ); /* This may expunge the original message immediately, but it needn't to */
 	int (*check)( store_t *ctx ); /* IMAP-style: flush */
@@ -210,8 +219,6 @@ void free_string_list( string_list_t *list );
 
 void free_generic_messages( message_t * );
 
-void strip_cr( msg_data_t *msgdata );
-
 void *nfmalloc( size_t sz );
 void *nfcalloc( size_t sz );
 void *nfrealloc( void *mem, size_t sz );
@@ -233,6 +240,7 @@ unsigned char arc4_getbyte( void );
 #define SYNC_OK      0
 #define SYNC_FAIL    1
 #define SYNC_BAD(ms) (2+(ms))
+#define SYNC_NOGOOD  4 /* internal */
 
 int sync_boxes( store_t *ctx[], const char *names[], channel_conf_t * );
 

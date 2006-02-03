@@ -145,20 +145,6 @@ free_generic_messages( message_t *msgs )
 	}
 }
 
-void
-strip_cr( msg_data_t *msgdata )
-{
-	int i, o;
-
-	if (msgdata->crlf) {
-		for (i = o = 0; i < msgdata->len; i++)
-			if (msgdata->data[i] != '\r')
-				msgdata->data[o++] = msgdata->data[i];
-		msgdata->len = o;
-		msgdata->crlf = 0;
-	}
-}
-
 #ifndef HAVE_VASPRINTF
 static int
 vasprintf( char **strp, const char *fmt, va_list ap )

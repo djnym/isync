@@ -758,7 +758,7 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 				if (is_atom( tmp ))
 					size = atoi( tmp->val );
 				else
-					fprintf( stderr, "IMAP error: unable to parse SIZE\n" );
+					fprintf( stderr, "IMAP error: unable to parse RFC822.SIZE\n" );
 			} else if (!strcmp( "BODY[]", tmp->val )) {
 				tmp = tmp->next;
 				if (is_atom( tmp )) {
@@ -782,7 +782,6 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 		msgdata = (msg_data_t *)cmdp->cb.ctx;
 		msgdata->data = body;
 		msgdata->len = size;
-		msgdata->crlf = 1;
 		if (status & M_FLAGS)
 			msgdata->flags = mask;
 	} else if (uid) { /* ignore async flag updates for now */
@@ -866,10 +865,14 @@ parse_search( imap_t *imap, char *cmd )
 	struct imap_cmd *cmdp;
 	int uid;
 
-	arg = next_arg( &cmd );
-	if (!arg || !(uid = atoi( arg ))) {
+	if (!(arg = next_arg( &cmd )))
+		uid = -1;
+	else if (!(uid = atoi( arg ))) {
 		fprintf( stderr, "IMAP error: malformed SEARCH response\n" );
 		return;
+	} else if (next_arg( &cmd )) {
+		warn( "IMAP warning: SEARCH returns multiple matches\n" );
+		uid = -1; /* to avoid havoc */
 	}
 
 	/* Find the first command that expects a UID - this is guaranteed
@@ -1546,89 +1549,15 @@ imap_trash_msg( store_t *gctx, message_t *msg )
 	                    msg->uid, ctx->prefix, gctx->conf->trash );
 }
 
-#define TUIDL 8
-
 static int
 imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 	imap_t *imap = ctx->imap;
 	struct imap_cmd_cb cb;
-	char *fmap, *buf;
 	const char *prefix, *box;
-	int ret, i, j, d, len, extra, nocr;
-	int start, sbreak = 0, ebreak = 0;
-	char flagstr[128], tuid[TUIDL * 2 + 1];
-
-	memset( &cb, 0, sizeof(cb) );
-
-	fmap = data->data;
-	len = data->len;
-	nocr = !data->crlf;
-	extra = 0, i = 0;
-	if (!CAP(UIDPLUS) && uid) {
-	  nloop:
-		start = i;
-		while (i < len)
-			if (fmap[i++] == '\n') {
-				extra += nocr;
-				if (i - 2 + nocr == start) {
-					sbreak = ebreak = i - 2 + nocr;
-					goto mktid;
-				}
-				if (!memcmp( fmap + start, "X-TUID: ", 8 )) {
-					extra -= (ebreak = i) - (sbreak = start) + nocr;
-					goto mktid;
-				}
-				goto nloop;
-			}
-		/* invalid message */
-		free( fmap );
-		return DRV_MSG_BAD;
-	 mktid:
-		for (j = 0; j < TUIDL; j++)
-			sprintf( tuid + j * 2, "%02x", arc4_getbyte() );
-		extra += 8 + TUIDL * 2 + 2;
-	}
-	if (nocr)
-		for (; i < len; i++)
-			if (fmap[i] == '\n')
-				extra++;
-
-	cb.dlen = len + extra;
-	buf = cb.data = nfmalloc( cb.dlen );
-	i = 0;
-	if (!CAP(UIDPLUS) && uid) {
-		if (nocr) {
-			for (; i < sbreak; i++)
-				if (fmap[i] == '\n') {
-					*buf++ = '\r';
-					*buf++ = '\n';
-				} else
-					*buf++ = fmap[i];
-		} else {
-			memcpy( buf, fmap, sbreak );
-			buf += sbreak;
-		}
-		memcpy( buf, "X-TUID: ", 8 );
-		buf += 8;
-		memcpy( buf, tuid, TUIDL * 2 );
-		buf += TUIDL * 2;
-		*buf++ = '\r';
-		*buf++ = '\n';
-		i = ebreak;
-	}
-	if (nocr) {
-		for (; i < len; i++)
-			if (fmap[i] == '\n') {
-				*buf++ = '\r';
-				*buf++ = '\n';
-			} else
-				*buf++ = fmap[i];
-	} else
-		memcpy( buf, fmap + i, len - i );
-
-	free( fmap );
+	int ret, d;
+	char flagstr[128];
 
 	d = 0;
 	if (data->flags) {
@@ -1637,6 +1566,9 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 	}
 	flagstr[d] = 0;
 
+	memset( &cb, 0, sizeof(cb) );
+	cb.dlen = data->len;
+	cb.data = data->data;
 	if (!uid) {
 		box = gctx->conf->trash;
 		prefix = ctx->prefix;
@@ -1649,6 +1581,7 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 		cb.create = (gctx->opts & OPEN_CREATE) != 0;
 		/*if (ctx->currentnc)
 			imap->caps = imap->rcaps & ~(1 << LITERALPLUS);*/
+		*uid = -2;
 	}
 	cb.ctx = uid;
 	ret = imap_exec_m( ctx, &cb, "APPEND \"%s%s\" %s", prefix, box, flagstr );
@@ -1662,13 +1595,23 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 		gctx->count++;
 	}
 
-	if (CAP(UIDPLUS) || !uid)
-		return DRV_OK;
+	return DRV_OK;
+}
 
-	/* Didn't receive an APPENDUID */
+static int
+imap_find_msg( store_t *gctx, const char *tuid, int *uid )
+{
+	imap_store_t *ctx = (imap_store_t *)gctx;
+	struct imap_cmd_cb cb;
+	int ret;
+
+	memset( &cb, 0, sizeof(cb) );
+	cb.ctx = uid;
 	cb.uid = -1; /* we're looking for a UID */
-	cb.data = 0; /* reset; ctx still set */
-	return imap_exec_m( ctx, &cb, "UID SEARCH HEADER X-TUID %s", tuid );
+	*uid = -1; /* in case we get no SEARCH response at all */
+	if ((ret = imap_exec_m( ctx, &cb, "UID SEARCH HEADER X-TUID %." stringify(TUIDL) "s", tuid )) != DRV_OK)
+		return ret;
+	return *uid < 0 ? DRV_MSG_BAD : DRV_OK;
 }
 
 static int
@@ -1813,6 +1756,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 }
 
 struct driver imap_driver = {
+	DRV_CRLF,
 	imap_parse_store,
 	imap_open_store,
 	imap_close_store,
@@ -1822,6 +1766,7 @@ struct driver imap_driver = {
 	imap_select,
 	imap_fetch_msg,
 	imap_store_msg,
+	imap_find_msg,
 	imap_set_flags,
 	imap_trash_msg,
 	imap_check,

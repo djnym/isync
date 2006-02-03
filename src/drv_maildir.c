@@ -57,6 +57,7 @@ typedef struct maildir_store_conf {
 typedef struct maildir_message {
 	message_t gen;
 	char *base;
+	char tuid[TUIDL];
 } maildir_message_t;
 
 typedef struct maildir_store {
@@ -182,6 +183,7 @@ typedef struct {
 	char *base;
 	int size;
 	unsigned uid:31, recent:1;
+	char tuid[TUIDL];
 } msg_t;
 
 typedef struct {
@@ -468,6 +470,7 @@ static int
 maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 {
 	DIR *d;
+	FILE *f;
 	struct dirent *e;
 	const char *u, *ru;
 #ifdef USE_DB
@@ -570,6 +573,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 					entry->uid = uid;
 					entry->recent = i;
 					entry->size = 0;
+					entry->tuid[0] = 0;
 				}
 			}
 			closedir( d );
@@ -615,7 +619,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 					goto again;
 				}
 				uid = entry->uid;
-				if (ctx->gen.opts & OPEN_SIZE)
+				if (ctx->gen.opts & (OPEN_SIZE|OPEN_FIND))
 					nfsnprintf( buf + bl, sizeof(buf) - bl, "%s/%s", subdirs[entry->recent], entry->base );
 #ifdef USE_DB
 			} else if (ctx->db) {
@@ -624,7 +628,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 					return ret;
 				}
 				entry->uid = uid;
-				if (ctx->gen.opts & OPEN_SIZE)
+				if (ctx->gen.opts & (OPEN_SIZE|OPEN_FIND))
 					nfsnprintf( buf + bl, sizeof(buf) - bl, "%s/%s", subdirs[entry->recent], entry->base );
 #endif /* USE_DB */
 			} else {
@@ -645,6 +649,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 				memcpy( nbuf, buf, bl + 4 );
 				nfsnprintf( nbuf + bl + 4, sizeof(nbuf) - bl - 4, "%s", entry->base );
 				if (rename( nbuf, buf )) {
+				  notok:
 					if (errno != ENOENT) {
 						perror( buf );
 						maildir_uidval_unlock( ctx );
@@ -659,11 +664,22 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 				memcpy( entry->base, buf + bl + 4, fnl );
 			}
 			if (ctx->gen.opts & OPEN_SIZE) {
-				if (stat( buf, &st )) {
-					maildir_free_scan( msglist );
-					goto again;
-				}
+				if (stat( buf, &st ))
+					goto notok;
 				entry->size = st.st_size;
+			}
+			if (ctx->gen.opts & OPEN_FIND) {
+				if (!(f = fopen( buf, "r" )))
+					goto notok;
+				while (fgets( nbuf, sizeof(nbuf), f )) {
+					if (!nbuf[0] || nbuf[0] == '\n')
+						break;
+					if (!memcmp( nbuf, "X-TUID: ", 8 ) && nbuf[8 + TUIDL] == '\n') {
+						memcpy( entry->tuid, nbuf + 8, TUIDL );
+						break;
+					}
+				}
+				fclose( f );
 			}
 		}
 		ctx->uvok = 1;
@@ -681,6 +697,7 @@ maildir_init_msg( maildir_store_t *ctx, maildir_message_t *msg, msg_t *entry )
 	msg->base = entry->base;
 	entry->base = 0; /* prevent deletion */
 	msg->gen.size = entry->size;
+	strncpy( msg->tuid, entry->tuid, TUIDL );
 	if (entry->recent)
 		msg->gen.status |= M_RECENT;
 	if (ctx->gen.opts & OPEN_FLAGS) {
@@ -902,7 +919,6 @@ maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data )
 			return ret;
 	}
 	fstat( fd, &st );
-	data->crlf = 0;
 	data->len = st.st_size;
 	data->data = nfmalloc( data->len );
 	if (read( fd, data->data, data->len ) != data->len) {
@@ -981,7 +997,6 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 			return DRV_BOX_BAD;
 		}
 	}
-	strip_cr( data );
 	ret = write( fd, data->data, data->len );
 	free( data->data );
 	if (ret != data->len) {
@@ -1001,6 +1016,20 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 	if (uid)
 		gctx->count++;
 	return DRV_OK;
+}
+
+static int
+maildir_find_msg( store_t *gctx, const char *tuid, int *uid )
+{
+	message_t *msg;
+
+	/* using a hash table might turn out to be more appropriate ... */
+	for (msg = gctx->msgs; msg; msg = msg->next)
+		if (!(msg->status & M_DEAD) && !memcmp( ((maildir_message_t *)msg)->tuid, tuid, TUIDL )) {
+			*uid = msg->uid;
+			return DRV_OK;
+		}
+	return DRV_MSG_BAD;
 }
 
 static int
@@ -1189,6 +1218,7 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 }
 
 struct driver maildir_driver = {
+	0,
 	maildir_parse_store,
 	maildir_open_store,
 	maildir_close_store,
@@ -1198,6 +1228,7 @@ struct driver maildir_driver = {
 	maildir_select,
 	maildir_fetch_msg,
 	maildir_store_msg,
+	maildir_find_msg,
 	maildir_set_flags,
 	maildir_trash_msg,
 	maildir_check,

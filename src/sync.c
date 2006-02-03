@@ -94,10 +94,11 @@ typedef struct sync_rec {
 	int uid[2];
 	message_t *msg[2];
 	unsigned char status, flags, aflags[2], dflags[2];
+	char tuid[TUIDL];
 } sync_rec_t;
 
-static void
-findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
+static int
+findmsgs( sync_rec_t *srecs, store_t *ctx[], int t, FILE *jfp )
 {
 	sync_rec_t *srec, *nsrec = 0;
 	message_t *msg;
@@ -105,6 +106,46 @@ findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
 	int uid;
 	char fbuf[16]; /* enlarge when support for keywords is added */
 
+	if (jfp) {
+		/*
+		 * Alternatively, the TUIDs could be fetched into the messages and
+		 * looked up here. This would make the search faster (probably) and
+		 * save roundtrips. On the downside, quite some additional data would
+		 * have to be fetched for every message and the IMAP driver would be
+		 * more complicated. This is a corner case anyway, so why bother.
+		 */
+		debug( "finding previously copied messages\n" );
+		for (srec = srecs; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			if (srec->uid[t] == -2 && srec->tuid[0]) {
+				debug( "  pair(%d,%d): lookup %s, TUID %." stringify(TUIDL) "s\n", srec->uid[M], srec->uid[S], str_ms[t], srec->tuid );
+				switch (ctx[t]->conf->driver->find_msg( ctx[t], srec->tuid, &uid )) {
+				case DRV_STORE_BAD: return SYNC_BAD(t);
+				case DRV_OK:
+					debug( "  -> new UID %d\n", uid );
+					Fprintf( jfp, "%c %d %d %d\n", "<>"[t], srec->uid[M], srec->uid[S], uid );
+					srec->uid[t] = uid;
+					srec->tuid[0] = 0;
+					break;
+				default:
+					debug( "  -> TUID lost\n" );
+					Fprintf( jfp, "& %d %d\n", srec->uid[M], srec->uid[S] );
+					srec->flags = 0;
+					srec->tuid[0] = 0;
+					break;
+				}
+			}
+		}
+	}
+
+	/*
+	 * Mapping msg -> srec (this variant) is dog slow for new messages.
+	 * Mapping srec -> msg is dog slow for deleted messages.
+	 * One solution would be using binary search on an index array.
+	 * msgs are already sorted by UID, srecs would have to be sorted by uid[t].
+	 */
+	debug( "matching messages against sync records\n" );
 	for (msg = ctx[t]->msgs; msg; msg = msg->next) {
 		uid = msg->uid;
 		if (DFlags & DEBUG) {
@@ -136,8 +177,122 @@ findmsgs( sync_rec_t *srecs, store_t *ctx[], int t )
 		nsrec = srec->next;
 		debug( "pairs %5d %s\n", srec->uid[1-t], diag );
 	}
+
+	return SYNC_OK;
 }
 
+static int
+copy_msg( store_t *ctx[], int t, message_t *tmsg, const char *tuid, int *uid )
+{
+	msg_data_t msgdata;
+	char *fmap, *buf;
+	int i, len, extra, cra, crd, scr, tcr;
+	int start, sbreak = 0, ebreak = 0;
+	char c;
+
+	msgdata.flags = tmsg->flags;
+	switch (ctx[1-t]->conf->driver->fetch_msg( ctx[1-t], tmsg, &msgdata )) {
+	case DRV_STORE_BAD: return SYNC_BAD(1-t);
+	case DRV_BOX_BAD: return SYNC_FAIL;
+	case DRV_MSG_BAD: return SYNC_NOGOOD;
+	}
+	tmsg->flags = msgdata.flags;
+
+	scr = (ctx[1-t]->conf->driver->flags / DRV_CRLF) & 1;
+	tcr = (ctx[t]->conf->driver->flags / DRV_CRLF) & 1;
+	if (tuid || scr != tcr) {
+		fmap = msgdata.data;
+		len = msgdata.len;
+		cra = crd = 0;
+		if (scr > tcr)
+			crd = -1;
+		else if (scr < tcr)
+			crd = 1;
+		extra = 0, i = 0;
+		if (tuid) {
+			extra += 8 + TUIDL + 1 + tcr;
+		  nloop:
+			start = i;
+			while (i < len) {
+				c = fmap[i++];
+				if (c == '\r')
+					extra += crd;
+				else if (c == '\n') {
+					extra += cra;
+					if (i - 2 + !scr == start) {
+						sbreak = ebreak = i - 2 + !scr; // precalc this!
+						goto oke;
+					}
+					if (!memcmp( fmap + start, "X-TUID: ", 8 )) {
+						extra -= (ebreak = i) - (sbreak = start);
+						goto oke;
+					}
+					goto nloop;
+				}
+			}
+			/* invalid message */
+			free( fmap );
+			return SYNC_NOGOOD;
+		}
+	  oke:
+		if (cra || crd)
+			for (; i < len; i++) {
+				c = fmap[i++];
+				if (c == '\r')
+					extra += crd;
+				else if (c == '\n')
+					extra += cra;
+			}
+
+		msgdata.len = len + extra;
+		buf = msgdata.data = nfmalloc( msgdata.len );
+		i = 0;
+		if (tuid) {
+			if (cra) {
+				for (; i < sbreak; i++) {
+					if (fmap[i] == '\n')
+						*buf++ = '\r';
+					*buf++ = fmap[i];
+				}
+			} else if (crd) {
+				for (; i < sbreak; i++)
+					if (fmap[i] != '\r')
+						*buf++ = fmap[i];
+			} else {
+				memcpy( buf, fmap, sbreak );
+				buf += sbreak;
+			}
+			memcpy( buf, "X-TUID: ", 8 );
+			buf += 8;
+			memcpy( buf, tuid, TUIDL );
+			buf += TUIDL;
+			if (tcr)
+				*buf++ = '\r';
+			*buf++ = '\n';
+			i = ebreak;
+		}
+		if (cra) {
+			for (; i < len; i++) {
+				if (fmap[i] == '\n')
+					*buf++ = '\r';
+				*buf++ = fmap[i];
+			}
+		} else if (crd) {
+			for (; i < len; i++)
+				if (fmap[i] != '\r')
+					*buf++ = fmap[i];
+		} else
+			memcpy( buf, fmap + i, len - i );
+
+		free( fmap );
+	}
+
+	switch (ctx[t]->conf->driver->store_msg( ctx[t], &msgdata, uid )) {
+	case DRV_STORE_BAD: return SYNC_BAD(t);
+	case DRV_OK: return SYNC_OK;
+	default: return SYNC_FAIL;
+	}
+}
 
 /* cases:
    a) both non-null
@@ -179,7 +334,7 @@ clean_strdup( const char *s )
 	return cs;
 }
 
-#define JOURNAL_VERSION "1"
+#define JOURNAL_VERSION "2"
 
 int
 sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
@@ -195,7 +350,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	int t1, t2, t3, t, uid, nmsgs;
 	int lfd, ret, line, sline, todel, *mexcs, nmexcs, rmexcs;
 	unsigned char nflags, sflags, aflags, dflags;
-	msg_data_t msgdata;
 	struct stat st;
 	struct flock lck;
 	char fbuf[16]; /* enlarge when support for keywords is added */
@@ -301,6 +455,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			srec->flags = parse_flags( s );
 			debug( "  entry (%d,%d,%u,%s)\n", srec->uid[M], srec->uid[S], srec->flags, srec->status & S_EXPIRED ? "X" : "" );
 			srec->msg[M] = srec->msg[S] = 0;
+			srec->tuid[0] = 0;
 			srec->next = 0;
 			*srecadd = srec;
 			srecadd = &srec->next;
@@ -339,11 +494,13 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					ret = SYNC_FAIL;
 					goto bail;
 				}
-				if (buf[0] == '(' || buf[0] == ')' ?
+				if (buf[0] == '#' ?
+				      (t3 = 0, (sscanf( buf + 2, "%d %d %n", &t1, &t2, &t3 ) < 2) || !t3 || (t - t3 != TUIDL + 3)) :
+				      buf[0] == '(' || buf[0] == ')' ?
 				        (sscanf( buf + 2, "%d", &t1 ) != 1) :
-				    buf[0] == '-' || buf[0] == '|' || buf[0] == '/' || buf[0] == '\\' ?
-					(sscanf( buf + 2, "%d %d", &t1, &t2 ) != 2) :
-					(sscanf( buf + 2, "%d %d %d", &t1, &t2, &t3 ) != 3))
+				        buf[0] == '+' || buf[0] == '&' || buf[0] == '-' || buf[0] == '|' || buf[0] == '/' || buf[0] == '\\' ?
+				          (sscanf( buf + 2, "%d %d", &t1, &t2 ) != 2) :
+				          (sscanf( buf + 2, "%d %d %d", &t1, &t2, &t3 ) != 3))
 				{
 					fprintf( stderr, "Error: malformed journal entry at %s:%d\n", jname, line );
 					fclose( jfp );
@@ -361,10 +518,11 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					srec = nfmalloc( sizeof(*srec) );
 					srec->uid[M] = t1;
 					srec->uid[S] = t2;
-					srec->flags = t3;
-					debug( "  new entry(%d,%d,%u)\n", t1, t2, t3 );
+					debug( "  new entry(%d,%d)\n", t1, t2 );
 					srec->msg[M] = srec->msg[S] = 0;
 					srec->status = 0;
+					srec->flags = 0;
+					srec->tuid[0] = 0;
 					srec->next = 0;
 					*srecadd = srec;
 					srecadd = &srec->next;
@@ -386,13 +544,24 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						debug( "killed\n" );
 						srec->status = S_DEAD;
 						break;
+					case '#':
+						debug( "TUID now %." stringify(TUIDL) "s\n", buf + t3 + 2 );
+						memcpy( srec->tuid, buf + t3 + 2, TUIDL );
+						break;
+					case '&':
+						debug( "TUID %." stringify(TUIDL) "s lost\n", srec->tuid );
+						srec->flags = 0;
+						srec->tuid[0] = 0;
+						break;
 					case '<':
 						debug( "master now %d\n", t3 );
 						srec->uid[M] = t3;
+						srec->tuid[0] = 0;
 						break;
 					case '>':
 						debug( "slave now %d\n", t3 );
 						srec->uid[S] = t3;
+						srec->tuid[0] = 0;
 						break;
 					case '*':
 						debug( "flags now %d\n", t3 );
@@ -476,11 +645,18 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	if ((chan->ops[S] & (OP_NEW|OP_RENEW)) && chan->max_messages)
 		opts[S] |= OPEN_OLD|OPEN_NEW|OPEN_FLAGS;
 	if (line)
-		for (srec = recs; srec; srec = srec->next)
-			if (!(srec->status & S_DEAD) && ((mvBit(srec->status, S_EXPIRE, S_EXPIRED) ^ srec->status) & S_EXPIRED)) {
+		for (srec = recs; srec; srec = srec->next) {
+			if (srec->status & S_DEAD)
+				continue;
+			if ((mvBit(srec->status, S_EXPIRE, S_EXPIRED) ^ srec->status) & S_EXPIRED)
 				opts[S] |= OPEN_OLD|OPEN_FLAGS;
-				break;
+			if (srec->tuid[0]) {
+				if (srec->uid[M] == -2)
+					opts[M] |= OPEN_OLD|OPEN_FIND;
+				else if (srec->uid[S] == -2)
+					opts[S] |= OPEN_OLD|OPEN_FIND;
 			}
+		}
 	driver[M]->prepare_opts( ctx[M], opts[M] );
 	driver[S]->prepare_opts( ctx[S], opts[S] );
 
@@ -499,14 +675,12 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	case DRV_STORE_BAD: ret = SYNC_BAD(S); goto bail;
 	case DRV_BOX_BAD: ret = SYNC_FAIL; goto bail;
 	}
-	info( "%d messages, %d recent\n", ctx[S]->count, ctx[S]->recent );
-	findmsgs( recs, ctx, S );
-
 	if (suidval && suidval != ctx[S]->uidvalidity) {
 		fprintf( stderr, "Error: UIDVALIDITY of slave changed\n" );
 		ret = SYNC_FAIL;
 		goto bail;
 	}
+	info( "%d messages, %d recent\n", ctx[S]->count, ctx[S]->recent );
 
 	s = strrchr( dname, '/' );
 	*s = 0;
@@ -532,6 +706,9 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	setlinebuf( jfp );
 	if (!line)
 		Fprintf( jfp, JOURNAL_VERSION "\n" );
+
+	if ((ret = findmsgs( recs, ctx, S, line ? jfp : 0 )) != SYNC_OK)
+		goto finish;
 
 	mexcs = 0;
 	nmexcs = rmexcs = 0;
@@ -607,14 +784,15 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	case DRV_STORE_BAD: ret = SYNC_BAD(M); goto finish;
 	case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
 	}
-	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
-	findmsgs( recs, ctx, M );
-
 	if (muidval && muidval != ctx[M]->uidvalidity) {
 		fprintf( stderr, "Error: UIDVALIDITY of master changed\n" );
 		ret = SYNC_FAIL;
 		goto finish;
 	}
+	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
+
+	if ((ret = findmsgs( recs, ctx, M, line ? jfp : 0 )) != SYNC_OK)
+		goto finish;
 
 	if (!muidval || !suidval) {
 		muidval = ctx[M]->uidvalidity;
@@ -628,65 +806,102 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	osrecadd = srecadd;
 	for (t = 0; t < 2; t++) {
 		for (nmsgs = 0, tmsg = ctx[1-t]->msgs; tmsg; tmsg = tmsg->next)
-			if (tmsg->srec ? tmsg->srec->uid[t] < 0 && (chan->ops[t] & OP_RENEW) : (chan->ops[t] & OP_NEW)) {
+			if (tmsg->srec ? tmsg->srec->uid[t] < 0 && (tmsg->srec->uid[t] == -1 ? (chan->ops[t] & OP_RENEW) : (chan->ops[t] & OP_NEW)) : (chan->ops[t] & OP_NEW)) {
 				debug( "new message %d on %s\n", tmsg->uid, str_ms[1-t] );
 				if ((chan->ops[t] & OP_EXPUNGE) && (tmsg->flags & F_DELETED))
-					debug( "  not %sing - would be expunged anyway\n", str_hl[t] );
+					debug( "  -> not %sing - would be expunged anyway\n", str_hl[t] );
 				else {
+					if (tmsg->srec) {
+						srec = tmsg->srec;
+						srec->status |= S_DONE;
+						debug( "  -> pair(%d,%d) exists\n", srec->uid[M], srec->uid[S] );
+					} else {
+						srec = nfmalloc( sizeof(*srec) );
+						srec->next = 0;
+						*srecadd = srec;
+						srecadd = &srec->next;
+						srec->status = S_DONE;
+						srec->flags = 0;
+						srec->tuid[0] = 0;
+						srec->uid[1-t] = tmsg->uid;
+						srec->uid[t] = -2;
+						Fprintf( jfp, "+ %d %d\n", srec->uid[M], srec->uid[S] );
+						debug( "  -> pair(%d,%d) created\n", srec->uid[M], srec->uid[S] );
+					}
 					if ((tmsg->flags & F_FLAGGED) || !chan->stores[t]->max_size || tmsg->size <= chan->stores[t]->max_size) {
-						debug( "  %sing it\n", str_hl[t] );
 						if (!nmsgs)
 							info( t ? "Pulling new messages..." : "Pushing new messages..." );
 						else
 							infoc( '.' );
 						nmsgs++;
-						msgdata.flags = tmsg->flags;
-						switch (driver[1-t]->fetch_msg( ctx[1-t], tmsg, &msgdata )) {
-						case DRV_STORE_BAD: return SYNC_BAD(1-t);
-						case DRV_BOX_BAD: return SYNC_FAIL;
-						case DRV_MSG_BAD: /* ok */ continue;
+						if (tmsg->flags) {
+							srec->flags = tmsg->flags;
+							Fprintf( jfp, "* %d %d %u\n", srec->uid[M], srec->uid[S], srec->flags );
+							debug( "  -> updated flags to %u\n", tmsg->flags );
 						}
-						tmsg->flags = msgdata.flags;
-						switch (driver[t]->store_msg( ctx[t], &msgdata, &uid )) {
-						case DRV_STORE_BAD: return SYNC_BAD(t);
-						default: return SYNC_FAIL;
-						case DRV_OK: break;
+						for (t1 = 0; t1 < TUIDL; t1++) {
+							t2 = arc4_getbyte() & 0x3f;
+							srec->tuid[t1] = t2 < 26 ? t2 + 'A' : t2 < 52 ? t2 + 'a' - 26 : t2 < 62 ? t2 + '0' - 52 : t2 == 62 ? '+' : '/';
+						}
+						Fprintf( jfp, "# %d %d %." stringify(TUIDL) "s\n", srec->uid[M], srec->uid[S], srec->tuid );
+						debug( "  -> %sing message, TUID %." stringify(TUIDL) "s\n", str_hl[t], srec->tuid );
+						switch ((ret = copy_msg( ctx, t, tmsg, srec->tuid, &uid ))) {
+						case SYNC_OK: break;
+						case SYNC_NOGOOD:
+							/* The error is either transient or the message is gone. */
+							debug( "  -> killing (%d,%d)\n", srec->uid[M], srec->uid[S] );
+							srec->status = S_DEAD;
+							Fprintf( jfp, "- %d %d\n", srec->uid[M], srec->uid[S] );
+							continue;
+						default: goto finish;
 						}
 					} else {
 						if (tmsg->srec) {
 							debug( "  -> not %sing - still too big\n", str_hl[t] );
 							continue;
 						}
-						debug( "  not %sing - too big\n", str_hl[t] );
+						debug( "  -> not %sing - too big\n", str_hl[t] );
 						uid = -1;
 					}
-					if (tmsg->srec) {
-						srec = tmsg->srec;
+					if (srec->uid[t] != uid) {
+						debug( "  -> new UID %d\n", uid );
 						Fprintf( jfp, "%c %d %d %d\n", "<>"[t], srec->uid[M], srec->uid[S], uid );
-					} else {
-						srec = nfmalloc( sizeof(*srec) );
-						srec->next = 0;
-						*srecadd = srec;
-						srecadd = &srec->next;
-						srec->uid[1-t] = tmsg->uid;
+						srec->uid[t] = uid;
+						srec->tuid[0] = 0;
 					}
-					srec->uid[t] = uid;
-					srec->flags = tmsg->flags;
-					srec->status = S_DONE;
-					if (tmsg->srec)
-						Fprintf( jfp, "* %d %d %u\n", srec->uid[M], srec->uid[S], srec->flags );
-					else {
+					if (!tmsg->srec) {
 						tmsg->srec = srec;
 						if (maxuid[1-t] < tmsg->uid) {
 							maxuid[1-t] = tmsg->uid;
 							Fprintf( jfp, "%c %d\n", ")("[t], tmsg->uid );
 						}
-						Fprintf( jfp, "+ %d %d %u\n", srec->uid[M], srec->uid[S], srec->flags );
 					}
 				}
 			}
 		if (nmsgs)
 			info( " %d messages\n", nmsgs );
+	}
+	debug( "finding just copied messages\n" );
+	for (srec = recs; srec; srec = srec->next) {
+		if (srec->status & S_DEAD)
+			continue;
+		if (srec->tuid[0]) {
+			t = (srec->uid[M] == -2) ? M : S;
+			debug( "  pair(%d,%d): lookup %s, TUID %." stringify(TUIDL) "s\n", srec->uid[M], srec->uid[S], str_ms[t], srec->tuid );
+			switch (driver[t]->find_msg( ctx[t], srec->tuid, &uid )) {
+			case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
+			case DRV_OK:
+				debug( "  -> new UID %d\n", uid );
+				break;
+			default:
+				warn( "Warning: cannot find newly stored message %." stringify(TUIDL) "s on %s.\n", srec->tuid, str_ms[t] );
+				uid = 0;
+				break;
+			}
+			Fprintf( jfp, "%c %d %d %d\n", "<>"[t], srec->uid[M], srec->uid[S], uid );
+			srec->uid[t] = uid;
+			srec->tuid[0] = 0;
+		}
 	}
 
 	debug( "synchronizing old entries\n" );
@@ -882,16 +1097,11 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 						if (!tmsg->srec || tmsg->srec->uid[1-t] < 0) {
 							if (!ctx[1-t]->conf->max_size || tmsg->size <= ctx[1-t]->conf->max_size) {
 								debug( "  remote trashing message %d\n", tmsg->uid );
-								msgdata.flags = tmsg->flags;
-								switch (driver[t]->fetch_msg( ctx[t], tmsg, &msgdata )) {
-								case DRV_OK: break;
-								case DRV_STORE_BAD: ret = SYNC_BAD(t); goto finish;
-								default: ret = SYNC_FAIL; goto nexex;
-								}
-								switch (driver[1-t]->store_msg( ctx[1-t], &msgdata, 0 )) {
-								case DRV_OK: break;
-								case DRV_STORE_BAD: ret = SYNC_BAD(1-t); goto finish;
-								default: ret = SYNC_FAIL; goto nexex;
+								switch ((ret = copy_msg( ctx, 1 - t, tmsg, 0, 0 ))) {
+								case SYNC_OK: break;
+								case SYNC_NOGOOD: ret = SYNC_FAIL; goto nexex;
+								case SYNC_FAIL: goto nexex;
+								default: goto finish;
 								}
 							} else
 								debug( "  not remote trashing message %d - too big\n", tmsg->uid );

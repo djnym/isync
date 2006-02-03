@@ -11,13 +11,6 @@ fix maildir_{open_store,list} to handle partial names (last char not slash).
 
 add a way to automatically create and sync subfolders.
 
-could store TUID even when UIDPLUS is supported. would avoid duplicated
-messages after abort before new UID arrives.
-
-decouple TUID search from append. that's a prerequisite for usable
-MULTIAPPEND, and is generally good for async. should be way faster, too,
-as it saves repeated mailbox rescans with single-file formats.
-
 use MULTIAPPEND and FETCH with multiple messages.
 
 create dummies describing MIME structure of messages bigger than MaxSize.
