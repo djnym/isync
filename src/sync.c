@@ -237,7 +237,7 @@ copy_msg( store_t *ctx[], int t, message_t *tmsg, const char *tuid, int *uid )
 	  oke:
 		if (cra || crd)
 			for (; i < len; i++) {
-				c = fmap[i++];
+				c = fmap[i];
 				if (c == '\r')
 					extra += crd;
 				else if (c == '\n')
