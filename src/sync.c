@@ -36,6 +36,15 @@
 static const char *str_ms[] = { "master", "slave" }, *str_hl[] = { "push", "pull" };
 
 void
+Fclose( FILE *f )
+{
+	if (fclose( f ) == EOF) {
+		perror( "cannot close file" );
+		exit( 1 );
+	}
+}
+
+void
 Fprintf( FILE *f, const char *msg, ... )
 {
 	int r;
@@ -1168,8 +1177,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		         srec->status & S_EXPIRED ? "X" : "", fbuf );
 	}
 
-	fclose( nfp );
-	fclose( jfp );
+	Fclose( nfp );
+	Fclose( jfp );
 	if (!(DFlags & KEEPJOURNAL)) {
 		/* order is important! */
 		rename( nname, dname );
