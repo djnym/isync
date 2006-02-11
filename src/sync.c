@@ -394,6 +394,18 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		}
 		free( csname );
 	}
+	if (!(s = strrchr( dname, '/' ))) {
+		fprintf( stderr, "Error: invalid SyncState '%s'\n", dname );
+		free( dname );
+		return SYNC_BAD(S);
+	}
+	*s = 0;
+	if (mkdir( dname, 0700 ) && errno != EEXIST) {
+		fprintf( stderr, "Error: cannot create SyncState directory '%s': %s\n", dname, strerror(errno) );
+		free( dname );
+		return SYNC_BAD(S);
+	}
+	*s = '/';
 	nfasprintf( &jname, "%s.journal", dname );
 	nfasprintf( &nname, "%s.new", dname );
 	nfasprintf( &lname, "%s.lock", dname );
@@ -405,18 +417,12 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 #if F_WRLCK != 0
 	lck.l_type = F_WRLCK;
 #endif
-	line = 0;
 	if ((lfd = open( lname, O_WRONLY|O_CREAT, 0666 )) < 0) {
-		if (errno != ENOENT) {
-		  lferr:
-			fprintf( stderr, "Error: cannot create lock file %s: %s\n", lname, strerror(errno) );
-			ret = SYNC_FAIL;
-			goto bail2;
-		}
-		goto skiprd;
+		fprintf( stderr, "Error: cannot create lock file %s: %s\n", lname, strerror(errno) );
+		ret = SYNC_FAIL;
+		goto bail2;
 	}
 	if (fcntl( lfd, F_SETLK, &lck )) {
-	  lckerr:
 		fprintf( stderr, "Error: channel :%s:%s-:%s:%s is locked\n",
 		         chan->stores[M]->name, ctx[M]->name, chan->stores[S]->name, ctx[S]->name );
 		ret = SYNC_FAIL;
@@ -477,6 +483,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			goto bail;
 		}
 	}
+	line = 0;
 	if ((jfp = fopen( jname, "r" ))) {
 		if (!stat( nname, &st ) && fgets( buf, sizeof(buf), jfp )) {
 			debug( "recovering journal ...\n" );
@@ -618,7 +625,20 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			goto bail;
 		}
 	}
-  skiprd:
+	if (!(nfp = fopen( nname, "w" ))) {
+		fprintf( stderr, "Error: cannot write new sync state %s\n", nname );
+		ret = SYNC_FAIL;
+		goto bail;
+	}
+	if (!(jfp = fopen( jname, "a" ))) {
+		fprintf( stderr, "Error: cannot write journal %s\n", jname );
+		fclose( nfp );
+		ret = SYNC_FAIL;
+		goto bail;
+	}
+	setlinebuf( jfp );
+	if (!line)
+		Fprintf( jfp, JOURNAL_VERSION "\n" );
 
 	opts[M] = opts[S] = 0;
 	for (t = 0; t < 2; t++) {
@@ -687,35 +707,9 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	if (suidval && suidval != ctx[S]->uidvalidity) {
 		fprintf( stderr, "Error: UIDVALIDITY of slave changed\n" );
 		ret = SYNC_FAIL;
-		goto bail;
+		goto finish;
 	}
 	info( "%d messages, %d recent\n", ctx[S]->count, ctx[S]->recent );
-
-	s = strrchr( dname, '/' );
-	*s = 0;
-	mkdir( dname, 0700 );
-	*s = '/';
-	if (lfd < 0) {
-		if ((lfd = open( lname, O_WRONLY|O_CREAT, 0666 )) < 0)
-			goto lferr;
-		if (fcntl( lfd, F_SETLK, &lck ))
-			goto lckerr;
-	}
-	if (!(nfp = fopen( nname, "w" ))) {
-		fprintf( stderr, "Error: cannot write new sync state %s\n", nname );
-		ret = SYNC_FAIL;
-		goto bail;
-	}
-	if (!(jfp = fopen( jname, "a" ))) {
-		fprintf( stderr, "Error: cannot write journal %s\n", jname );
-		fclose( nfp );
-		ret = SYNC_FAIL;
-		goto bail;
-	}
-	setlinebuf( jfp );
-	if (!line)
-		Fprintf( jfp, JOURNAL_VERSION "\n" );
-
 	if ((ret = findmsgs( recs, ctx, S, line ? jfp : 0 )) != SYNC_OK)
 		goto finish;
 
@@ -799,7 +793,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		goto finish;
 	}
 	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
-
 	if ((ret = findmsgs( recs, ctx, M, line ? jfp : 0 )) != SYNC_OK)
 		goto finish;
 
