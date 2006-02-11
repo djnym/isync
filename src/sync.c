@@ -1167,7 +1167,6 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		}
 	}
 
-  finish:
 	Fprintf( nfp, "%d:%d %d:%d:%d\n", muidval, maxuid[M], suidval, smaxxuid, maxuid[S] );
 	for (srec = recs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
@@ -1199,5 +1198,10 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	free( jname );
 	free( dname );
 	return ret;
+
+  finish:
+	Fclose( nfp );
+	Fclose( jfp );
+	goto bail;
 }
 
