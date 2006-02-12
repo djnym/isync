@@ -107,13 +107,36 @@ typedef struct sync_rec {
 } sync_rec_t;
 
 static int
-findmsgs( sync_rec_t *srecs, store_t *ctx[], int t, FILE *jfp )
+select_box( sync_rec_t *srecs, store_t *ctx[], int maxuid[], int uidval[], int t, int minwuid, int *mexcs, int nmexcs, FILE *jfp )
 {
 	sync_rec_t *srec, *nsrec = 0;
 	message_t *msg;
 	const char *diag;
-	int uid;
+	int uid, maxwuid;
 	char fbuf[16]; /* enlarge when support for keywords is added */
+
+	if (ctx[t]->opts & OPEN_NEW) {
+		if (minwuid > maxuid[t] + 1)
+			minwuid = maxuid[t] + 1;
+		maxwuid = INT_MAX;
+	} else if (ctx[t]->opts & OPEN_OLD) {
+		maxwuid = 0;
+		for (srec = srecs; srec; srec = srec->next)
+			if (!(srec->status & S_DEAD) && srec->uid[t] > maxwuid)
+				maxwuid = srec->uid[t];
+	} else
+		maxwuid = 0;
+	info( "Selecting %s %s... ", str_ms[t], ctx[t]->name );
+	debug( maxwuid == INT_MAX ? "selecting %s [%d,inf]\n" : "selecting %s [%d,%d]\n", str_ms[t], minwuid, maxwuid );
+	switch (ctx[t]->conf->driver->select( ctx[t], minwuid, maxwuid, mexcs, nmexcs )) {
+	case DRV_STORE_BAD: return SYNC_BAD(t);
+	case DRV_BOX_BAD: return SYNC_FAIL;
+	}
+	if (uidval[t] && uidval[t] != ctx[t]->uidvalidity) {
+		fprintf( stderr, "Error: UIDVALIDITY of %s changed (got %d, expected %d)\n", str_ms[t], ctx[t]->uidvalidity, uidval[t] );
+		return SYNC_FAIL;
+	}
+	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
 
 	if (jfp) {
 		/*
@@ -355,7 +378,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	FILE *dfp, *jfp, *nfp;
 	int opts[2];
 	int nom, nos, del[2], ex[2], nex;
-	int muidval, suidval, smaxxuid, maxuid[2], minwuid, maxwuid;
+	int uidval[2], smaxxuid, maxuid[2], minwuid;
 	int t1, t2, t3, t, uid, nmsgs;
 	int lfd, ret, line, sline, todel, *mexcs, nmexcs, rmexcs;
 	unsigned char nflags, sflags, aflags, dflags;
@@ -409,7 +432,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	nfasprintf( &jname, "%s.journal", dname );
 	nfasprintf( &nname, "%s.new", dname );
 	nfasprintf( &lname, "%s.lock", dname );
-	muidval = suidval = smaxxuid = maxuid[M] = maxuid[S] = 0;
+	uidval[M] = uidval[S] = smaxxuid = maxuid[M] = maxuid[S] = 0;
 	memset( &lck, 0, sizeof(lck) );
 #if SEEK_SET != 0
 	lck.l_whence = SEEK_SET;
@@ -436,7 +459,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			ret = SYNC_FAIL;
 			goto bail;
 		}
-		if (sscanf( buf, "%d:%d %d:%d:%d", &muidval, &maxuid[M], &suidval, &smaxxuid, &maxuid[S]) != 5) {
+		if (sscanf( buf, "%d:%d %d:%d:%d", &uidval[M], &maxuid[M], &uidval[S], &smaxxuid, &maxuid[S]) != 5) {
 			fprintf( stderr, "Error: invalid sync state header in %s\n", dname );
 			fclose( dfp );
 			ret = SYNC_FAIL;
@@ -528,8 +551,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				else if (buf[0] == ')')
 					maxuid[S] = t1;
 				else if (buf[0] == '|') {
-					muidval = t1;
-					suidval = t2;
+					uidval[M] = t1;
+					uidval[S] = t2;
 				} else if (buf[0] == '+') {
 					srec = nfmalloc( sizeof(*srec) );
 					srec->uid[M] = t1;
@@ -689,28 +712,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	driver[M]->prepare_opts( ctx[M], opts[M] );
 	driver[S]->prepare_opts( ctx[S], opts[S] );
 
-	if (ctx[S]->opts & OPEN_NEW)
-		maxwuid = INT_MAX;
-	else if (ctx[S]->opts & OPEN_OLD) {
-		maxwuid = 0;
-		for (srec = recs; srec; srec = srec->next)
-			if (!(srec->status & S_DEAD) && srec->uid[S] > maxwuid)
-				maxwuid = srec->uid[S];
-	} else
-		maxwuid = 0;
-	info( "Selecting slave %s... ", ctx[S]->name );
-	debug( maxwuid == INT_MAX ? "selecting slave [1,inf]\n" : "selecting slave [1,%d]\n", maxwuid );
-	switch (driver[S]->select( ctx[S], (ctx[S]->opts & OPEN_OLD) ? 1 : maxuid[S] + 1, maxwuid, 0, 0 )) {
-	case DRV_STORE_BAD: ret = SYNC_BAD(S); goto bail;
-	case DRV_BOX_BAD: ret = SYNC_FAIL; goto bail;
-	}
-	if (suidval && suidval != ctx[S]->uidvalidity) {
-		fprintf( stderr, "Error: UIDVALIDITY of slave changed\n" );
-		ret = SYNC_FAIL;
-		goto finish;
-	}
-	info( "%d messages, %d recent\n", ctx[S]->count, ctx[S]->recent );
-	if ((ret = findmsgs( recs, ctx, S, line ? jfp : 0 )) != SYNC_OK)
+	if ((ret = select_box( recs, ctx, maxuid, uidval, S, (ctx[S]->opts & OPEN_OLD) ? 1 : INT_MAX, 0, 0, line ? jfp : 0 )) != SYNC_OK)
 		goto finish;
 
 	mexcs = 0;
@@ -770,36 +772,13 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		debug( "\n" );
 	} else if (ctx[M]->opts & OPEN_OLD)
 		minwuid = 1;
-	if (ctx[M]->opts & OPEN_NEW) {
-		if (minwuid > maxuid[M] + 1)
-			minwuid = maxuid[M] + 1;
-		maxwuid = INT_MAX;
-	} else if (ctx[M]->opts & OPEN_OLD) {
-		maxwuid = 0;
-		for (srec = recs; srec; srec = srec->next)
-			if (!(srec->status & S_DEAD) && srec->uid[M] > maxwuid)
-				maxwuid = srec->uid[M];
-	} else
-		maxwuid = 0;
-	info( "Selecting master %s... ", ctx[M]->name );
-	debug( maxwuid == INT_MAX ? "selecting master [%d,inf]\n" : "selecting master [%d,%d]\n", minwuid, maxwuid );
-	switch (driver[M]->select( ctx[M], minwuid, maxwuid, mexcs, nmexcs )) {
-	case DRV_STORE_BAD: ret = SYNC_BAD(M); goto finish;
-	case DRV_BOX_BAD: ret = SYNC_FAIL; goto finish;
-	}
-	if (muidval && muidval != ctx[M]->uidvalidity) {
-		fprintf( stderr, "Error: UIDVALIDITY of master changed\n" );
-		ret = SYNC_FAIL;
-		goto finish;
-	}
-	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
-	if ((ret = findmsgs( recs, ctx, M, line ? jfp : 0 )) != SYNC_OK)
+	if ((ret = select_box( recs, ctx, maxuid, uidval, M, minwuid, mexcs, nmexcs, line ? jfp : 0 )) != SYNC_OK)
 		goto finish;
 
-	if (!muidval || !suidval) {
-		muidval = ctx[M]->uidvalidity;
-		suidval = ctx[S]->uidvalidity;
-		Fprintf( jfp, "| %d %d\n", muidval, suidval );
+	if (!uidval[M] || !uidval[S]) {
+		uidval[M] = ctx[M]->uidvalidity;
+		uidval[S] = ctx[S]->uidvalidity;
+		Fprintf( jfp, "| %d %d\n", uidval[M], uidval[S] );
 	}
 
 	info( "Synchronizing...\n" );
@@ -1160,7 +1139,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		}
 	}
 
-	Fprintf( nfp, "%d:%d %d:%d:%d\n", muidval, maxuid[M], suidval, smaxxuid, maxuid[S] );
+	Fprintf( nfp, "%d:%d %d:%d:%d\n", uidval[M], maxuid[M], uidval[S], smaxxuid, maxuid[S] );
 	for (srec = recs; srec; srec = srec->next) {
 		if (srec->status & S_DEAD)
 			continue;
