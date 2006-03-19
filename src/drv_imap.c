@@ -194,12 +194,11 @@ verify_cert( SSL *ssl )
 	X509 *cert;
 	int err;
 	char buf[256];
-	int ret = -1;
 	BIO *bio;
 
 	cert = SSL_get_peer_certificate( ssl );
 	if (!cert) {
-		fprintf( stderr, "Error, no server certificate\n" );
+		error( "Error, no server certificate\n" );
 		return -1;
 	}
 
@@ -207,8 +206,8 @@ verify_cert( SSL *ssl )
 	if (err == X509_V_OK)
 		return 0;
 
-	fprintf( stderr, "Error, can't verify certificate: %s (%d)\n",
-	         X509_verify_cert_error_string(err), err );
+	error( "Error, can't verify certificate: %s (%d)\n",
+	       X509_verify_cert_error_string(err), err );
 
 	X509_NAME_oneline( X509_get_subject_name( cert ), buf, sizeof(buf) );
 	info( "\nSubject: %s\n", buf );
@@ -230,10 +229,10 @@ verify_cert( SSL *ssl )
 	       "                 server certificate.  Continue at your own risk!\n"
 	       "\nAccept this certificate anyway? [no]: ",  stderr );
 	if (fgets( buf, sizeof(buf), stdin ) && (buf[0] == 'y' || buf[0] == 'Y')) {
-		ret = 0;
-		fprintf( stderr, "\n*** Fine, but don't say I didn't warn you!\n\n" );
+		error( "\n*** Fine, but don't say I didn't warn you!\n\n" );
+		return 0;
 	}
-	return ret;
+	return -1;
 }
 
 static int
@@ -252,11 +251,11 @@ init_ssl_ctx( imap_store_t *ctx )
 	imap->SSLContext = SSL_CTX_new( method );
 
 	if (!srvc->cert_file) {
-		fprintf( stderr, "Error, CertificateFile not defined\n" );
+		error( "Error, CertificateFile not defined\n" );
 		return -1;
 	} else if (!SSL_CTX_load_verify_locations( imap->SSLContext, srvc->cert_file, NULL )) {
-		fprintf( stderr, "Error while loading certificate file '%s': %s\n",
-		         srvc->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
+		error( "Error while loading certificate file '%s': %s\n",
+		       srvc->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
 		return -1;
 	}
 
@@ -287,14 +286,14 @@ socket_perror( const char *func, Socket_t *sock, int ret )
 		case SSL_ERROR_SSL:
 			if ((err = ERR_get_error()) == 0) {
 				if (ret == 0)
-					fprintf( stderr, "SSL_%s:got EOF\n", func );
+					error( "SSL_%s:got EOF\n", func );
 				else
-					fprintf( stderr, "SSL_%s:%d:%s\n", func, errno, strerror(errno) );
+					error( "SSL_%s:%d:%s\n", func, errno, strerror(errno) );
 			} else
-				fprintf( stderr, "SSL_%s:%d:%s\n", func, err, ERR_error_string( err, 0 ) );
+				error( "SSL_%s:%d:%s\n", func, err, ERR_error_string( err, 0 ) );
 			return;
 		default:
-			fprintf( stderr, "SSL_%s:%d:unhandled SSL error\n", func, err );
+			error( "SSL_%s:%d:unhandled SSL error\n", func, err );
 			break;
 		}
 		return;
@@ -305,7 +304,7 @@ socket_perror( const char *func, Socket_t *sock, int ret )
 	if (ret < 0)
 		perror( func );
 	else
-		fprintf( stderr, "%s: unexpected EOF\n", func );
+		error( "%s: unexpected EOF\n", func );
 }
 
 static int
@@ -714,7 +713,7 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 	list = parse_imap_list( imap, &cmd );
 
 	if (!is_list( list )) {
-		fprintf( stderr, "IMAP error: bogus FETCH response\n" );
+		error( "IMAP error: bogus FETCH response\n" );
 		free_list( list );
 		return -1;
 	}
@@ -726,7 +725,7 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 				if (is_atom( tmp ))
 					uid = atoi( tmp->val );
 				else
-					fprintf( stderr, "IMAP error: unable to parse UID\n" );
+					error( "IMAP error: unable to parse UID\n" );
 			} else if (!strcmp( "FLAGS", tmp->val )) {
 				tmp = tmp->next;
 				if (is_list( tmp )) {
@@ -742,21 +741,21 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 										mask |= 1 << i;
 										goto flagok;
 									}
-								fprintf( stderr, "IMAP warning: unknown system flag %s\n", flags->val );
+								error( "IMAP warning: unknown system flag %s\n", flags->val );
 							}
 						  flagok: ;
 						} else
-							fprintf( stderr, "IMAP error: unable to parse FLAGS list\n" );
+							error( "IMAP error: unable to parse FLAGS list\n" );
 					}
 					status |= M_FLAGS;
 				} else
-					fprintf( stderr, "IMAP error: unable to parse FLAGS\n" );
+					error( "IMAP error: unable to parse FLAGS\n" );
 			} else if (!strcmp( "RFC822.SIZE", tmp->val )) {
 				tmp = tmp->next;
 				if (is_atom( tmp ))
 					size = atoi( tmp->val );
 				else
-					fprintf( stderr, "IMAP error: unable to parse RFC822.SIZE\n" );
+					error( "IMAP error: unable to parse RFC822.SIZE\n" );
 			} else if (!strcmp( "BODY[]", tmp->val )) {
 				tmp = tmp->next;
 				if (is_atom( tmp )) {
@@ -764,7 +763,7 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 					tmp->val = 0;       /* don't free together with list */
 					size = tmp->len;
 				} else
-					fprintf( stderr, "IMAP error: unable to parse BODY[]\n" );
+					error( "IMAP error: unable to parse BODY[]\n" );
 			}
 		}
 	}
@@ -773,7 +772,7 @@ parse_fetch( imap_t *imap, char *cmd ) /* move this down */
 		for (cmdp = imap->in_progress; cmdp; cmdp = cmdp->next)
 			if (cmdp->cb.uid == uid)
 				goto gotuid;
-		fprintf( stderr, "IMAP error: unexpected FETCH response (UID %d)\n", uid );
+		error( "IMAP error: unexpected FETCH response (UID %d)\n", uid );
 		free_list( list );
 		return -1;
 	  gotuid:
@@ -822,19 +821,19 @@ parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
 		return RESP_OK;		/* no response code */
 	s++;
 	if (!(p = strchr( s, ']' ))) {
-		fprintf( stderr, "IMAP error: malformed response code\n" );
+		error( "IMAP error: malformed response code\n" );
 		return RESP_BAD;
 	}
 	*p++ = 0;
 	arg = next_arg( &s );
 	if (!strcmp( "UIDVALIDITY", arg )) {
 		if (!(arg = next_arg( &s )) || !(ctx->gen.uidvalidity = atoi( arg ))) {
-			fprintf( stderr, "IMAP error: malformed UIDVALIDITY status\n" );
+			error( "IMAP error: malformed UIDVALIDITY status\n" );
 			return RESP_BAD;
 		}
 	} else if (!strcmp( "UIDNEXT", arg )) {
 		if (!(arg = next_arg( &s )) || !(imap->uidnext = atoi( arg ))) {
-			fprintf( stderr, "IMAP error: malformed NEXTUID status\n" );
+			error( "IMAP error: malformed NEXTUID status\n" );
 			return RESP_BAD;
 		}
 	} else if (!strcmp( "CAPABILITY", arg )) {
@@ -844,12 +843,12 @@ parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
 		 * to the user
 		 */
 		for (; isspace( (unsigned char)*p ); p++);
-		fprintf( stderr, "*** IMAP ALERT *** %s\n", p );
+		error( "*** IMAP ALERT *** %s\n", p );
 	} else if (cb && cb->ctx && !strcmp( "APPENDUID", arg )) {
 		if (!(arg = next_arg( &s )) || !(ctx->gen.uidvalidity = atoi( arg )) ||
 		    !(arg = next_arg( &s )) || !(*(int *)cb->ctx = atoi( arg )))
 		{
-			fprintf( stderr, "IMAP error: malformed APPENDUID status\n" );
+			error( "IMAP error: malformed APPENDUID status\n" );
 			return RESP_BAD;
 		}
 	}
@@ -866,7 +865,7 @@ parse_search( imap_t *imap, char *cmd )
 	if (!(arg = next_arg( &cmd )))
 		uid = -1;
 	else if (!(uid = atoi( arg ))) {
-		fprintf( stderr, "IMAP error: malformed SEARCH response\n" );
+		error( "IMAP error: malformed SEARCH response\n" );
 		return;
 	} else if (next_arg( &cmd )) {
 		warn( "IMAP warning: SEARCH returns multiple matches\n" );
@@ -882,7 +881,7 @@ parse_search( imap_t *imap, char *cmd )
 			*(int *)cmdp->cb.ctx = uid;
 			return;
 		}
-	fprintf( stderr, "IMAP error: unexpected SEARCH response (UID %u)\n", uid );
+	error( "IMAP error: unexpected SEARCH response (UID %u)\n", uid );
 }
 
 static void
@@ -928,7 +927,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 		if (*arg == '*') {
 			arg = next_arg( &cmd );
 			if (!arg) {
-				fprintf( stderr, "IMAP error: unable to parse untagged response\n" );
+				error( "IMAP error: unable to parse untagged response\n" );
 				return RESP_BAD;
 			}
 
@@ -956,11 +955,11 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 						return RESP_BAD;
 				}
 			} else {
-				fprintf( stderr, "IMAP error: unable to parse untagged response\n" );
+				error( "IMAP error: unable to parse untagged response\n" );
 				return RESP_BAD;
 			}
 		} else if (!imap->in_progress) {
-			fprintf( stderr, "IMAP error: unexpected reply: %s %s\n", arg, cmd ? cmd : "" );
+			error( "IMAP error: unexpected reply: %s %s\n", arg, cmd ? cmd : "" );
 			return RESP_BAD;
 		} else if (*arg == '+') {
 			/* This can happen only with the last command underway, as
@@ -977,7 +976,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 				if (cmdp->cb.cont( ctx, cmdp, cmd ))
 					return RESP_BAD;
 			} else {
-				fprintf( stderr, "IMAP error: unexpected command continuation request\n" );
+				error( "IMAP error: unexpected command continuation request\n" );
 				return RESP_BAD;
 			}
 			if (socket_write( &imap->buf.sock, "\r\n", 2 ) != 2)
@@ -991,7 +990,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 			for (pcmdp = &imap->in_progress; (cmdp = *pcmdp); pcmdp = &cmdp->next)
 				if (cmdp->tag == tag)
 					goto gottag;
-			fprintf( stderr, "IMAP error: unexpected tag %s\n", arg );
+			error( "IMAP error: unexpected tag %s\n", arg );
 			return RESP_BAD;
 		  gottag:
 			if (!(*pcmdp = cmdp->next))
@@ -1028,10 +1027,9 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 					resp = RESP_NO;
 				} else /*if (!strcmp( "BAD", arg ))*/
 					resp = RESP_BAD;
-				fprintf( stderr, "IMAP command '%s' returned an error: %s %s\n",
-				         memcmp (cmdp->cmd, "LOGIN", 5) ?
-				         		cmdp->cmd : "LOGIN <user> <pass>",
-				         		arg, cmd ? cmd : "");
+				error( "IMAP command '%s' returned an error: %s %s\n",
+				       memcmp( cmdp->cmd, "LOGIN", 5 ) ? cmdp->cmd : "LOGIN <user> <pass>",
+				       arg, cmd ? cmd : "" );
 			}
 			if ((resp2 = parse_response_code( ctx, &cmdp->cb, cmd )) > resp)
 				resp = resp2;
@@ -1222,7 +1220,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 #endif
 
 	if (srvc->tunnel) {
-		info( "Starting tunnel '%s'... ", srvc->tunnel );
+		infon( "Starting tunnel '%s'... ", srvc->tunnel );
 
 		if (socketpair( PF_UNIX, SOCK_STREAM, 0, a )) {
 			perror( "socketpair" );
@@ -1248,7 +1246,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 		addr.sin_port = htons( srvc->port );
 		addr.sin_family = AF_INET;
 
-		info( "Resolving %s... ", srvc->host );
+		infon( "Resolving %s... ", srvc->host );
 		he = gethostbyname( srvc->host );
 		if (!he) {
 			perror( "gethostbyname" );
@@ -1260,7 +1258,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 
 		s = socket( PF_INET, SOCK_STREAM, 0 );
 
-		info( "Connecting to %s:%hu... ", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ) );
+		infon( "Connecting to %s:%hu... ", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ) );
 		if (connect( s, (struct sockaddr *)&addr, sizeof(addr) )) {
 			close( s );
 			perror( "connect" );
@@ -1281,19 +1279,19 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 
 	/* read the greeting string */
 	if (buffer_gets( &imap->buf, &rsp )) {
-		fprintf( stderr, "IMAP error: no greeting response\n" );
+		error( "IMAP error: no greeting response\n" );
 		goto bail;
 	}
 	arg = next_arg( &rsp );
 	if (!arg || *arg != '*' || (arg = next_arg( &rsp )) == NULL) {
-		fprintf( stderr, "IMAP error: invalid greeting response\n" );
+		error( "IMAP error: invalid greeting response\n" );
 		goto bail;
 	}
 	preauth = 0;
 	if (!strcmp( "PREAUTH", arg ))
 		preauth = 1;
 	else if (strcmp( "OK", arg ) != 0) {
-		fprintf( stderr, "IMAP error: unknown greeting response\n" );
+		error( "IMAP error: unknown greeting response\n" );
 		goto bail;
 	}
 	parse_response_code( ctx, 0, rsp );
@@ -1315,7 +1313,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 					goto bail;
 			} else {
 				if (srvc->require_ssl) {
-					fprintf( stderr, "IMAP error: SSL support not available\n" );
+					error( "IMAP error: SSL support not available\n" );
 					goto bail;
 				} else
 					warn( "IMAP warning: SSL support not available\n" );
@@ -1325,7 +1323,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 
 		info ("Logging in...\n");
 		if (!srvc->user) {
-			fprintf( stderr, "Skipping server %s, no user\n", srvc->host );
+			error( "Skipping server %s, no user\n", srvc->host );
 			goto bail;
 		}
 		if (!srvc->pass) {
@@ -1337,7 +1335,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 				exit( 1 );
 			}
 			if (!*arg) {
-				fprintf( stderr, "Skipping account %s@%s, no password\n", srvc->user, srvc->host );
+				error( "Skipping account %s@%s, no password\n", srvc->user, srvc->host );
 				goto bail;
 			}
 			/*
@@ -1356,13 +1354,13 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 			if (imap_exec( ctx, &cb, "AUTHENTICATE CRAM-MD5" ) != RESP_OK)
 				goto bail;
 		} else if (srvc->require_cram) {
-			fprintf( stderr, "IMAP error: CRAM-MD5 authentication is not supported by server\n" );
+			error( "IMAP error: CRAM-MD5 authentication is not supported by server\n" );
 			goto bail;
 		} else
 #endif
 		{
 			if (CAP(NOLOGIN)) {
-				fprintf( stderr, "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host );
+				error( "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host );
 				goto bail;
 			}
 #if HAVE_LIBSSL
@@ -1370,7 +1368,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 #endif
 				warn( "*** IMAP Warning *** Password is being sent in the clear\n" );
 			if (imap_exec( ctx, 0, "LOGIN \"%s\" \"%s\"", srvc->user, srvc->pass ) != RESP_OK) {
-				fprintf( stderr, "IMAP error: LOGIN failed\n" );
+				error( "IMAP error: LOGIN failed\n" );
 				goto bail;
 			}
 		}
@@ -1700,8 +1698,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 		else if (!strcasecmp( "CertificateFile", cfg->cmd )) {
 			server->cert_file = expand_strdup( cfg->val );
 			if (access( server->cert_file, R_OK )) {
-				fprintf( stderr, "%s:%d: CertificateFile '%s': %s\n",
-				         cfg->file, cfg->line, server->cert_file, strerror( errno ) );
+				error( "%s:%d: CertificateFile '%s': %s\n",
+				       cfg->file, cfg->line, server->cert_file, strerror( errno ) );
 				*err = 1;
 			}
 		} else if (!strcasecmp( "RequireSSL", cfg->cmd ))
@@ -1722,8 +1720,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 				for (srv = servers; srv; srv = srv->next)
 					if (srv->name && !strcmp( srv->name, cfg->val ))
 						goto gotsrv;
-				fprintf( stderr, "%s:%d: unknown IMAP account '%s'\n",
-				         cfg->file, cfg->line, cfg->val );
+				error( "%s:%d: unknown IMAP account '%s'\n", cfg->file, cfg->line, cfg->val );
 				*err = 1;
 				continue;
 			  gotsrv:
@@ -1736,8 +1733,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 				parse_generic_store( &store->gen, cfg, err );
 			continue;
 		} else {
-			fprintf( stderr, "%s:%d: unknown/misplaced keyword '%s'\n",
-			         cfg->file, cfg->line, cfg->cmd );
+			error( "%s:%d: unknown/misplaced keyword '%s'\n", cfg->file, cfg->line, cfg->cmd );
 			*err = 1;
 			continue;
 		}
@@ -1746,9 +1742,9 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 	if (!store || !store->server) {
 		if (!server->tunnel && !server->host) {
 			if (store)
-				fprintf( stderr, "IMAP store '%s' has incomplete/missing connection details\n", store->gen.name );
+				error( "IMAP store '%s' has incomplete/missing connection details\n", store->gen.name );
 			else
-				fprintf( stderr, "IMAP account '%s' has incomplete/missing connection details\n", server->name );
+				error( "IMAP account '%s' has incomplete/missing connection details\n", server->name );
 			*err = 1;
 			return 1;
 		}
@@ -1758,7 +1754,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 			store->server = nfmalloc( sizeof(sserver) );
 			memcpy( store->server, &sserver, sizeof(sserver) );
 		} else if (acc_opt) {
-			fprintf( stderr, "IMAP store '%s' has both Account and account-specific options\n", store->gen.name );
+			error( "IMAP store '%s' has both Account and account-specific options\n", store->gen.name );
 			*err = 1;
 		}
 	}

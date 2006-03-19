@@ -92,7 +92,7 @@ crashHandler( int n )
 	open( "/dev/tty", O_RDWR );
 	dup2( 0, 1 );
 	dup2( 0, 2 );
-	fprintf( stderr, "*** " EXE " caught signal %d. Starting debugger ...\n", n );
+	error( "*** " EXE " caught signal %d. Starting debugger ...\n", n );
 	switch ((dpid = fork ())) {
 	case -1:
 		perror( "fork()" );
@@ -208,6 +208,7 @@ main( int argc, char **argv )
 		fputs( "Fatal: $HOME not set\n", stderr );
 		return 1;
 	}
+	Ontty = isatty( 1 ) && isatty( 2 );
 	arc4_init();
 
 	for (oind = 1, ochar = 0; oind < argc; ) {
@@ -220,7 +221,7 @@ main( int argc, char **argv )
 					break;
 				if (!strcmp( opt, "config" )) {
 					if (oind >= argc) {
-						fprintf( stderr, "--config requires an argument.\n" );
+						error( "--config requires an argument.\n" );
 						return 1;
 					}
 					config = argv[oind++];
@@ -299,7 +300,7 @@ main( int argc, char **argv )
 						op |= OP_FLAGS;
 					else {
 					  badopt:
-						fprintf( stderr, "Unknown option '%s'\n", argv[oind - 1] );
+						error( "Unknown option '%s'\n", argv[oind - 1] );
 						return 1;
 					}
 					switch (op & XOP_MASK_DIR) {
@@ -313,7 +314,7 @@ main( int argc, char **argv )
 			}
 			ochar = argv[oind++] + 1;
 			if (!*ochar) {
-				fprintf( stderr, "Invalid option '-'\n" );
+				error( "Invalid option '-'\n" );
 				return 1;
 			}
 		}
@@ -330,7 +331,7 @@ main( int argc, char **argv )
 				pseudo = 1;
 			}
 			if (oind >= argc) {
-				fprintf( stderr, "-c requires an argument.\n" );
+				error( "-c requires an argument.\n" );
 				return 1;
 			}
 			config = argv[oind++];
@@ -411,7 +412,7 @@ main( int argc, char **argv )
 		case 'h':
 			usage( 0 );
 		default:
-			fprintf( stderr, "Unknown option '-%c'\n", *(ochar - 1) );
+			error( "Unknown option '-%c'\n", *(ochar - 1) );
 			return 1;
 		}
 	}
@@ -477,7 +478,7 @@ main( int argc, char **argv )
 			for (chan = channels; chan; chan = chan->next)
 				if (!strcmp( chan->name, channame ))
 					goto gotchan;
-			fprintf( stderr, "No channel or group named '%s' defined.\n", channame );
+			error( "No channel or group named '%s' defined.\n", channame );
 			ret = 1;
 			goto gotnone;
 		  gotchan: ;

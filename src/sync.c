@@ -126,14 +126,14 @@ select_box( sync_rec_t *srecs, store_t *ctx[], int maxuid[], int uidval[], int t
 				maxwuid = srec->uid[t];
 	} else
 		maxwuid = 0;
-	info( "Selecting %s %s... ", str_ms[t], ctx[t]->name );
+	infon( "Selecting %s %s... ", str_ms[t], ctx[t]->name );
 	debug( maxwuid == INT_MAX ? "selecting %s [%d,inf]\n" : "selecting %s [%d,%d]\n", str_ms[t], minwuid, maxwuid );
 	switch (ctx[t]->conf->driver->select( ctx[t], minwuid, maxwuid, mexcs, nmexcs )) {
 	case DRV_STORE_BAD: return SYNC_BAD(t);
 	case DRV_BOX_BAD: return SYNC_FAIL;
 	}
 	if (uidval[t] && uidval[t] != ctx[t]->uidvalidity) {
-		fprintf( stderr, "Error: UIDVALIDITY of %s changed (got %d, expected %d)\n", str_ms[t], ctx[t]->uidvalidity, uidval[t] );
+		error( "Error: UIDVALIDITY of %s changed (got %d, expected %d)\n", str_ms[t], ctx[t]->uidvalidity, uidval[t] );
 		return SYNC_FAIL;
 	}
 	info( "%d messages, %d recent\n", ctx[M]->count, ctx[M]->recent );
@@ -401,7 +401,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 
 	if (!strcmp( chan->sync_state ? chan->sync_state : global_sync_state, "*" )) {
 		if (!ctx[S]->path) {
-			fprintf( stderr, "Error: store '%s' does not support in-box sync state\n", chan->stores[S]->name );
+			error( "Error: store '%s' does not support in-box sync state\n", chan->stores[S]->name );
 			return SYNC_BAD(S);
 		}
 		nfasprintf( &dname, "%s/." EXE "state", ctx[S]->path );
@@ -418,13 +418,13 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		free( csname );
 	}
 	if (!(s = strrchr( dname, '/' ))) {
-		fprintf( stderr, "Error: invalid SyncState '%s'\n", dname );
+		error( "Error: invalid SyncState '%s'\n", dname );
 		free( dname );
 		return SYNC_BAD(S);
 	}
 	*s = 0;
 	if (mkdir( dname, 0700 ) && errno != EEXIST) {
-		fprintf( stderr, "Error: cannot create SyncState directory '%s': %s\n", dname, strerror(errno) );
+		error( "Error: cannot create SyncState directory '%s': %s\n", dname, strerror(errno) );
 		free( dname );
 		return SYNC_BAD(S);
 	}
@@ -441,12 +441,12 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	lck.l_type = F_WRLCK;
 #endif
 	if ((lfd = open( lname, O_WRONLY|O_CREAT, 0666 )) < 0) {
-		fprintf( stderr, "Error: cannot create lock file %s: %s\n", lname, strerror(errno) );
+		error( "Error: cannot create lock file %s: %s\n", lname, strerror(errno) );
 		ret = SYNC_FAIL;
 		goto bail2;
 	}
 	if (fcntl( lfd, F_SETLK, &lck )) {
-		fprintf( stderr, "Error: channel :%s:%s-:%s:%s is locked\n",
+		error( "Error: channel :%s:%s-:%s:%s is locked\n",
 		         chan->stores[M]->name, ctx[M]->name, chan->stores[S]->name, ctx[S]->name );
 		ret = SYNC_FAIL;
 		goto bail1;
@@ -454,13 +454,13 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	if ((dfp = fopen( dname, "r" ))) {
 		debug( "reading sync state %s ...\n", dname );
 		if (!fgets( buf, sizeof(buf), dfp ) || !(t = strlen( buf )) || buf[t - 1] != '\n') {
-			fprintf( stderr, "Error: incomplete sync state header in %s\n", dname );
+			error( "Error: incomplete sync state header in %s\n", dname );
 			fclose( dfp );
 			ret = SYNC_FAIL;
 			goto bail;
 		}
 		if (sscanf( buf, "%d:%d %d:%d:%d", &uidval[M], &maxuid[M], &uidval[S], &smaxxuid, &maxuid[S]) != 5) {
-			fprintf( stderr, "Error: invalid sync state header in %s\n", dname );
+			error( "Error: invalid sync state header in %s\n", dname );
 			fclose( dfp );
 			ret = SYNC_FAIL;
 			goto bail;
@@ -469,14 +469,14 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		while (fgets( buf, sizeof(buf), dfp )) {
 			sline++;
 			if (!(t = strlen( buf )) || buf[t - 1] != '\n') {
-				fprintf( stderr, "Error: incomplete sync state entry at %s:%d\n", dname, sline );
+				error( "Error: incomplete sync state entry at %s:%d\n", dname, sline );
 				fclose( dfp );
 				ret = SYNC_FAIL;
 				goto bail;
 			}
 			fbuf[0] = 0;
 			if (sscanf( buf, "%d %d %15s", &t1, &t2, fbuf ) < 2) {
-				fprintf( stderr, "Error: invalid sync state entry at %s:%d\n", dname, sline );
+				error( "Error: invalid sync state entry at %s:%d\n", dname, sline );
 				fclose( dfp );
 				ret = SYNC_FAIL;
 				goto bail;
@@ -501,7 +501,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		fclose( dfp );
 	} else {
 		if (errno != ENOENT) {
-			fprintf( stderr, "Error: cannot read sync state %s\n", dname );
+			error( "Error: cannot read sync state %s\n", dname );
 			ret = SYNC_FAIL;
 			goto bail;
 		}
@@ -511,13 +511,13 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		if (!stat( nname, &st ) && fgets( buf, sizeof(buf), jfp )) {
 			debug( "recovering journal ...\n" );
 			if (!(t = strlen( buf )) || buf[t - 1] != '\n') {
-				fprintf( stderr, "Error: incomplete journal header in %s\n", jname );
+				error( "Error: incomplete journal header in %s\n", jname );
 				fclose( jfp );
 				ret = SYNC_FAIL;
 				goto bail;
 			}
 			if (memcmp( buf, JOURNAL_VERSION "\n", strlen(JOURNAL_VERSION) + 1 )) {
-				fprintf( stderr, "Error: incompatible journal version "
+				error( "Error: incompatible journal version "
 				                 "(got %.*s, expected " JOURNAL_VERSION ")\n", t - 1, buf );
 				fclose( jfp );
 				ret = SYNC_FAIL;
@@ -528,7 +528,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 			while (fgets( buf, sizeof(buf), jfp )) {
 				line++;
 				if (!(t = strlen( buf )) || buf[t - 1] != '\n') {
-					fprintf( stderr, "Error: incomplete journal entry at %s:%d\n", jname, line );
+					error( "Error: incomplete journal entry at %s:%d\n", jname, line );
 					fclose( jfp );
 					ret = SYNC_FAIL;
 					goto bail;
@@ -541,7 +541,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				          (sscanf( buf + 2, "%d %d", &t1, &t2 ) != 2) :
 				          (sscanf( buf + 2, "%d %d %d", &t1, &t2, &t3 ) != 3))
 				{
-					fprintf( stderr, "Error: malformed journal entry at %s:%d\n", jname, line );
+					error( "Error: malformed journal entry at %s:%d\n", jname, line );
 					fclose( jfp );
 					ret = SYNC_FAIL;
 					goto bail;
@@ -572,12 +572,12 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					for (srec = recs; srec != nsrec; srec = srec->next)
 						if (srec->uid[M] == t1 && srec->uid[S] == t2)
 							goto syncfnd;
-					fprintf( stderr, "Error: journal entry at %s:%d refers to non-existing sync state entry\n", jname, line );
+					error( "Error: journal entry at %s:%d refers to non-existing sync state entry\n", jname, line );
 					fclose( jfp );
 					ret = SYNC_FAIL;
 					goto bail;
 				  syncfnd:
-					debug( "  entry(%d,%d,%u) ", srec->uid[M], srec->uid[S], srec->flags );
+					debugn( "  entry(%d,%d,%u) ", srec->uid[M], srec->uid[S], srec->flags );
 					switch (buf[0]) {
 					case '-':
 						debug( "killed\n" );
@@ -632,7 +632,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							srec->status &= ~S_EXPIRED;
 						break;
 					default:
-						fprintf( stderr, "Error: unrecognized journal entry at %s:%d\n", jname, line );
+						error( "Error: unrecognized journal entry at %s:%d\n", jname, line );
 						fclose( jfp );
 						ret = SYNC_FAIL;
 						goto bail;
@@ -643,18 +643,18 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 		fclose( jfp );
 	} else {
 		if (errno != ENOENT) {
-			fprintf( stderr, "Error: cannot read journal %s\n", jname );
+			error( "Error: cannot read journal %s\n", jname );
 			ret = SYNC_FAIL;
 			goto bail;
 		}
 	}
 	if (!(nfp = fopen( nname, "w" ))) {
-		fprintf( stderr, "Error: cannot write new sync state %s\n", nname );
+		error( "Error: cannot write new sync state %s\n", nname );
 		ret = SYNC_FAIL;
 		goto bail;
 	}
 	if (!(jfp = fopen( jname, "a" ))) {
-		fprintf( stderr, "Error: cannot write journal %s\n", jname );
+		error( "Error: cannot write journal %s\n", jname );
 		fclose( nfp );
 		ret = SYNC_FAIL;
 		goto bail;
@@ -766,9 +766,9 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 				}
 			}
 		}
-		debug( "  exception list is:" );
+		debugn( "  exception list is:" );
 		for (t = 0; t < nmexcs; t++)
-			debug( " %d", mexcs[t] );
+			debugn( " %d", mexcs[t] );
 		debug( "\n" );
 	} else if (ctx[M]->opts & OPEN_OLD)
 		minwuid = 1;
@@ -811,7 +811,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					}
 					if ((tmsg->flags & F_FLAGGED) || !chan->stores[t]->max_size || tmsg->size <= chan->stores[t]->max_size) {
 						if (!nmsgs)
-							info( t ? "Pulling new messages..." : "Pushing new messages..." );
+							infon( t ? "Pulling new messages..." : "Pushing new messages..." );
 						else
 							infoc( '.' );
 						nmsgs++;

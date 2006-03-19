@@ -50,8 +50,8 @@ parse_bool( conffile_t *cfile )
 	    strcasecmp( cfile->val, "false" ) &&
 	    strcasecmp( cfile->val, "off" ) &&
 	    strcmp( cfile->val, "0" ))
-		fprintf( stderr, "%s:%d: invalid boolean value '%s'\n",
-		         cfile->file, cfile->line, cfile->val );
+		error( "%s:%d: invalid boolean value '%s'\n",
+		       cfile->file, cfile->line, cfile->val );
 	return 0;
 }
 
@@ -63,8 +63,8 @@ parse_int( conffile_t *cfile )
 
 	ret = strtol( cfile->val, &p, 10 );
 	if (*p) {
-		fprintf( stderr, "%s:%d: invalid integer value '%s'\n",
-		         cfile->file, cfile->line, cfile->val );
+		error( "%s:%d: invalid integer value '%s'\n",
+		       cfile->file, cfile->line, cfile->val );
 		return 0;
 	}
 	return ret;
@@ -130,8 +130,8 @@ getopt_helper( conffile_t *cfile, int *cops, int ops[], char **sync_state )
 			else if (!strcasecmp( "All", arg ) || !strcasecmp( "Full", arg ))
 				*cops |= XOP_PULL|XOP_PUSH;
 			else if (strcasecmp( "None", arg ) && strcasecmp( "Noop", arg ))
-				fprintf( stderr, "%s:%d: invalid Sync arg '%s'\n",
-				         cfile->file, cfile->line, arg );
+				error( "%s:%d: invalid Sync arg '%s'\n",
+				       cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
 		ops[M] |= XOP_HAVE_TYPE;
 	} else if (!strcasecmp( "Expunge", cfile->cmd )) {
@@ -144,8 +144,8 @@ getopt_helper( conffile_t *cfile, int *cops, int ops[], char **sync_state )
 			else if (!strcasecmp( "Slave", arg ))
 				ops[S] |= OP_EXPUNGE;
 			else if (strcasecmp( "None", arg ))
-				fprintf( stderr, "%s:%d: invalid Expunge arg '%s'\n",
-				         cfile->file, cfile->line, arg );
+				error( "%s:%d: invalid Expunge arg '%s'\n",
+				       cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
 		ops[M] |= XOP_HAVE_EXPUNGE;
 	} else if (!strcasecmp( "Create", cfile->cmd )) {
@@ -158,8 +158,8 @@ getopt_helper( conffile_t *cfile, int *cops, int ops[], char **sync_state )
 			else if (!strcasecmp( "Slave", arg ))
 				ops[S] |= OP_CREATE;
 			else if (strcasecmp( "None", arg ))
-				fprintf( stderr, "%s:%d: invalid Create arg '%s'\n",
-				         cfile->file, cfile->line, arg );
+				error( "%s:%d: invalid Create arg '%s'\n",
+				       cfile->file, cfile->line, arg );
 		while ((arg = next_arg( &cfile->rest )));
 		ops[M] |= XOP_HAVE_CREATE;
 	} else if (!strcasecmp( "SyncState", cfile->cmd ))
@@ -182,8 +182,7 @@ getcline( conffile_t *cfile )
 		if (*cfile->cmd == '#')
 			continue;
 		if (!(cfile->val = next_arg( &p ))) {
-			fprintf( stderr, "%s:%d: parameter missing\n",
-			         cfile->file, cfile->line );
+			error( "%s:%d: parameter missing\n", cfile->file, cfile->line );
 			continue;
 		}
 		cfile->rest = p;
@@ -203,7 +202,7 @@ merge_ops( int cops, int ops[] )
 		if (aops & OP_MASK_TYPE) {
 			if (aops & cops & OP_MASK_TYPE) {
 			  cfl:
-				fprintf( stderr, "Conflicting Sync args specified.\n" );
+				error( "Conflicting Sync args specified.\n" );
 				return 1;
 			}
 			ops[M] |= cops & OP_MASK_TYPE;
@@ -231,7 +230,7 @@ merge_ops( int cops, int ops[] )
 	}
 	if (ops[M] & XOP_HAVE_EXPUNGE) {
 		if (aops & cops & OP_EXPUNGE) {
-			fprintf( stderr, "Conflicting Expunge args specified.\n" );
+			error( "Conflicting Expunge args specified.\n" );
 			return 1;
 		}
 		ops[M] |= cops & OP_EXPUNGE;
@@ -239,7 +238,7 @@ merge_ops( int cops, int ops[] )
 	}
 	if (ops[M] & XOP_HAVE_CREATE) {
 		if (aops & cops & OP_CREATE) {
-			fprintf( stderr, "Conflicting Create args specified.\n" );
+			error( "Conflicting Create args specified.\n" );
 			return 1;
 		}
 		ops[M] |= cops & OP_CREATE;
@@ -321,8 +320,8 @@ load_config( const char *where, int pseudo )
 					ms = S;
 				  linkst:
 					if (*cfile.val != ':' || !(p = strchr( cfile.val + 1, ':' ))) {
-						fprintf( stderr, "%s:%d: malformed mailbox spec\n",
-						         cfile.file, cfile.line );
+						error( "%s:%d: malformed mailbox spec\n",
+						       cfile.file, cfile.line );
 						err = 1;
 						continue;
 					}
@@ -332,24 +331,23 @@ load_config( const char *where, int pseudo )
 							channel->stores[ms] = store;
 							goto stpcom;
 						}
-					fprintf( stderr, "%s:%d: unknown store '%s'\n",
-					         cfile.file, cfile.line, cfile.val + 1 );
+					error( "%s:%d: unknown store '%s'\n",
+					       cfile.file, cfile.line, cfile.val + 1 );
 					err = 1;
 					continue;
 				  stpcom:
 					if (*++p)
 						channel->boxes[ms] = nfstrdup( p );
 				} else if (!getopt_helper( &cfile, &cops, channel->ops, &channel->sync_state )) {
-					fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
-					         cfile.file, cfile.line, cfile.cmd );
+					error( "%s:%d: unknown keyword '%s'\n", cfile.file, cfile.line, cfile.cmd );
 					err = 1;
 				}
 			}
 			if (!channel->stores[M]) {
-				fprintf( stderr, "channel '%s' refers to no master store\n", channel->name );
+				error( "channel '%s' refers to no master store\n", channel->name );
 				err = 1;
 			} else if (!channel->stores[S]) {
-				fprintf( stderr, "channel '%s' refers to no slave store\n", channel->name );
+				error( "channel '%s' refers to no slave store\n", channel->name );
 				err = 1;
 			} else if (merge_ops( cops, channel->ops ))
 				err = 1;
@@ -391,8 +389,8 @@ load_config( const char *where, int pseudo )
 				}
 				else
 				{
-					fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
-					         cfile.file, cfile.line, cfile.cmd );
+					error( "%s:%d: unknown keyword '%s'\n",
+					       cfile.file, cfile.line, cfile.cmd );
 					err = 1;
 				}
 			}
@@ -400,8 +398,8 @@ load_config( const char *where, int pseudo )
 		}
 		else if (!getopt_helper( &cfile, &gcops, global_ops, &global_sync_state ))
 		{
-			fprintf( stderr, "%s:%d: unknown section keyword '%s'\n",
-			         cfile.file, cfile.line, cfile.cmd );
+			error( "%s:%d: unknown section keyword '%s'\n",
+			       cfile.file, cfile.line, cfile.cmd );
 			err = 1;
 			while (getcline( &cfile ))
 				if (!cfile.cmd)
@@ -432,8 +430,7 @@ parse_generic_store( store_conf_t *store, conffile_t *cfg, int *err )
 	else if (!strcasecmp( "MapInbox", cfg->cmd ))
 		store->map_inbox = nfstrdup( cfg->val );
 	else {
-		fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
-		         cfg->file, cfg->line, cfg->cmd );
+		error( "%s:%d: unknown keyword '%s'\n", cfg->file, cfg->line, cfg->cmd );
 		*err = 1;
 	}
 }

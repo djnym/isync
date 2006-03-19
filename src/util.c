@@ -30,7 +30,8 @@
 #include <pwd.h>
 #include <ctype.h>
 
-int DFlags;
+int DFlags, Ontty;
+static int need_nl;
 
 void
 debug( const char *msg, ... )
@@ -42,6 +43,20 @@ debug( const char *msg, ... )
 		vprintf( msg, va );
 		va_end( va );
 		fflush( stdout );
+	}
+}
+
+void
+debugn( const char *msg, ... )
+{
+	va_list va;
+
+	if (DFlags & DEBUG) {
+		va_start( va, msg );
+		vprintf( msg, va );
+		va_end( va );
+		fflush( stdout );
+		need_nl = Ontty;
 	}
 }
 
@@ -59,11 +74,26 @@ info( const char *msg, ... )
 }
 
 void
+infon( const char *msg, ... )
+{
+	va_list va;
+
+	if (!(DFlags & QUIET)) {
+		va_start( va, msg );
+		vprintf( msg, va );
+		va_end( va );
+		fflush( stdout );
+		need_nl = Ontty;
+	}
+}
+
+void
 infoc( char c )
 {
 	if (!(DFlags & QUIET)) {
 		putchar( c );
 		fflush( stdout );
+		need_nl = Ontty;
 	}
 }
 
@@ -73,10 +103,28 @@ warn( const char *msg, ... )
 	va_list va;
 
 	if (!(DFlags & VERYQUIET)) {
+		if (need_nl) {
+			putchar( '\n' );
+			need_nl = 0;
+		}
 		va_start( va, msg );
 		vfprintf( stderr, msg, va );
 		va_end( va );
 	}
+}
+
+void
+error( const char *msg, ... )
+{
+	va_list va;
+
+	if (need_nl) {
+		putchar( '\n' );
+		need_nl = 0;
+	}
+	va_start( va, msg );
+	vfprintf( stderr, msg, va );
+	va_end( va );
 }
 
 char *
@@ -335,11 +383,11 @@ arc4_init( void )
 	unsigned char j, si, dat[128];
 
 	if ((fd = open( "/dev/urandom", O_RDONLY )) < 0 && (fd = open( "/dev/random", O_RDONLY )) < 0) {
-		fprintf( stderr, "Fatal: no random number source available.\n" );
+		error( "Fatal: no random number source available.\n" );
 		exit( 3 );
 	}
 	if (read( fd, dat, 128 ) != 128) {
-		fprintf( stderr, "Fatal: cannot read random number source.\n" );
+		error( "Fatal: cannot read random number source.\n" );
 		exit( 3 );
 	}
 	close( fd );

@@ -205,12 +205,15 @@ extern const char *Home;
 #define VERYQUIET    8
 #define KEEPJOURNAL  16
 
-extern int DFlags;
+extern int DFlags, Ontty;
 
 void debug( const char *, ... );
+void debugn( const char *, ... );
 void info( const char *, ... );
+void infon( const char *, ... );
 void infoc( char );
 void warn( const char *, ... );
+void error( const char *, ... );
 
 char *next_arg( char ** );
 

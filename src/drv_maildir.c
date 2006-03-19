@@ -104,7 +104,7 @@ maildir_open_store( store_conf_t *conf, store_t *oldctx )
 	if (oldctx)
 		maildir_close_store( oldctx );
 	if (stat( conf->path, &st ) || !S_ISDIR(st.st_mode)) {
-		fprintf( stderr, "Maildir error: cannot open store %s\n", conf->path );
+		error( "Maildir error: cannot open store %s\n", conf->path );
 		return 0;
 	}
 	ctx = nfcalloc( sizeof(*ctx) );
@@ -157,7 +157,7 @@ maildir_list( store_t *gctx, string_list_t **retb )
 	struct dirent *de;
 
 	if (!(dir = opendir( gctx->conf->path ))) {
-		fprintf( stderr, "%s: %s\n", gctx->conf->path, strerror(errno) );
+		error( "%s: %s\n", gctx->conf->path, strerror(errno) );
 		return DRV_STORE_BAD;
 	}
 	*retb = 0;
@@ -221,26 +221,26 @@ maildir_validate( const char *prefix, const char *box, int create )
 		if (errno == ENOENT) {
 			if (create) {
 				if (mkdir( buf, 0700 )) {
-					fprintf( stderr, "Maildir error: mkdir %s: %s (errno %d)\n",
-					         buf, strerror(errno), errno );
+					error( "Maildir error: mkdir %s: %s (errno %d)\n",
+					       buf, strerror(errno), errno );
 					return DRV_STORE_BAD;
 				}
 			  mkdirs:
 				for (i = 0; i < 3; i++) {
 					memcpy( buf + bl, subdirs[i], 4 );
 					if (mkdir( buf, 0700 )) {
-						fprintf( stderr, "Maildir error: mkdir %s: %s (errno %d)\n",
-						         buf, strerror(errno), errno );
+						error( "Maildir error: mkdir %s: %s (errno %d)\n",
+						       buf, strerror(errno), errno );
 						return DRV_BOX_BAD;
 					}
 				}
 			} else {
-				fprintf( stderr, "Maildir error: mailbox '%s' does not exist\n", buf );
+				error( "Maildir error: mailbox '%s' does not exist\n", buf );
 				return DRV_BOX_BAD;
 			}
 		} else {
-			fprintf( stderr, "Maildir error: stat %s: %s (errno %d)\n",
-			         buf, strerror(errno), errno );
+			error( "Maildir error: stat %s: %s (errno %d)\n",
+			       buf, strerror(errno), errno );
 			return DRV_BOX_BAD;
 		}
 	} else {
@@ -252,30 +252,30 @@ maildir_validate( const char *prefix, const char *box, int create )
 		if (!j)
 			goto mkdirs;
 		if (j != 3) {
-			fprintf( stderr, "Maildir error: '%.*s' is no valid mailbox\n", bl, buf );
+			error( "Maildir error: '%.*s' is no valid mailbox\n", bl, buf );
 			return DRV_BOX_BAD;
 		}
 		memcpy( buf + bl, "tmp/", 5 );
 		bl += 4;
 		if (!(dirp = opendir( buf ))) {
-			fprintf( stderr, "Maildir error: opendir: %s: %s (errno %d)\n",
-			         buf, strerror(errno), errno );
+			error( "Maildir error: opendir: %s: %s (errno %d)\n",
+			       buf, strerror(errno), errno );
 			return DRV_BOX_BAD;
 		}
 		time( &now );
 		while ((entry = readdir( dirp ))) {
 			nfsnprintf( buf + bl, sizeof(buf) - bl, "%s", entry->d_name );
 			if (stat( buf, &st ))
-				fprintf( stderr, "Maildir error: stat: %s: %s (errno %d)\n",
-				         buf, strerror(errno), errno );
+				error( "Maildir error: stat: %s: %s (errno %d)\n",
+				       buf, strerror(errno), errno );
 			else if (S_ISREG(st.st_mode) && now - st.st_ctime >= _24_HOURS) {
 				/* this should happen infrequently enough that it won't be
 				 * bothersome to the user to display when it occurs.
 				 */
 				info( "Maildir notice: removing stale file %s\n", buf );
 				if (unlink( buf ))
-					fprintf( stderr, "Maildir error: unlink: %s: %s (errno %d)\n",
-					         buf, strerror(errno), errno );
+					error( "Maildir error: unlink: %s: %s (errno %d)\n",
+					       buf, strerror(errno), errno );
 			}
 		}
 		closedir( dirp );
@@ -337,7 +337,7 @@ maildir_store_uid( maildir_store_t *ctx )
 	n = sprintf( buf, "%d\n%d\n", ctx->gen.uidvalidity, ctx->nuid );
 	lseek( ctx->uvfd, 0, SEEK_SET );
 	if (write( ctx->uvfd, buf, n ) != n || ftruncate( ctx->uvfd, n )) {
-		fprintf( stderr, "Maildir error: cannot write UIDVALIDITY.\n" );
+		error( "Maildir error: cannot write UIDVALIDITY.\n" );
 		return DRV_BOX_BAD;
 	}
 	return DRV_OK;
@@ -368,7 +368,7 @@ maildir_uidval_lock( maildir_store_t *ctx )
 #ifdef LEGACY_FLOCK
 	/* This is legacy only */
 	if (flock( ctx->uvfd, LOCK_EX ) < 0) {
-		fprintf( stderr, "Maildir error: cannot flock UIDVALIDITY.\n" );
+		error( "Maildir error: cannot flock UIDVALIDITY.\n" );
 		return DRV_BOX_BAD;
 	}
 #endif
@@ -379,7 +379,7 @@ maildir_uidval_lock( maildir_store_t *ctx )
 #endif
 	lck.l_type = F_WRLCK;
 	if (fcntl( ctx->uvfd, F_SETLKW, &lck )) {
-		fprintf( stderr, "Maildir error: cannot fcntl lock UIDVALIDITY.\n" );
+		error( "Maildir error: cannot fcntl lock UIDVALIDITY.\n" );
 		return DRV_BOX_BAD;
 	}
 	lseek( ctx->uvfd, 0, SEEK_SET );
@@ -1008,7 +1008,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 		if (ret < 0)
 			perror( buf );
 		else
-			fprintf( stderr, "Maildir error: %s: partial write\n", buf );
+			error( "Maildir error: %s: partial write\n", buf );
 		close( fd );
 		return DRV_BOX_BAD;
 	}
