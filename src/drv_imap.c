@@ -254,11 +254,9 @@ init_ssl_ctx( imap_store_t *ctx )
 	if (!srvc->cert_file) {
 		fprintf( stderr, "Error, CertificateFile not defined\n" );
 		return -1;
-	} else if (access( srvc->cert_file, R_OK ))
-		warn( "*** Warning: can't read CertificateFile, so can't verify server certificates\n" );
-	else if (!SSL_CTX_load_verify_locations( imap->SSLContext, srvc->cert_file, NULL )) {
-		fprintf( stderr, "Error, SSL_CTX_load_verify_locations: %s\n",
-		         ERR_error_string( ERR_get_error(), 0 ) );
+	} else if (!SSL_CTX_load_verify_locations( imap->SSLContext, srvc->cert_file, NULL )) {
+		fprintf( stderr, "Error while loading certificate file '%s': %s\n",
+		         srvc->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
 		return -1;
 	}
 
@@ -1643,6 +1641,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 {
 	imap_store_conf_t *store;
 	imap_server_conf_t *server, *srv, sserver;
+	int acc_opt = 0;
 
 	if (!strcasecmp( "IMAPAccount", cfg->cmd )) {
 		server = nfcalloc( sizeof(*server) );
@@ -1655,6 +1654,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 		store->gen.driver = &imap_driver;
 		store->gen.name = nfstrdup( cfg->val );
 		store->use_namespace = 1;
+		*storep = &store->gen;
 		memset( &sserver, 0, sizeof(sserver) );
 		server = &sserver;
 	} else
@@ -1669,17 +1669,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 #endif
 
 	while (getcline( cfg ) && cfg->cmd) {
-		if (!strcasecmp( "Account", cfg->cmd )) {
-			for (srv = servers; srv; srv = srv->next)
-				if (srv->name && !strcmp( srv->name, cfg->val ))
-					goto gotsrv;
-			fprintf( stderr, "%s:%d: unknown IMAP account '%s'\n",
-			         cfg->file, cfg->line, cfg->val );
-			*err = 1;
-			continue;
-		  gotsrv:
-			store->server = srv;
-		} else if (!strcasecmp( "Host", cfg->cmd )) {
+		if (!strcasecmp( "Host", cfg->cmd )) {
 #if HAVE_LIBSSL
 			if (!memcmp( "imaps:", cfg->val, 6 )) {
 				cfg->val += 6;
@@ -1707,9 +1697,14 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 		else if (!strcasecmp( "Port", cfg->cmd ))
 			server->port = parse_int( cfg );
 #if HAVE_LIBSSL
-		else if (!strcasecmp( "CertificateFile", cfg->cmd ))
+		else if (!strcasecmp( "CertificateFile", cfg->cmd )) {
 			server->cert_file = expand_strdup( cfg->val );
-		else if (!strcasecmp( "RequireSSL", cfg->cmd ))
+			if (access( server->cert_file, R_OK )) {
+				fprintf( stderr, "%s:%d: CertificateFile '%s': %s\n",
+				         cfg->file, cfg->line, server->cert_file, strerror( errno ) );
+				*err = 1;
+			}
+		} else if (!strcasecmp( "RequireSSL", cfg->cmd ))
 			server->require_ssl = parse_bool( cfg );
 		else if (!strcasecmp( "UseSSLv2", cfg->cmd ))
 			server->use_sslv2 = parse_bool( cfg );
@@ -1723,34 +1718,49 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 		else if (!strcasecmp( "Tunnel", cfg->cmd ))
 			server->tunnel = nfstrdup( cfg->val );
 		else if (store) {
-			if (!strcasecmp( "UseNamespace", cfg->cmd ))
+			if (!strcasecmp( "Account", cfg->cmd )) {
+				for (srv = servers; srv; srv = srv->next)
+					if (srv->name && !strcmp( srv->name, cfg->val ))
+						goto gotsrv;
+				fprintf( stderr, "%s:%d: unknown IMAP account '%s'\n",
+				         cfg->file, cfg->line, cfg->val );
+				*err = 1;
+				continue;
+			  gotsrv:
+				store->server = srv;
+			} else if (!strcasecmp( "UseNamespace", cfg->cmd ))
 				store->use_namespace = parse_bool( cfg );
 			else if (!strcasecmp( "Path", cfg->cmd ))
 				store->gen.path = nfstrdup( cfg->val );
 			else
 				parse_generic_store( &store->gen, cfg, err );
+			continue;
 		} else {
-			fprintf( stderr, "%s:%d: unknown keyword '%s'\n",
+			fprintf( stderr, "%s:%d: unknown/misplaced keyword '%s'\n",
 			         cfg->file, cfg->line, cfg->cmd );
 			*err = 1;
+			continue;
 		}
+		acc_opt = 1;
 	}
 	if (!store || !store->server) {
 		if (!server->tunnel && !server->host) {
 			if (store)
-				fprintf( stderr, "IMAP store '%s' has incomplete connection details\n", store->gen.name );
+				fprintf( stderr, "IMAP store '%s' has incomplete/missing connection details\n", store->gen.name );
 			else
-				fprintf( stderr, "IMAP account '%s' has incomplete connection details\n", server->name );
+				fprintf( stderr, "IMAP account '%s' has incomplete/missing connection details\n", server->name );
 			*err = 1;
-			/* leaking server/store */
-			*storep = 0;
 			return 1;
 		}
 	}
-	*storep = &store->gen;
-	if (store && !store->server) {
-		store->server = nfmalloc( sizeof(sserver) );
-		memcpy( store->server, &sserver, sizeof(sserver) );
+	if (store) {
+		if (!store->server) {
+			store->server = nfmalloc( sizeof(sserver) );
+			memcpy( store->server, &sserver, sizeof(sserver) );
+		} else if (acc_opt) {
+			fprintf( stderr, "IMAP store '%s' has both Account and account-specific options\n", store->gen.name );
+			*err = 1;
+		}
 	}
 	return 1;
 }
