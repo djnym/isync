@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+driver_t *drivers[N_DRIVERS] = { &maildir_driver, &imap_driver };
+
 store_conf_t *stores;
 channel_conf_t *channels;
 group_conf_t *groups;
@@ -256,7 +258,7 @@ load_config( const char *where, int pseudo )
 	group_conf_t *group, **groupapp = &groups;
 	string_list_t *chanlist, **chanlistapp;
 	char *arg, *p;
-	int err, len, cops, gcops, max_size, ms;
+	int err, len, cops, gcops, max_size, ms, i;
 	char path[_POSIX_PATH_MAX];
 	char buf[1024];
 
@@ -283,18 +285,18 @@ load_config( const char *where, int pseudo )
 	while (getcline( &cfile )) {
 		if (!cfile.cmd)
 			continue;
-		if (imap_driver.parse_store( &cfile, &store, &err ) ||
-		    maildir_driver.parse_store( &cfile, &store, &err ))
-		{
-			if (store) {
-				if (!store->path)
-					store->path = "";
-				*storeapp = store;
-				storeapp = &store->next;
-				*storeapp = 0;
+		for (i = 0; i < N_DRIVERS; i++)
+			if (drivers[i]->parse_store( &cfile, &store, &err )) {
+				if (store) {
+					if (!store->path)
+						store->path = "";
+					*storeapp = store;
+					storeapp = &store->next;
+					*storeapp = 0;
+				}
+				goto reloop;
 			}
-		}
-		else if (!strcasecmp( "Channel", cfile.cmd ))
+		if (!strcasecmp( "Channel", cfile.cmd ))
 		{
 			channel = nfcalloc( sizeof(*channel) );
 			channel->name = nfstrdup( cfile.val );

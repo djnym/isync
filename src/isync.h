@@ -249,6 +249,9 @@ int sync_boxes( store_t *ctx[], const char *names[], channel_conf_t * );
 
 /* config.c */
 
+#define N_DRIVERS 2
+extern driver_t *drivers[N_DRIVERS];
+
 extern channel_conf_t *channels;
 extern group_conf_t *groups;
 extern int global_ops[2];
