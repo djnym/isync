@@ -147,11 +147,12 @@ static void
 maildir_close_store( store_t *gctx )
 {
 	maildir_cleanup( gctx );
+	free_string_list( gctx->boxes );
 	free( gctx );
 }
 
 static int
-maildir_list( store_t *gctx, string_list_t **retb )
+maildir_list( store_t *gctx )
 {
 	DIR *dir;
 	struct dirent *de;
@@ -160,7 +161,6 @@ maildir_list( store_t *gctx, string_list_t **retb )
 		error( "%s: %s\n", gctx->conf->path, strerror(errno) );
 		return DRV_STORE_BAD;
 	}
-	*retb = 0;
 	while ((de = readdir( dir ))) {
 		struct stat st;
 		char buf[PATH_MAX];
@@ -170,9 +170,10 @@ maildir_list( store_t *gctx, string_list_t **retb )
 		nfsnprintf( buf, sizeof(buf), "%s%s/cur", gctx->conf->path, de->d_name );
 		if (stat( buf, &st ) || !S_ISDIR(st.st_mode))
 			continue;
-		add_string_list( retb, de->d_name );
+		add_string_list( &gctx->boxes, de->d_name );
 	}
 	closedir (dir);
+	gctx->listed = 1;
 
 	return DRV_OK;
 }

@@ -144,6 +144,8 @@ typedef struct message {
 
 typedef struct store {
 	store_conf_t *conf; /* foreign */
+	string_list_t *boxes; /* _list results - own */
+	unsigned listed:1; /* was _list already run? */
 
 	/* currently open mailbox */
 	const char *name; /* foreign! maybe preset? */
@@ -176,7 +178,7 @@ struct driver {
 	int (*parse_store)( conffile_t *cfg, store_conf_t **storep, int *err );
 	store_t *(*open_store)( store_conf_t *conf, store_t *oldctx );
 	void (*close_store)( store_t *ctx );
-	int (*list)( store_t *ctx, string_list_t **boxes );
+	int (*list)( store_t *ctx );
 	void (*prepare_paths)( store_t *ctx );
 	void (*prepare_opts)( store_t *ctx, int opts );
 	int (*select)( store_t *ctx, int minuid, int maxuid, int *excs, int nexcs );

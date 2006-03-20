@@ -113,7 +113,6 @@ typedef struct imap_store {
 	unsigned /*currentnc:1,*/ trashnc:1;
 	int uidnext; /* from SELECT responses */
 	list_t *ns_personal, *ns_other, *ns_shared; /* NAMESPACE info */
-	string_list_t *boxes; /* LIST results */
 	message_t **msgapp; /* FETCH results */
 	unsigned caps, rcaps; /* CAPABILITY results */
 	/* command queue */
@@ -898,7 +897,7 @@ parse_list_rsp( imap_store_t *ctx, char *cmd )
 	arg += l;
 	if (!memcmp( arg + strlen( arg ) - 5, ".lock", 5 )) /* workaround broken servers */
 		return;
-	add_string_list( &ctx->boxes, arg );
+	add_string_list( &ctx->gen.boxes, arg );
 }
 
 static int
@@ -1042,6 +1041,7 @@ imap_close_store( store_t *gctx )
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
 	free_generic_messages( gctx->msgs );
+	free_string_list( ctx->gen.boxes );
 	if (ctx->buf.sock.fd != -1) {
 		imap_exec( ctx, 0, "LOGOUT" );
 		close( ctx->buf.sock.fd );
@@ -1180,6 +1180,9 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 
 	if (ctx) {
 		if (((imap_store_conf_t *)(ctx->gen.conf))->server == cfg->server) {
+			free_string_list( ctx->gen.boxes );
+			ctx->gen.boxes = 0;
+			ctx->gen.listed = 0;
 			ctx->gen.conf = conf;
 			goto final;
 		}
@@ -1586,16 +1589,14 @@ imap_find_msg( store_t *gctx, const char *tuid, int *uid )
 }
 
 static int
-imap_list( store_t *gctx, string_list_t **retb )
+imap_list( store_t *gctx )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 	int ret;
 
-	ctx->boxes = 0;
-	if ((ret = imap_exec_b( ctx, 0, "LIST \"\" \"%s%%\"", ctx->prefix )) != DRV_OK)
-		return ret;
-	*retb = ctx->boxes;
-	return DRV_OK;
+	if ((ret = imap_exec_b( ctx, 0, "LIST \"\" \"%s%%\"", ctx->prefix )) == DRV_OK)
+		gctx->listed = 1;
+	return ret;
 }
 
 static int

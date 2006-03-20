@@ -194,10 +194,10 @@ main( int argc, char **argv )
 	group_conf_t *group;
 	driver_t *driver[2];
 	store_t *ctx[2];
-	string_list_t *uboxes[2], *boxes[2], *mbox, *sbox, **mboxp, **sboxp, *cboxes, *chanptr;
+	string_list_t *boxes[2], *mbox, *sbox, **mboxp, **sboxp, *cboxes, *chanptr;
 	char *config = 0, *channame, *boxlist, *opt, *ochar;
 	const char *names[2];
-	int all = 0, list = 0, cops = 0, ops[2] = { 0, 0 }, guboxes[2];
+	int all = 0, list = 0, cops = 0, ops[2] = { 0, 0 };
 	int oind, ret, op, multiple, pseudo = 0, t;
 
 	gethostname( Hostname, sizeof(Hostname) );
@@ -444,8 +444,6 @@ main( int argc, char **argv )
 	ctx[M] = ctx[S] = 0;
 	conf[M] = conf[S] = 0;	/* make-gcc-happy */
 	driver[M] = driver[S] = 0;	/* make-gcc-happy */
-	guboxes[M] = guboxes[S] = 0;
-	uboxes[M] = uboxes[S] = 0;
 	if (all)
 		multiple = channels->next != 0;
 	else if (argv[oind + 1])
@@ -493,9 +491,6 @@ main( int argc, char **argv )
 			if (ctx[t]) {
 				if (conf[t] == chan->stores[t])
 					continue;
-				free_string_list( uboxes[t] );
-				uboxes[t] = 0;
-				guboxes[t] = 0;
 				if (conf[t]->driver != chan->stores[t]->driver) {
 					driver[t]->close_store( ctx[t] );
 					ctx[t] = 0;
@@ -525,23 +520,17 @@ main( int argc, char **argv )
 				}
 		} else if (chan->patterns) {
 			for (t = 0; t < 2; t++) {
-				if (!guboxes[t]) {
-					if (driver[t]->list( ctx[t], &uboxes[t] ) != DRV_OK) {
+				if (!ctx[t]->listed) {
+					if (driver[t]->list( ctx[t] ) != DRV_OK) {
 					  screwt:
 						driver[t]->close_store( ctx[t] );
-						free_string_list( uboxes[t] );
-						uboxes[t] = 0;
-						guboxes[t] = 0;
 						ctx[t] = 0;
 						ret = 1;
 						goto next;
-					} else {
-						guboxes[t] = 1;
-						if (ctx[t]->conf->map_inbox)
-							add_string_list( &uboxes[t], ctx[t]->conf->map_inbox );
-					}
+					} else if (ctx[t]->conf->map_inbox)
+						add_string_list( &ctx[t]->boxes, ctx[t]->conf->map_inbox );
 				}
-				boxes[t] = filter_boxes( uboxes[t], chan->patterns );
+				boxes[t] = filter_boxes( ctx[t]->boxes, chan->patterns );
 			}
 			for (mboxp = &boxes[M]; (mbox = *mboxp); ) {
 				for (sboxp = &boxes[S]; (sbox = *sboxp); sboxp = &sbox->next)
@@ -606,10 +595,8 @@ main( int argc, char **argv )
 				break;
 		}
 	}
-	free_string_list( uboxes[S] );
 	if (ctx[S])
 		driver[S]->close_store( ctx[S] );
-	free_string_list( uboxes[M] );
 	if (ctx[M])
 		driver[M]->close_store( ctx[M] );
 
