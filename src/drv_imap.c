@@ -112,6 +112,7 @@ typedef struct imap_store {
 	const char *prefix;
 	unsigned /*currentnc:1,*/ trashnc:1;
 	int uidnext; /* from SELECT responses */
+	unsigned got_namespace:1;
 	list_t *ns_personal, *ns_other, *ns_shared; /* NAMESPACE info */
 	message_t **msgapp; /* FETCH results */
 	unsigned caps, rcaps; /* CAPABILITY results */
@@ -1400,8 +1401,11 @@ imap_open_store( store_conf_t *conf )
 		ctx->prefix = conf->path;
 	else if (cfg->use_namespace && CAP(NAMESPACE)) {
 		/* get NAMESPACE info */
-		if (imap_exec( ctx, 0, "NAMESPACE" ) != RESP_OK)
-			goto bail;
+		if (!ctx->got_namespace) {
+			if (imap_exec( ctx, 0, "NAMESPACE" ) != RESP_OK)
+				goto bail;
+			ctx->got_namespace = 1;
+		}
 		/* XXX for now assume personal namespace */
 		if (is_list( ctx->ns_personal ) &&
 		    is_list( ctx->ns_personal->child ) &&
