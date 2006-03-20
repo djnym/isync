@@ -234,8 +234,7 @@ verify_cert( SSL *ssl )
 static int
 init_ssl_ctx( imap_store_t *ctx )
 {
-	imap_store_conf_t *conf = (imap_store_conf_t *)ctx->gen.conf;
-	imap_server_conf_t *srvc = conf->server;
+	imap_server_conf_t *srvc = ((imap_store_conf_t *)ctx->gen.conf)->server;
 	SSL_METHOD *method;
 	int options = 0;
 
@@ -1070,7 +1069,7 @@ start_tls( imap_store_t *ctx )
 		ssl_inited = 1;
 	}
 
-        if (init_ssl_ctx( ctx ))
+	if (init_ssl_ctx( ctx ))
 		return 1;
 
 	ctx->buf.sock.ssl = SSL_new( ctx->SSLContext );
@@ -1145,7 +1144,7 @@ cram( const char *challenge, const char *user, const char *pass )
 }
 
 static int
-do_cram_auth (imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt)
+do_cram_auth( imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt )
 {
 	imap_server_conf_t *srvc = ((imap_store_conf_t *)ctx->gen.conf)->server;
 	char *resp;
