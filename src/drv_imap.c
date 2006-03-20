@@ -1036,16 +1036,14 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 }
 
 static void
-imap_close_store( store_t *gctx )
+imap_cancel_store( store_t *gctx )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 
 	free_generic_messages( gctx->msgs );
 	free_string_list( ctx->gen.boxes );
-	if (ctx->buf.sock.fd != -1) {
-		imap_exec( ctx, 0, "LOGOUT" );
+	if (ctx->buf.sock.fd >= 0)
 		close( ctx->buf.sock.fd );
-	}
 #ifdef HAVE_LIBSSL
 	if (ctx->SSLContext)
 		SSL_CTX_free( ctx->SSLContext );
@@ -1054,6 +1052,42 @@ imap_close_store( store_t *gctx )
 	free_list( ctx->ns_other );
 	free_list( ctx->ns_shared );
 	free( ctx );
+}
+
+static store_t *unowned;
+
+static void
+imap_disown_store( store_t *gctx )
+{
+	free_generic_messages( gctx->msgs );
+	gctx->msgs = 0;
+	gctx->next = unowned;
+	unowned = gctx;
+}
+
+static store_t *
+imap_own_store( store_conf_t *conf )
+{
+	store_t *store, **storep;
+
+	for (storep = &unowned; (store = *storep); storep = &store->next)
+		if (store->conf == conf) {
+			*storep = store->next;
+			return store;
+		}
+	return 0;
+}
+
+static void
+imap_cleanup( void )
+{
+	store_t *ctx, *nctx;
+
+	for (ctx = unowned; ctx; ctx = nctx) {
+		nctx = ctx->next;
+		imap_exec( (imap_store_t *)ctx, 0, "LOGOUT" );
+		imap_cancel_store( ctx );
+	}
 }
 
 #ifdef HAVE_LIBSSL
@@ -1165,11 +1199,12 @@ do_cram_auth( imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt )
 #endif
 
 static store_t *
-imap_open_store( store_conf_t *conf, store_t *oldctx )
+imap_open_store( store_conf_t *conf )
 {
 	imap_store_conf_t *cfg = (imap_store_conf_t *)conf;
 	imap_server_conf_t *srvc = cfg->server;
-	imap_store_t *ctx = (imap_store_t *)oldctx;
+	imap_store_t *ctx;
+	store_t **ctxp;
 	char *arg, *rsp;
 	struct hostent *he;
 	struct sockaddr_in addr;
@@ -1178,16 +1213,17 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 	int use_ssl;
 #endif
 
-	if (ctx) {
-		if (((imap_store_conf_t *)(ctx->gen.conf))->server == cfg->server) {
+	for (ctxp = &unowned; (ctx = (imap_store_t *)*ctxp); ctxp = &ctx->gen.next)
+		if (((imap_store_conf_t *)ctx->gen.conf)->server == srvc) {
+			*ctxp = ctx->gen.next;
+			/* One could ping the server here, but given that the idle timeout
+			 * is at least 30 minutes, this sounds pretty pointless. */
 			free_string_list( ctx->gen.boxes );
 			ctx->gen.boxes = 0;
 			ctx->gen.listed = 0;
 			ctx->gen.conf = conf;
 			goto final;
 		}
-		imap_close_store( &ctx->gen );
-	}
 
 	ctx = nfcalloc( sizeof(*ctx) );
 	ctx->gen.conf = conf;
@@ -1372,7 +1408,7 @@ imap_open_store( store_conf_t *conf, store_t *oldctx )
 	return &ctx->gen;
 
   bail:
-	imap_close_store( &ctx->gen );
+	imap_cancel_store( &ctx->gen );
 	return 0;
 }
 
@@ -1739,8 +1775,11 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 struct driver imap_driver = {
 	DRV_CRLF,
 	imap_parse_store,
+	imap_cleanup,
 	imap_open_store,
-	imap_close_store,
+	imap_disown_store,
+	imap_own_store,
+	imap_cancel_store,
 	imap_list,
 	imap_prepare_paths,
 	imap_prepare_opts,

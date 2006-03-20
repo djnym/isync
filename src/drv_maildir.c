@@ -93,16 +93,12 @@ maildir_parse_flags( const char *base )
 	return flags;
 }
 
-static void maildir_close_store( store_t *gctx );
-
 static store_t *
-maildir_open_store( store_conf_t *conf, store_t *oldctx )
+maildir_open_store( store_conf_t *conf )
 {
 	maildir_store_t *ctx;
 	struct stat st;
 
-	if (oldctx)
-		maildir_close_store( oldctx );
 	if (stat( conf->path, &st ) || !S_ISDIR(st.st_mode)) {
 		error( "Maildir error: cannot open store %s\n", conf->path );
 		return 0;
@@ -144,11 +140,23 @@ maildir_cleanup( store_t *gctx )
 }
 
 static void
-maildir_close_store( store_t *gctx )
+maildir_disown_store( store_t *gctx )
 {
 	maildir_cleanup( gctx );
 	free_string_list( gctx->boxes );
 	free( gctx );
+}
+
+static store_t *
+maildir_own_store( store_conf_t *conf )
+{
+	(void)conf;
+	return 0;
+}
+
+static void
+maildir_cleanup_drv( void )
+{
 }
 
 static int
@@ -1226,8 +1234,11 @@ maildir_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 struct driver maildir_driver = {
 	0,
 	maildir_parse_store,
+	maildir_cleanup_drv,
 	maildir_open_store,
-	maildir_close_store,
+	maildir_disown_store,
+	maildir_own_store,
+	maildir_disown_store, /* _cancel_, but it's the same */
 	maildir_list,
 	maildir_prepare_paths,
 	maildir_prepare_opts,

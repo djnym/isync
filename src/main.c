@@ -190,7 +190,6 @@ int
 main( int argc, char **argv )
 {
 	channel_conf_t *chan;
-	store_conf_t *conf[2];
 	group_conf_t *group;
 	driver_t *driver[2];
 	store_t *ctx[2];
@@ -441,9 +440,6 @@ main( int argc, char **argv )
 	ret = 0;
 	chan = channels;
 	chanptr = 0;
-	ctx[M] = ctx[S] = 0;
-	conf[M] = conf[S] = 0;	/* make-gcc-happy */
-	driver[M] = driver[S] = 0;	/* make-gcc-happy */
 	if (all)
 		multiple = channels->next != 0;
 	else if (argv[oind + 1])
@@ -486,23 +482,15 @@ main( int argc, char **argv )
 		merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
 
 		boxes[M] = boxes[S] = cboxes = 0;
-		/* possible todo: handle master <-> slave swaps */
 		for (t = 0; t < 2; t++) {
-			if (ctx[t]) {
-				if (conf[t] == chan->stores[t])
-					continue;
-				if (conf[t]->driver != chan->stores[t]->driver) {
-					driver[t]->close_store( ctx[t] );
-					ctx[t] = 0;
-				}
-			}
-			conf[t] = chan->stores[t];
-			driver[t] = conf[t]->driver;
-			if (!(ctx[t] = driver[t]->open_store( chan->stores[t], ctx[t] ))) {
+			driver[t] = chan->stores[t]->driver;
+			ctx[t] = driver[t]->own_store( chan->stores[t] );
+		}
+		for (t = 0; t < 2; t++)
+			if (!ctx[t] && !(ctx[t] = driver[t]->open_store( chan->stores[t] ))) {
 				ret = 1;
 				goto next;
 			}
-		}
 		info( "Channel %s\n", chan->name );
 		if (list && multiple)
 			printf( "%s:\n", chan->name );
@@ -523,7 +511,7 @@ main( int argc, char **argv )
 				if (!ctx[t]->listed) {
 					if (driver[t]->list( ctx[t] ) != DRV_OK) {
 					  screwt:
-						driver[t]->close_store( ctx[t] );
+						driver[t]->cancel_store( ctx[t] );
 						ctx[t] = 0;
 						ret = 1;
 						goto next;
@@ -584,6 +572,10 @@ main( int argc, char **argv )
 		free_string_list( cboxes );
 		free_string_list( boxes[M] );
 		free_string_list( boxes[S] );
+		if (ctx[M])
+			driver[M]->disown_store( ctx[M] );
+		if (ctx[S])
+			driver[S]->disown_store( ctx[S] );
 		if (all) {
 			if (!(chan = chan->next))
 				break;
@@ -595,10 +587,8 @@ main( int argc, char **argv )
 				break;
 		}
 	}
-	if (ctx[S])
-		driver[S]->close_store( ctx[S] );
-	if (ctx[M])
-		driver[M]->close_store( ctx[M] );
+	for (t = 0; t < N_DRIVERS; t++)
+		drivers[t]->cleanup();
 
 	return ret;
 }

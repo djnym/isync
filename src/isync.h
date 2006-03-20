@@ -143,6 +143,7 @@ typedef struct message {
 #define OPEN_FIND       (1<<8)
 
 typedef struct store {
+	struct store *next;
 	store_conf_t *conf; /* foreign */
 	string_list_t *boxes; /* _list results - own */
 	unsigned listed:1; /* was _list already run? */
@@ -176,8 +177,11 @@ typedef struct {
 struct driver {
 	int flags;
 	int (*parse_store)( conffile_t *cfg, store_conf_t **storep, int *err );
-	store_t *(*open_store)( store_conf_t *conf, store_t *oldctx );
-	void (*close_store)( store_t *ctx );
+	void (*cleanup)( void );
+	store_t *(*open_store)( store_conf_t *conf );
+	void (*disown_store)( store_t *ctx );
+	store_t *(*own_store)( store_conf_t *conf );
+	void (*cancel_store)( store_t *ctx );
 	int (*list)( store_t *ctx );
 	void (*prepare_paths)( store_t *ctx );
 	void (*prepare_opts)( store_t *ctx, int opts );
