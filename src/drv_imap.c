@@ -1265,7 +1265,7 @@ imap_open_store( store_conf_t *conf )
 		infon( "Resolving %s... ", srvc->host );
 		he = gethostbyname( srvc->host );
 		if (!he) {
-			perror( "gethostbyname" );
+			error( "IMAP error: Cannot resolve server '%s'\n", srvc->host );
 			goto bail;
 		}
 		info( "ok\n" );
@@ -1273,6 +1273,10 @@ imap_open_store( store_conf_t *conf )
 		addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
 
 		s = socket( PF_INET, SOCK_STREAM, 0 );
+		if (s < 0) {
+			perror( "socket" );
+			exit( 1 );
+		}
 
 		infon( "Connecting to %s:%hu... ", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ) );
 		if (connect( s, (struct sockaddr *)&addr, sizeof(addr) )) {
