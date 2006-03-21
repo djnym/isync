@@ -194,7 +194,7 @@ main( int argc, char **argv )
 	driver_t *driver[2];
 	store_t *ctx[2];
 	string_list_t *boxes[2], *mbox, *sbox, **mboxp, **sboxp, *cboxes, *chanptr;
-	char *config = 0, *channame, *boxlist, *opt, *ochar;
+	char *config = 0, *channame, *boxlist, *boxp, *opt, *ochar;
 	const char *names[2];
 	int all = 0, list = 0, cops = 0, ops[2] = { 0, 0 };
 	int oind, ret, op, multiple, pseudo = 0, t;
@@ -495,21 +495,9 @@ main( int argc, char **argv )
 					goto next;
 				}
 			}
-		if (list && multiple)
-			printf( "%s:\n", chan->name );
-		if (boxlist) {
-			for (boxlist = strtok( boxlist, ",\n" ); boxlist; boxlist = strtok( 0, ",\n" ))
-				if (list)
-					puts( boxlist );
-				else {
-					names[M] = names[S] = boxlist;
-					switch (sync_boxes( ctx, names, chan )) {
-					case SYNC_BAD(M): t = M; goto screwt;
-					case SYNC_BAD(S): t = S; goto screwt;
-					case SYNC_FAIL: ret = 1;
-					}
-				}
-		} else if (chan->patterns) {
+		if (boxlist)
+			boxp = boxlist;
+		else if (chan->patterns) {
 			for (t = 0; t < 2; t++) {
 				if (!ctx[t]->listed) {
 					if (driver[t]->list( ctx[t] ) != DRV_OK) {
@@ -536,6 +524,24 @@ main( int argc, char **argv )
 				mboxp = &mbox->next;
 			  gotdupe: ;
 			}
+		}
+
+		if (list && multiple)
+			printf( "%s:\n", chan->name );
+		if (boxlist) {
+			while ((names[S] = strsep( &boxp, ",\n" ))) {
+				if (list)
+					puts( names[S] );
+				else {
+					names[M] = names[S];
+					switch (sync_boxes( ctx, names, chan )) {
+					case SYNC_BAD(M): t = M; goto screwt;
+					case SYNC_BAD(S): t = S; goto screwt;
+					case SYNC_FAIL: ret = 1;
+					}
+				}
+			}
+		} else if (chan->patterns) {
 			for (mbox = cboxes; mbox; mbox = mbox->next)
 				if (list)
 					puts( mbox->string );
