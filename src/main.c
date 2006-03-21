@@ -24,6 +24,7 @@
 #include "isync.h"
 
 #include <stdlib.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
@@ -198,7 +199,16 @@ typedef struct {
 	unsigned done:1, skip:1, cben:1;
 } main_vars_t;
 
-static void sync_chans( main_vars_t *mvars );
+#define AUX &mvars->t[t]
+#define MVARS(aux) \
+	int t = *(int *)aux; \
+	main_vars_t *mvars = (main_vars_t *)(((char *)(&((int *)aux)[-t])) - offsetof(main_vars_t, t));
+
+#define E_START  0
+#define E_OPEN   1
+#define E_SYNC   2
+
+static void sync_chans( main_vars_t *mvars, int ent );
 
 int
 main( int argc, char **argv )
@@ -460,19 +470,36 @@ main( int argc, char **argv )
 				break;
 			}
 	mvars->argv = argv;
-	sync_chans( mvars );
+	mvars->cben = 1;
+	sync_chans( mvars, E_START );
 	return mvars->ret;
 }
 
+#define ST_FRESH     0
+#define ST_OPEN      1
+#define ST_CLOSED    2
+
+static void store_opened( store_t *ctx, void *aux );
+static void store_listed( int sts, void *aux );
+static void done_sync_dyn( int sts, void *aux );
+static void done_sync( int sts, void *aux );
+
 static void
-sync_chans( main_vars_t *mvars )
+sync_chans( main_vars_t *mvars, int ent )
 {
 	group_conf_t *group;
 	channel_conf_t *chan;
+	store_t *store;
 	string_list_t *mbox, *sbox, **mboxp, **sboxp;
 	char *channame;
 	int t;
 
+	if (!mvars->cben)
+		return;
+	switch (ent) {
+	case E_OPEN: goto opened;
+	case E_SYNC: goto syncone;
+	}
 	for (;;) {
 		mvars->boxlist = 0;
 		if (!mvars->all) {
@@ -503,36 +530,32 @@ sync_chans( main_vars_t *mvars )
 		merge_actions( mvars->chan, mvars->ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 		merge_actions( mvars->chan, mvars->ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
 
+		mvars->state[M] = mvars->state[S] = ST_FRESH;
 		info( "Channel %s\n", mvars->chan->name );
 		mvars->boxes[M] = mvars->boxes[S] = mvars->cboxes = 0;
+		mvars->skip = mvars->cben = 0;
 		for (t = 0; t < 2; t++) {
 			mvars->drv[t] = mvars->chan->stores[t]->driver;
-			mvars->ctx[t] = mvars->drv[t]->own_store( mvars->chan->stores[t] );
+			if ((store = mvars->drv[t]->own_store( mvars->chan->stores[t] )))
+				store_opened( store, AUX );
 		}
-		for (t = 0; t < 2; t++)
-			if (!mvars->ctx[t]) {
+		for (t = 0; t < 2 && !mvars->skip; t++)
+			if (mvars->state[t] == ST_FRESH) {
 				info( "Opening %s %s...\n", str_ms[t], mvars->chan->stores[t]->name );
-				if (!(mvars->ctx[t] = mvars->drv[t]->open_store( mvars->chan->stores[t] ))) {
-					mvars->ret = 1;
-					goto next;
-				}
+				mvars->drv[t]->open_store( mvars->chan->stores[t], store_opened, AUX );
 			}
+		mvars->cben = 1;
+	  opened:
+		if (mvars->skip)
+			goto next;
+		if (mvars->state[M] != ST_OPEN || mvars->state[S] != ST_OPEN)
+			return;
+
 		if (mvars->boxlist)
 			mvars->boxp = mvars->boxlist;
 		else if (mvars->chan->patterns) {
-			for (t = 0; t < 2; t++) {
-				if (!mvars->ctx[t]->listed) {
-					if (mvars->drv[t]->list( mvars->ctx[t] ) != DRV_OK) {
-					  screwt:
-						mvars->drv[t]->cancel_store( mvars->ctx[t] );
-						mvars->ctx[t] = 0;
-						mvars->ret = 1;
-						goto next;
-					} else if (mvars->ctx[t]->conf->map_inbox)
-						add_string_list( &mvars->ctx[t]->boxes, mvars->ctx[t]->conf->map_inbox );
-				}
-				mvars->boxes[t] = filter_boxes( mvars->ctx[t]->boxes, mvars->chan->patterns );
-			}
+			mvars->boxes[M] = filter_boxes( mvars->ctx[M]->boxes, mvars->chan->patterns );
+			mvars->boxes[S] = filter_boxes( mvars->ctx[S]->boxes, mvars->chan->patterns );
 			for (mboxp = &mvars->boxes[M]; (mbox = *mboxp); ) {
 				for (sboxp = &mvars->boxes[S]; (sbox = *sboxp); sboxp = &sbox->next)
 					if (!strcmp( sbox->string, mbox->string )) {
@@ -550,60 +573,70 @@ sync_chans( main_vars_t *mvars )
 
 		if (mvars->list && mvars->multiple)
 			printf( "%s:\n", mvars->chan->name );
+	  syncml:
+		mvars->done = mvars->cben = 0;
+	  syncmlx:
 		if (mvars->boxlist) {
-			while ((mvars->names[S] = strsep( &mvars->boxp, ",\n" ))) {
-				if (mvars->list)
-					puts( mvars->names[S] );
-				else {
+			if ((mvars->names[S] = strsep( &mvars->boxp, ",\n" ))) {
+				if (!mvars->list) {
 					mvars->names[M] = mvars->names[S];
-					switch (sync_boxes( mvars->ctx, mvars->names, mvars->chan )) {
-					case SYNC_BAD(M): t = M; goto screwt;
-					case SYNC_BAD(S): t = S; goto screwt;
-					case SYNC_FAIL: mvars->ret = 1;
-					}
+					sync_boxes( mvars->ctx, mvars->names, mvars->chan, done_sync, mvars );
+					goto syncw;
 				}
+				puts( mvars->names[S] );
+				goto syncmlx;
 			}
 		} else if (mvars->chan->patterns) {
-			for (mbox = mvars->cboxes; mbox; mbox = mbox->next)
-				if (mvars->list)
-					puts( mbox->string );
-				else {
+			if ((mbox = mvars->cboxes)) {
+				mvars->cboxes = mbox->next;
+				if (!mvars->list) {
 					mvars->names[M] = mvars->names[S] = mbox->string;
-					switch (sync_boxes( mvars->ctx, mvars->names, mvars->chan )) {
-					case SYNC_BAD(M): t = M; goto screwt;
-					case SYNC_BAD(S): t = S; goto screwt;
-					case SYNC_FAIL: mvars->ret = 1;
-					}
+					sync_boxes( mvars->ctx, mvars->names, mvars->chan, done_sync_dyn, mvars );
+					goto syncw;
 				}
+				puts( mbox->string );
+				free( mbox );
+				goto syncmlx;
+			}
 			for (t = 0; t < 2; t++)
-				if ((mvars->chan->ops[1-t] & OP_MASK_TYPE) && (mvars->chan->ops[1-t] & OP_CREATE)) {
-					for (mbox = mvars->boxes[t]; mbox; mbox = mbox->next)
-						if (mvars->list)
-							puts( mbox->string );
-						else {
+				if ((mbox = mvars->boxes[t])) {
+					mvars->boxes[t] = mbox->next;
+					if ((mvars->chan->ops[1-t] & OP_MASK_TYPE) && (mvars->chan->ops[1-t] & OP_CREATE)) {
+						if (!mvars->list) {
 							mvars->names[M] = mvars->names[S] = mbox->string;
-							switch (sync_boxes( mvars->ctx, mvars->names, mvars->chan )) {
-							case SYNC_BAD(M): t = M; goto screwt;
-							case SYNC_BAD(S): t = S; goto screwt;
-							case SYNC_FAIL: mvars->ret = 1;
-							}
+							sync_boxes( mvars->ctx, mvars->names, mvars->chan, done_sync_dyn, mvars );
+							goto syncw;
 						}
+						puts( mbox->string );
+					}
+					free( mbox );
+					goto syncmlx;
 				}
-		} else
-			if (mvars->list)
+		} else {
+			if (!mvars->list) {
+				sync_boxes( mvars->ctx, mvars->chan->boxes, mvars->chan, done_sync, mvars );
+				mvars->skip = 1;
+			  syncw:
+				mvars->cben = 1;
+				if (!mvars->done)
+					return;
+			  syncone:
+				if (!mvars->skip)
+					goto syncml;
+			} else
 				printf( "%s <=> %s\n", mvars->chan->boxes[M], mvars->chan->boxes[S] );
-			else
-				switch (sync_boxes( mvars->ctx, mvars->chan->boxes, mvars->chan )) {
-				case SYNC_BAD(M): t = M; goto screwt;
-				case SYNC_BAD(S): t = S; goto screwt;
-				case SYNC_FAIL: mvars->ret = 1;
-				}
+		}
 
 	  next:
-		if (mvars->ctx[M])
-			mvars->drv[M]->disown_store( mvars->ctx[M] );
-		if (mvars->ctx[S])
-			mvars->drv[S]->disown_store( mvars->ctx[S] );
+		for (t = 0; t < 2; t++)
+			if (mvars->state[t] == ST_OPEN) {
+				mvars->drv[t]->disown_store( mvars->ctx[t] );
+				mvars->state[t] = ST_CLOSED;
+			}
+		if (mvars->state[M] != ST_CLOSED || mvars->state[S] != ST_CLOSED) {
+			mvars->skip = mvars->cben = 1;
+			return;
+		}
 		free_string_list( mvars->cboxes );
 		free_string_list( mvars->boxes[M] );
 		free_string_list( mvars->boxes[S] );
@@ -620,4 +653,77 @@ sync_chans( main_vars_t *mvars )
 	}
 	for (t = 0; t < N_DRIVERS; t++)
 		drivers[t]->cleanup();
+}
+
+static void
+store_opened( store_t *ctx, void *aux )
+{
+	MVARS(aux)
+
+	if (!ctx) {
+		mvars->state[t] = ST_CLOSED;
+		mvars->ret = mvars->skip = 1;
+		return;
+	}
+	mvars->ctx[t] = ctx;
+	if (mvars->skip) {
+		mvars->state[t] = ST_OPEN;
+		sync_chans( mvars, E_OPEN );
+		return;
+	}
+	if (!mvars->boxlist && mvars->chan->patterns && !ctx->listed)
+		mvars->drv[t]->list( ctx, store_listed, AUX );
+	else {
+		mvars->state[t] = ST_OPEN;
+		sync_chans( mvars, E_OPEN );
+	}
+}
+
+static void
+store_listed( int sts, void *aux )
+{
+	MVARS(aux)
+
+	mvars->state[t] = ST_OPEN;
+	switch (sts) {
+	case DRV_OK:
+		if (mvars->ctx[t]->conf->map_inbox)
+			add_string_list( &mvars->ctx[t]->boxes, mvars->ctx[t]->conf->map_inbox );
+		break;
+	case DRV_STORE_BAD:
+		mvars->drv[t]->cancel_store( mvars->ctx[t] );
+		mvars->state[t] = ST_CLOSED;
+	default:
+		mvars->ret = mvars->skip = 1;
+		break;
+	}
+	sync_chans( mvars, E_OPEN );
+}
+
+static void
+done_sync_dyn( int sts, void *aux )
+{
+	main_vars_t *mvars = (main_vars_t *)aux;
+
+	free( ((char *)mvars->names[S]) - offsetof(string_list_t, string) );
+	done_sync( sts, aux );
+}
+
+static void
+done_sync( int sts, void *aux )
+{
+	main_vars_t *mvars = (main_vars_t *)aux;
+
+	mvars->done = 1;
+	if (sts) {
+		mvars->ret = 1;
+		if (sts & (SYNC_BAD(M) | SYNC_BAD(S))) {
+			mvars->skip = 1;
+			if (sts & SYNC_BAD(M))
+				mvars->state[M] = ST_CLOSED;
+			if (sts & SYNC_BAD(S))
+				mvars->state[S] = ST_CLOSED;
+		}
+	}
+	sync_chans( mvars, E_SYNC );
 }

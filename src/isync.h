@@ -166,9 +166,13 @@ typedef struct {
 } msg_data_t;
 
 #define DRV_OK          0
-#define DRV_MSG_BAD     -1
-#define DRV_BOX_BAD     -2
-#define DRV_STORE_BAD   -3
+#define DRV_MSG_BAD     1
+#define DRV_BOX_BAD     2
+#define DRV_STORE_BAD   3
+#define DRV_SERVER_BAD  4
+#define DRV_CANCELED    5
+
+/* All memory belongs to the driver's user. */
 
 #define DRV_CRLF        1
 
@@ -178,21 +182,32 @@ struct driver {
 	int flags;
 	int (*parse_store)( conffile_t *cfg, store_conf_t **storep, int *err );
 	void (*cleanup)( void );
-	store_t *(*open_store)( store_conf_t *conf );
+	void (*open_store)( store_conf_t *conf,
+	                    void (*cb)( store_t *ctx, void *aux ), void *aux );
 	void (*disown_store)( store_t *ctx );
 	store_t *(*own_store)( store_conf_t *conf );
 	void (*cancel_store)( store_t *ctx );
-	int (*list)( store_t *ctx );
+	void (*list)( store_t *ctx,
+	              void (*cb)( int sts, void *aux ), void *aux );
 	void (*prepare_paths)( store_t *ctx );
 	void (*prepare_opts)( store_t *ctx, int opts );
-	int (*select)( store_t *ctx, int minuid, int maxuid, int *excs, int nexcs );
-	int (*fetch_msg)( store_t *ctx, message_t *msg, msg_data_t *data );
-	int (*store_msg)( store_t *ctx, msg_data_t *data, int *uid ); /* if uid is null, store to trash */
-	int (*find_msg)( store_t *ctx, const char *tuid, int *uid );
-	int (*set_flags)( store_t *ctx, message_t *msg, int uid, int add, int del ); /* msg can be null, therefore uid as a fallback */
-	int (*trash_msg)( store_t *ctx, message_t *msg ); /* This may expunge the original message immediately, but it needn't to */
-	int (*check)( store_t *ctx ); /* IMAP-style: flush */
-	int (*close)( store_t *ctx ); /* IMAP-style: expunge inclusive */
+	void (*select)( store_t *ctx, int minuid, int maxuid, int *excs, int nexcs,
+	                void (*cb)( int sts, void *aux ), void *aux );
+	void (*fetch_msg)( store_t *ctx, message_t *msg, msg_data_t *data,
+	                   void (*cb)( int sts, void *aux ), void *aux );
+	void (*store_msg)( store_t *ctx, msg_data_t *data, int to_trash,
+	                   void (*cb)( int sts, int uid, void *aux ), void *aux );
+	void (*find_msg)( store_t *ctx, const char *tuid,
+	                  void (*cb)( int sts, int uid, void *aux ), void *aux );
+	void (*set_flags)( store_t *ctx, message_t *msg, int uid, int add, int del, /* msg can be null, therefore uid as a fallback */
+	                   void (*cb)( int sts, void *aux ), void *aux );
+	void (*trash_msg)( store_t *ctx, message_t *msg, /* This may expunge the original message immediately, but it needn't to */
+	                   void (*cb)( int sts, void *aux ), void *aux );
+	void (*close)( store_t *ctx, /* IMAP-style: expunge inclusive */
+	               void (*cb)( int sts, void *aux ), void *aux );
+	void (*cancel)( store_t *ctx, /* only not yet sent commands */
+	                void (*cb)( int sts, void *aux ), void *aux );
+	void (*commit)( store_t *ctx );
 };
 
 
@@ -217,7 +232,6 @@ void debug( const char *, ... );
 void debugn( const char *, ... );
 void info( const char *, ... );
 void infon( const char *, ... );
-void infoc( char );
 void warn( const char *, ... );
 void error( const char *, ... );
 
@@ -248,12 +262,15 @@ unsigned char arc4_getbyte( void );
 
 extern const char *str_ms[2], *str_hl[2];
 
-#define SYNC_OK      0
-#define SYNC_FAIL    1
-#define SYNC_BAD(ms) (2+(ms))
-#define SYNC_NOGOOD  4 /* internal */
+#define SYNC_OK       0 /* assumed to be 0 */
+#define SYNC_FAIL     1
+#define SYNC_BAD(ms)  (2<<(ms))
+#define SYNC_NOGOOD   8 /* internal */
+#define SYNC_CANCELED 16 /* internal */
 
-int sync_boxes( store_t *ctx[], const char *names[], channel_conf_t * );
+/* All passed pointers must stay alive until cb is called. */
+void sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan,
+                 void (*cb)( int sts, void *aux ), void *aux );
 
 /* config.c */
 

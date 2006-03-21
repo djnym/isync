@@ -1199,8 +1199,9 @@ do_cram_auth( imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt )
 }
 #endif
 
-static store_t *
-imap_open_store( store_conf_t *conf )
+static void
+imap_open_store( store_conf_t *conf,
+                 void (*cb)( store_t *srv, void *aux ), void *aux )
 {
 	imap_store_conf_t *cfg = (imap_store_conf_t *)conf;
 	imap_server_conf_t *srvc = cfg->server;
@@ -1367,12 +1368,12 @@ imap_open_store( store_conf_t *conf )
 		}
 #if HAVE_LIBSSL
 		if (CAP(CRAM)) {
-			struct imap_cmd_cb cb;
+			struct imap_cmd_cb cbd;
 
 			info( "Authenticating with CRAM-MD5\n" );
-			memset( &cb, 0, sizeof(cb) );
-			cb.cont = do_cram_auth;
-			if (imap_exec( ctx, &cb, "AUTHENTICATE CRAM-MD5" ) != RESP_OK)
+			memset( &cbd, 0, sizeof(cbd) );
+			cbd.cont = do_cram_auth;
+			if (imap_exec( ctx, &cbd, "AUTHENTICATE CRAM-MD5" ) != RESP_OK)
 				goto bail;
 		} else if (srvc->require_cram) {
 			error( "IMAP error: CRAM-MD5 authentication is not supported by server\n" );
@@ -1402,8 +1403,10 @@ imap_open_store( store_conf_t *conf )
 	else if (cfg->use_namespace && CAP(NAMESPACE)) {
 		/* get NAMESPACE info */
 		if (!ctx->got_namespace) {
-			if (imap_exec( ctx, 0, "NAMESPACE" ) != RESP_OK)
-				goto bail;
+			if (imap_exec( ctx, 0, "NAMESPACE" ) != RESP_OK) {
+				cb( 0, aux );
+				return;
+			}
 			ctx->got_namespace = 1;
 		}
 		/* XXX for now assume personal namespace */
@@ -1413,11 +1416,13 @@ imap_open_store( store_conf_t *conf )
 			ctx->prefix = ctx->ns_personal->child->child->val;
 	}
 	ctx->trashnc = 1;
-	return &ctx->gen;
+	cb( &ctx->gen, aux );
+	return;
 
   bail:
 	imap_cancel_store( &ctx->gen );
-	return 0;
+	cb( 0, aux );
+	return;
 }
 
 static void
@@ -1433,13 +1438,14 @@ imap_prepare_opts( store_t *gctx, int opts )
 	gctx->opts = opts;
 }
 
-static int
-imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
+static void
+imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs,
+             void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 	const char *prefix;
 	int ret, i, j, bl;
-	struct imap_cmd_cb cb;
+	struct imap_cmd_cb cbd;
 	char buf[1000];
 
 
@@ -1451,10 +1457,10 @@ imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
 		prefix = ctx->prefix;
 	}
 
-	memset( &cb, 0, sizeof(cb) );
-	cb.create = (gctx->opts & OPEN_CREATE) != 0;
-	cb.trycreate = 1;
-	if ((ret = imap_exec_b( ctx, &cb, "SELECT \"%s%s\"", prefix, gctx->name )) != DRV_OK)
+	memset( &cbd, 0, sizeof(cbd) );
+	cbd.create = (gctx->opts & OPEN_CREATE) != 0;
+	cbd.trycreate = 1;
+	if ((ret = imap_exec_b( ctx, &cbd, "SELECT \"%s%s\"", prefix, gctx->name )) != DRV_OK)
 		goto bail;
 
 	if (gctx->count) {
@@ -1489,19 +1495,20 @@ imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
   bail:
 	if (excs)
 		free( excs );
-	return ret;
+	cb( ret, aux );
 }
 
-static int
-imap_fetch_msg( store_t *ctx, message_t *msg, msg_data_t *data )
+static void
+imap_fetch_msg( store_t *ctx, message_t *msg, msg_data_t *data,
+                void (*cb)( int sts, void *aux ), void *aux )
 {
-	struct imap_cmd_cb cb;
+	struct imap_cmd_cb cbd;
 
-	memset( &cb, 0, sizeof(cb) );
-	cb.uid = msg->uid;
-	cb.ctx = data;
-	return imap_exec_m( (imap_store_t *)ctx, &cb, "UID FETCH %d (%sBODY.PEEK[])",
-	                    msg->uid, (msg->status & M_FLAGS) ? "" : "FLAGS " );
+	memset( &cbd, 0, sizeof(cbd) );
+	cbd.uid = msg->uid;
+	cbd.ctx = data;
+	cb( imap_exec_m( (imap_store_t *)ctx, &cbd, "UID FETCH %d (%sBODY.PEEK[])",
+	                 msg->uid, (msg->status & M_FLAGS) ? "" : "FLAGS " ), aux );
 }
 
 static int
@@ -1531,8 +1538,9 @@ imap_flags_helper( imap_store_t *ctx, int uid, char what, int flags)
 	return issue_imap_cmd_w( ctx, 0, "UID STORE %d %cFLAGS.SILENT %s", uid, what, buf ) ? DRV_OK : DRV_STORE_BAD;
 }
 
-static int
-imap_set_flags( store_t *gctx, message_t *msg, int uid, int add, int del )
+static void
+imap_set_flags( store_t *gctx, message_t *msg, int uid, int add, int del,
+                void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 	int ret;
@@ -1546,35 +1554,38 @@ imap_set_flags( store_t *gctx, message_t *msg, int uid, int add, int del )
 	}
 	if ((!add || (ret = imap_flags_helper( ctx, uid, '+', add )) == DRV_OK) &&
 	    (!del || (ret = imap_flags_helper( ctx, uid, '-', del )) == DRV_OK))
-		return DRV_OK;
-	return ret;
+		ret = DRV_OK;
+	cb( ret, aux );
 }
 
-static int
-imap_close( store_t *ctx )
+static void
+imap_close( store_t *ctx,
+            void (*cb)( int sts, void *aux ), void *aux )
 {
-	return imap_exec_b( (imap_store_t *)ctx, 0, "CLOSE" );
+	cb( imap_exec_b( (imap_store_t *)ctx, 0, "CLOSE" ), aux );
 }
 
-static int
-imap_trash_msg( store_t *gctx, message_t *msg )
-{
-	imap_store_t *ctx = (imap_store_t *)gctx;
-	struct imap_cmd_cb cb;
-
-	memset( &cb, 0, sizeof(cb) );
-	cb.create = 1;
-	return imap_exec_m( ctx, &cb, "UID COPY %d \"%s%s\"",
-	                    msg->uid, ctx->prefix, gctx->conf->trash );
-}
-
-static int
-imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
+static void
+imap_trash_msg( store_t *gctx, message_t *msg,
+                void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	struct imap_cmd_cb cb;
+	struct imap_cmd_cb cbd;
+
+	memset( &cbd, 0, sizeof(cbd) );
+	cbd.create = 1;
+	cb( imap_exec_m( ctx, &cbd, "UID COPY %d \"%s%s\"",
+	                 msg->uid, ctx->prefix, gctx->conf->trash ), aux );
+}
+
+static void
+imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
+                void (*cb)( int sts, int uid, void *aux ), void *aux )
+{
+	imap_store_t *ctx = (imap_store_t *)gctx;
+	struct imap_cmd_cb cbd;
 	const char *prefix, *box;
-	int ret, d;
+	int ret, d, uid;
 	char flagstr[128];
 
 	d = 0;
@@ -1584,71 +1595,82 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 	}
 	flagstr[d] = 0;
 
-	memset( &cb, 0, sizeof(cb) );
-	cb.dlen = data->len;
-	cb.data = data->data;
-	if (!uid) {
+	memset( &cbd, 0, sizeof(cbd) );
+	cbd.dlen = data->len;
+	cbd.data = data->data;
+	cbd.ctx = &uid;
+	uid = -2;
+
+	if (to_trash) {
 		box = gctx->conf->trash;
 		prefix = ctx->prefix;
-		cb.create = 1;
+		cbd.create = 1;
 		if (ctx->trashnc)
 			ctx->caps = ctx->rcaps & ~(1 << LITERALPLUS);
 	} else {
 		box = gctx->name;
 		prefix = !strcmp( box, "INBOX" ) ? "" : ctx->prefix;
-		cb.create = (gctx->opts & OPEN_CREATE) != 0;
+		cbd.create = (gctx->opts & OPEN_CREATE) != 0;
 		/*if (ctx->currentnc)
 			ctx->caps = ctx->rcaps & ~(1 << LITERALPLUS);*/
-		*uid = -2;
 	}
-	cb.ctx = uid;
-	ret = imap_exec_m( ctx, &cb, "APPEND \"%s%s\" %s", prefix, box, flagstr );
+	ret = imap_exec_m( ctx, &cbd, "APPEND \"%s%s\" %s", prefix, box, flagstr );
 	ctx->caps = ctx->rcaps;
-	if (ret != DRV_OK)
-		return ret;
-	if (!uid)
+	if (ret != DRV_OK) {
+		cb( ret, -1, aux );
+		return;
+	}
+	if (to_trash)
 		ctx->trashnc = 0;
 	else {
 		/*ctx->currentnc = 0;*/
-		gctx->count++;
 	}
 
-	return DRV_OK;
+	cb( DRV_OK, uid, aux );
 }
 
-static int
-imap_find_msg( store_t *gctx, const char *tuid, int *uid )
+static void
+imap_find_msg( store_t *gctx, const char *tuid,
+               void (*cb)( int sts, int uid, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	struct imap_cmd_cb cb;
-	int ret;
+	struct imap_cmd_cb cbd;
+	int ret, uid;
 
-	memset( &cb, 0, sizeof(cb) );
-	cb.ctx = uid;
-	cb.uid = -1; /* we're looking for a UID */
-	*uid = -1; /* in case we get no SEARCH response at all */
-	if ((ret = imap_exec_m( ctx, &cb, "UID SEARCH HEADER X-TUID %." stringify(TUIDL) "s", tuid )) != DRV_OK)
-		return ret;
-	return *uid < 0 ? DRV_MSG_BAD : DRV_OK;
+	memset( &cbd, 0, sizeof(cbd) );
+	cbd.uid = -1; /* we're looking for a UID */
+	cbd.ctx = &uid;
+	uid = -1; /* in case we get no SEARCH response at all */
+	if ((ret = imap_exec_m( ctx, &cbd, "UID SEARCH HEADER X-TUID %." stringify(TUIDL) "s", tuid )) != DRV_OK)
+		cb( ret, -1, aux );
+	else
+		cb( uid <= 0 ? DRV_MSG_BAD : DRV_OK, uid, aux );
 }
 
-static int
-imap_list( store_t *gctx )
+static void
+imap_list( store_t *gctx,
+           void (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
 	int ret;
 
 	if ((ret = imap_exec_b( ctx, 0, "LIST \"\" \"%s%%\"", ctx->prefix )) == DRV_OK)
 		gctx->listed = 1;
-	return ret;
+	cb( ret, aux );
 }
 
-static int
-imap_check( store_t *gctx )
+static void
+imap_cancel( store_t *gctx,
+             void (*cb)( int sts, void *aux ), void *aux )
 {
-	(void) gctx;
-	/* flush queue here */
-	return DRV_OK;
+	(void)gctx;
+	cb( DRV_OK, aux );
+}
+
+static void
+imap_commit( store_t *gctx )
+{
+	(void)gctx;
 }
 
 imap_server_conf_t *servers, **serverapp = &servers;
@@ -1797,6 +1819,7 @@ struct driver imap_driver = {
 	imap_find_msg,
 	imap_set_flags,
 	imap_trash_msg,
-	imap_check,
-	imap_close
+	imap_close,
+	imap_cancel,
+	imap_commit,
 };

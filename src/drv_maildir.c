@@ -93,20 +93,22 @@ maildir_parse_flags( const char *base )
 	return flags;
 }
 
-static store_t *
-maildir_open_store( store_conf_t *conf )
+static void
+maildir_open_store( store_conf_t *conf,
+                    void (*cb)( store_t *ctx, void *aux ), void *aux )
 {
 	maildir_store_t *ctx;
 	struct stat st;
 
 	if (stat( conf->path, &st ) || !S_ISDIR(st.st_mode)) {
 		error( "Maildir error: cannot open store %s\n", conf->path );
-		return 0;
+		cb( 0, aux );
+		return;
 	}
 	ctx = nfcalloc( sizeof(*ctx) );
 	ctx->gen.conf = conf;
 	ctx->uvfd = -1;
-	return &ctx->gen;
+	cb( &ctx->gen, aux );
 }
 
 static void
@@ -159,15 +161,17 @@ maildir_cleanup_drv( void )
 {
 }
 
-static int
-maildir_list( store_t *gctx )
+static void
+maildir_list( store_t *gctx,
+              void (*cb)( int sts, void *aux ), void *aux )
 {
 	DIR *dir;
 	struct dirent *de;
 
 	if (!(dir = opendir( gctx->conf->path ))) {
 		error( "%s: %s\n", gctx->conf->path, strerror(errno) );
-		return DRV_STORE_BAD;
+		cb( DRV_STORE_BAD, aux );
+		return;
 	}
 	while ((de = readdir( dir ))) {
 		struct stat st;
@@ -183,7 +187,7 @@ maildir_list( store_t *gctx )
 	closedir (dir);
 	gctx->listed = 1;
 
-	return DRV_OK;
+	cb( DRV_OK, aux );
 }
 
 static const char *subdirs[] = { "cur", "new", "tmp" };
@@ -760,8 +764,9 @@ maildir_prepare_opts( store_t *gctx, int opts )
 	gctx->opts = opts;
 }
 
-static int
-maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
+static void
+maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs,
+                void (*cb)( int sts, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 	message_t **msgapp;
@@ -777,14 +782,17 @@ maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
 	ctx->excs = nfrealloc( excs, nexcs * sizeof(int) );
 	ctx->nexcs = nexcs;
 
-	if (maildir_validate( gctx->path, "", ctx->gen.opts & OPEN_CREATE ) != DRV_OK)
-		return DRV_BOX_BAD;
+	if (maildir_validate( gctx->path, "", ctx->gen.opts & OPEN_CREATE ) != DRV_OK) {
+		cb( DRV_BOX_BAD, aux );
+		return;
+	}
 
 	nfsnprintf( uvpath, sizeof(uvpath), "%s/.uidvalidity", gctx->path );
 #ifndef USE_DB
 	if ((ctx->uvfd = open( uvpath, O_RDWR|O_CREAT, 0600 )) < 0) {
 		perror( uvpath );
-		return DRV_BOX_BAD;
+		cb( DRV_BOX_BAD, aux );
+		return;
 	}
 #else
 	if ((ctx->uvfd = open( uvpath, O_RDWR, 0600 )) < 0) {
@@ -799,7 +807,8 @@ maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
 					goto fnok;
 			}
 			perror( uvpath );
-			return DRV_BOX_BAD;
+			cb( DRV_BOX_BAD, aux );
+			return;
 		}
 	  dbok:
 #if SEEK_SET != 0
@@ -811,7 +820,8 @@ maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
 		  bork:
 			close( ctx->uvfd );
 			ctx->uvfd = -1;
-			return DRV_BOX_BAD;
+			cb( DRV_BOX_BAD, aux );
+			return;
 		}
 		if (db_create( &ctx->db, 0, 0 )) {
 			fputs( "Maildir error: db_create() failed\n", stderr );
@@ -841,14 +851,16 @@ maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs )
   fnok:
 #endif /* USE_DB */
 
-	if (maildir_scan( ctx, &msglist ) != DRV_OK)
-		return DRV_BOX_BAD;
+	if (maildir_scan( ctx, &msglist ) != DRV_OK) {
+		cb( DRV_BOX_BAD, aux );
+		return;
+	}
 	msgapp = &ctx->gen.msgs;
 	for (i = 0; i < msglist.nents; i++)
 		maildir_app_msg( ctx, &msgapp, msglist.ents + i );
 	maildir_free_scan( &msglist );
 
-	return DRV_OK;
+	cb( DRV_OK, aux );
 }
 
 static int
@@ -916,8 +928,9 @@ maildir_again( maildir_store_t *ctx, maildir_message_t *msg, const char *fn )
 	return (msg->gen.status & M_DEAD) ? DRV_MSG_BAD : DRV_OK;
 }
 
-static int
-maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data )
+static void
+maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data,
+                   void (*cb)( int sts, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 	maildir_message_t *msg = (maildir_message_t *)gmsg;
@@ -929,8 +942,10 @@ maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data )
 		nfsnprintf( buf, sizeof(buf), "%s/%s/%s", gctx->path, subdirs[gmsg->status & M_RECENT], msg->base );
 		if ((fd = open( buf, O_RDONLY )) >= 0)
 			break;
-		if ((ret = maildir_again( ctx, msg, buf )) != DRV_OK)
-			return ret;
+		if ((ret = maildir_again( ctx, msg, buf )) != DRV_OK) {
+			cb( ret, aux );
+			return;
+		}
 	}
 	fstat( fd, &st );
 	data->len = st.st_size;
@@ -938,12 +953,13 @@ maildir_fetch_msg( store_t *gctx, message_t *gmsg, msg_data_t *data )
 	if (read( fd, data->data, data->len ) != data->len) {
 		perror( buf );
 		close( fd );
-		return DRV_MSG_BAD;
+		cb( DRV_MSG_BAD, aux );
+		return;
 	}
 	close( fd );
 	if (!(gmsg->status & M_FLAGS))
 		data->flags = maildir_parse_flags( msg->base );
-	return DRV_OK;
+	cb( DRV_OK, aux );
 }
 
 static int
@@ -961,30 +977,34 @@ maildir_make_flags( int flags, char *buf )
 	return d;
 }
 
-static int
-maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
+static void
+maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
+                   void (*cb)( int sts, int uid, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 	const char *prefix, *box;
-	int ret, fd, bl;
+	int ret, fd, bl, uid;
 	char buf[_POSIX_PATH_MAX], nbuf[_POSIX_PATH_MAX], fbuf[NUM_FLAGS + 3], base[128];
 
 	bl = nfsnprintf( base, sizeof(base), "%ld.%d_%d.%s", time( 0 ), Pid, ++MaildirCount, Hostname );
-	if (uid) {
+	if (!to_trash) {
 #ifdef USE_DB
 		if (ctx->db) {
-			if ((ret = maildir_set_uid( ctx, base, uid )) != DRV_OK) {
+			if ((ret = maildir_set_uid( ctx, base, &uid )) != DRV_OK) {
 				free( data->data );
-				return ret;
+				cb( ret, 0, aux );
+				return;
 			}
 		} else
 #endif /* USE_DB */
 		{
 			if ((ret = maildir_uidval_lock( ctx )) != DRV_OK ||
-			    (ret = maildir_obtain_uid( ctx, uid )) != DRV_OK)
-				return ret;
+			    (ret = maildir_obtain_uid( ctx, &uid )) != DRV_OK) {
+				cb( ret, 0, aux );
+				return;
+			}
 			maildir_uidval_unlock( ctx );
-			nfsnprintf( base + bl, sizeof(base) - bl, ",U=%d", *uid );
+			nfsnprintf( base + bl, sizeof(base) - bl, ",U=%d", uid );
 		}
 		prefix = gctx->path;
 		box = "";
@@ -999,16 +1019,19 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 		if (errno != ENOENT) {
 			perror( buf );
 			free( data->data );
-			return DRV_BOX_BAD;
+			cb( DRV_BOX_BAD, 0, aux );
+			return;
 		}
 		if ((ret = maildir_validate( gctx->conf->path, gctx->conf->trash, gctx->opts & OPEN_CREATE )) != DRV_OK) {
 			free( data->data );
-			return ret;
+			cb( ret, 0, aux );
+			return;
 		}
 		if ((fd = open( buf, O_WRONLY|O_CREAT|O_EXCL, 0600 )) < 0) {
 			perror( buf );
 			free( data->data );
-			return DRV_BOX_BAD;
+			cb( DRV_BOX_BAD, 0, aux );
+			return;
 		}
 	}
 	ret = write( fd, data->data, data->len );
@@ -1019,35 +1042,37 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int *uid )
 		else
 			error( "Maildir error: %s: partial write\n", buf );
 		close( fd );
-		return DRV_BOX_BAD;
+		cb( DRV_BOX_BAD, 0, aux );
+		return;
 	}
 	close( fd );
 	nfsnprintf( nbuf, sizeof(nbuf), "%s%s/%s/%s%s", prefix, box, subdirs[!(data->flags & F_SEEN)], base, fbuf );
 	if (rename( buf, nbuf )) {
 		perror( nbuf );
-		return DRV_BOX_BAD;
+		cb( DRV_BOX_BAD, 0, aux );
+		return;
 	}
-	if (uid)
-		gctx->count++;
-	return DRV_OK;
+	cb( DRV_OK, uid, aux );
 }
 
-static int
-maildir_find_msg( store_t *gctx, const char *tuid, int *uid )
+static void
+maildir_find_msg( store_t *gctx, const char *tuid,
+                  void (*cb)( int sts, int uid, void *aux ), void *aux )
 {
 	message_t *msg;
 
 	/* using a hash table might turn out to be more appropriate ... */
 	for (msg = gctx->msgs; msg; msg = msg->next)
 		if (!(msg->status & M_DEAD) && !memcmp( ((maildir_message_t *)msg)->tuid, tuid, TUIDL )) {
-			*uid = msg->uid;
-			return DRV_OK;
+			cb( DRV_OK, msg->uid, aux );
+			return;
 		}
-	return DRV_MSG_BAD;
+	cb( DRV_MSG_BAD, -1, aux );
 }
 
-static int
-maildir_set_flags( store_t *gctx, message_t *gmsg, int uid, int add, int del )
+static void
+maildir_set_flags( store_t *gctx, message_t *gmsg, int uid, int add, int del,
+                   void (*cb)( int sts, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 	maildir_message_t *msg = (maildir_message_t *)gmsg;
@@ -1089,8 +1114,10 @@ maildir_set_flags( store_t *gctx, message_t *gmsg, int uid, int add, int del )
 		}
 		if (!rename( buf, nbuf ))
 			break;
-		if ((ret = maildir_again( ctx, msg, buf )) != DRV_OK)
-			return ret;
+		if ((ret = maildir_again( ctx, msg, buf )) != DRV_OK) {
+			cb( ret, aux );
+			return;
+		}
 	}
 	free( msg->base );
 	msg->base = nfmalloc( tl + 1 );
@@ -1099,7 +1126,7 @@ maildir_set_flags( store_t *gctx, message_t *gmsg, int uid, int add, int del )
 	msg->gen.flags &= ~del;
 	gmsg->status &= ~M_RECENT;
 
-	return DRV_OK;
+	cb( DRV_OK, aux );
 }
 
 #ifdef USE_DB
@@ -1119,8 +1146,9 @@ maildir_purge_msg( maildir_store_t *ctx, const char *name )
 }
 #endif /* USE_DB */
 
-static int
-maildir_trash_msg( store_t *gctx, message_t *gmsg )
+static void
+maildir_trash_msg( store_t *gctx, message_t *gmsg,
+                   void (*cb)( int sts, void *aux ), void *aux )
 {
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
 	maildir_message_t *msg = (maildir_message_t *)gmsg;
@@ -1137,30 +1165,38 @@ maildir_trash_msg( store_t *gctx, message_t *gmsg )
 		if (!rename( buf, nbuf ))
 			break;
 		if (!stat( buf, &st )) {
-			if ((ret = maildir_validate( gctx->conf->path, gctx->conf->trash, 1 )) != DRV_OK)
-				return ret;
+			if ((ret = maildir_validate( gctx->conf->path, gctx->conf->trash, 1 )) != DRV_OK) {
+				cb( ret, aux );
+				return;
+			}
 			if (!rename( buf, nbuf ))
 				break;
 			if (errno != ENOENT) {
 				perror( nbuf );
-				return DRV_BOX_BAD;
+				cb( DRV_BOX_BAD, aux );
+				return;
 			}
 		}
-		if ((ret = maildir_again( ctx, msg, buf )) != DRV_OK)
-			return ret;
+		if ((ret = maildir_again( ctx, msg, buf )) != DRV_OK) {
+			cb( ret, aux );
+			return;
+		}
 	}
 	gmsg->status |= M_DEAD;
 	gctx->count--;
 
 #ifdef USE_DB
-	if (ctx->db)
-		return maildir_purge_msg( ctx, msg->base );
+	if (ctx->db) {
+		cb( maildir_purge_msg( ctx, msg->base ), aux );
+		return;
+	}
 #endif /* USE_DB */
-	return DRV_OK;
+	cb( DRV_OK, aux );
 }
 
-static int
-maildir_close( store_t *gctx )
+static void
+maildir_close( store_t *gctx,
+               void (*cb)( int sts, void *aux ), void *aux )
 {
 #ifdef USE_DB
 	maildir_store_t *ctx = (maildir_store_t *)gctx;
@@ -1184,23 +1220,36 @@ maildir_close( store_t *gctx )
 					msg->status |= M_DEAD;
 					gctx->count--;
 #ifdef USE_DB
-					if (ctx->db && (ret = maildir_purge_msg( ctx, ((maildir_message_t *)msg)->base )) != DRV_OK)
-						return ret;
+					if (ctx->db && (ret = maildir_purge_msg( ctx, ((maildir_message_t *)msg)->base )) != DRV_OK) {
+						cb( ret, aux );
+						return;
+					}
 #endif /* USE_DB */
 				}
 			}
-		if (!retry)
-			return DRV_OK;
-		if ((ret = maildir_rescan( (maildir_store_t *)gctx )) != DRV_OK)
-			return ret;
+		if (!retry) {
+			cb( DRV_OK, aux );
+			return;
+		}
+		if ((ret = maildir_rescan( (maildir_store_t *)gctx )) != DRV_OK) {
+			cb( ret, aux );
+			return;
+		}
 	}
 }
 
-static int
-maildir_check( store_t *gctx )
+static void
+maildir_cancel( store_t *gctx,
+                void (*cb)( int sts, void *aux ), void *aux )
+{
+	(void)gctx;
+	cb( DRV_OK, aux );
+}
+
+static void
+maildir_commit( store_t *gctx )
 {
 	(void) gctx;
-	return DRV_OK;
 }
 
 static int
@@ -1248,6 +1297,7 @@ struct driver maildir_driver = {
 	maildir_find_msg,
 	maildir_set_flags,
 	maildir_trash_msg,
-	maildir_check,
-	maildir_close
+	maildir_close,
+	maildir_cancel,
+	maildir_commit,
 };

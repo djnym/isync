@@ -43,6 +43,7 @@ debug( const char *msg, ... )
 		vprintf( msg, va );
 		va_end( va );
 		fflush( stdout );
+		need_nl = 0;
 	}
 }
 
@@ -70,6 +71,7 @@ info( const char *msg, ... )
 		vprintf( msg, va );
 		va_end( va );
 		fflush( stdout );
+		need_nl = 0;
 	}
 }
 
@@ -82,16 +84,6 @@ infon( const char *msg, ... )
 		va_start( va, msg );
 		vprintf( msg, va );
 		va_end( va );
-		fflush( stdout );
-		need_nl = Ontty;
-	}
-}
-
-void
-infoc( char c )
-{
-	if (!(DFlags & QUIET)) {
-		putchar( c );
 		fflush( stdout );
 		need_nl = Ontty;
 	}
