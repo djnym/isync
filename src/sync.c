@@ -239,7 +239,7 @@ copy_msg( store_t *ctx[], int t, message_t *tmsg, const char *tuid, int *uid )
 		if (scr > tcr)
 			crd = -1;
 		else if (scr < tcr)
-			crd = 1;
+			cra = 1;
 		extra = 0, i = 0;
 		if (tuid) {
 			extra += 8 + TUIDL + 1 + tcr;
@@ -251,8 +251,8 @@ copy_msg( store_t *ctx[], int t, message_t *tmsg, const char *tuid, int *uid )
 					extra += crd;
 				else if (c == '\n') {
 					extra += cra;
-					if (i - 2 + !scr == start) {
-						sbreak = ebreak = i - 2 + !scr; // precalc this!
+					if (i - 1 - scr == start) {
+						sbreak = ebreak = i - 1 - scr;
 						goto oke;
 					}
 					if (!memcmp( fmap + start, "X-TUID: ", 8 )) {
