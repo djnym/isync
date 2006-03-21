@@ -1072,9 +1072,9 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	}
 
 	for (t = 0; t < 2; t++) {
-		if (svars->chan->ops[t] & OP_EXPUNGE) {
-			info( "Expunging %s\n", str_ms[t] );
-			debug( "expunging %s\n", str_ms[t] );
+		if ((svars->chan->ops[t] & OP_EXPUNGE) &&
+			(svars->ctx[t]->conf->trash || (svars->ctx[1-t]->conf->trash && svars->ctx[1-t]->conf->trash_remote_new))) {
+			debug( "trashing in %s\n", str_ms[t] );
 			for (tmsg = svars->ctx[t]->msgs; tmsg; tmsg = tmsg->next)
 				if (tmsg->flags & F_DELETED) {
 					if (svars->ctx[t]->conf->trash) {
@@ -1087,7 +1087,7 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 							}
 						} else
 							debug( "  not trashing message %d - not new\n", tmsg->uid );
-					} else if (svars->ctx[1-t]->conf->trash && svars->ctx[1-t]->conf->trash_remote_new) {
+					} else {
 						if (!tmsg->srec || tmsg->srec->uid[1-t] < 0) {
 							if (!svars->ctx[1-t]->conf->max_size || tmsg->size <= svars->ctx[1-t]->conf->max_size) {
 								debug( "  remote trashing message %d\n", tmsg->uid );
@@ -1104,6 +1104,8 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 					}
 				}
 
+			info( "Expunging %s...\n", str_ms[t] );
+			debug( "expunging %s\n", str_ms[t] );
 			switch (svars->drv[t]->close( svars->ctx[t] )) {
 			case DRV_OK: svars->state[t] |= ST_DID_EXPUNGE; break;
 			case DRV_STORE_BAD: svars->ret = SYNC_BAD(t); goto finish;
