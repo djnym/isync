@@ -1072,37 +1072,38 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan )
 	}
 
 	for (t = 0; t < 2; t++) {
-		if ((svars->chan->ops[t] & OP_EXPUNGE) &&
-			(svars->ctx[t]->conf->trash || (svars->ctx[1-t]->conf->trash && svars->ctx[1-t]->conf->trash_remote_new))) {
-			debug( "trashing in %s\n", str_ms[t] );
-			for (tmsg = svars->ctx[t]->msgs; tmsg; tmsg = tmsg->next)
-				if (tmsg->flags & F_DELETED) {
-					if (svars->ctx[t]->conf->trash) {
-						if (!svars->ctx[t]->conf->trash_only_new || !tmsg->srec || tmsg->srec->uid[1-t] < 0) {
-							debug( "  trashing message %d\n", tmsg->uid );
-							switch (svars->drv[t]->trash_msg( svars->ctx[t], tmsg )) {
-							case DRV_OK: break;
-							case DRV_STORE_BAD: svars->ret = SYNC_BAD(t); goto finish;
-							default: svars->ret = SYNC_FAIL; goto nexex;
-							}
-						} else
-							debug( "  not trashing message %d - not new\n", tmsg->uid );
-					} else {
-						if (!tmsg->srec || tmsg->srec->uid[1-t] < 0) {
-							if (!svars->ctx[1-t]->conf->max_size || tmsg->size <= svars->ctx[1-t]->conf->max_size) {
-								debug( "  remote trashing message %d\n", tmsg->uid );
-								switch ((svars->ret = copy_msg( svars->ctx, 1 - t, tmsg, 0, 0 ))) {
-								case SYNC_OK: break;
-								case SYNC_NOGOOD: svars->ret = SYNC_FAIL; goto nexex;
-								case SYNC_FAIL: goto nexex;
-								default: goto finish;
+		if (svars->chan->ops[t] & OP_EXPUNGE) {
+			if (svars->ctx[t]->conf->trash || (svars->ctx[1-t]->conf->trash && svars->ctx[1-t]->conf->trash_remote_new)) {
+				debug( "trashing in %s\n", str_ms[t] );
+				for (tmsg = svars->ctx[t]->msgs; tmsg; tmsg = tmsg->next)
+					if (tmsg->flags & F_DELETED) {
+						if (svars->ctx[t]->conf->trash) {
+							if (!svars->ctx[t]->conf->trash_only_new || !tmsg->srec || tmsg->srec->uid[1-t] < 0) {
+								debug( "  trashing message %d\n", tmsg->uid );
+								switch (svars->drv[t]->trash_msg( svars->ctx[t], tmsg )) {
+								case DRV_OK: break;
+								case DRV_STORE_BAD: svars->ret = SYNC_BAD(t); goto finish;
+								default: svars->ret = SYNC_FAIL; goto nexex;
 								}
 							} else
-								debug( "  not remote trashing message %d - too big\n", tmsg->uid );
-						} else
-							debug( "  not remote trashing message %d - not new\n", tmsg->uid );
+								debug( "  not trashing message %d - not new\n", tmsg->uid );
+						} else {
+							if (!tmsg->srec || tmsg->srec->uid[1-t] < 0) {
+								if (!svars->ctx[1-t]->conf->max_size || tmsg->size <= svars->ctx[1-t]->conf->max_size) {
+									debug( "  remote trashing message %d\n", tmsg->uid );
+									switch ((svars->ret = copy_msg( svars->ctx, 1 - t, tmsg, 0, 0 ))) {
+									case SYNC_OK: break;
+									case SYNC_NOGOOD: svars->ret = SYNC_FAIL; goto nexex;
+									case SYNC_FAIL: goto nexex;
+									default: goto finish;
+									}
+								} else
+									debug( "  not remote trashing message %d - too big\n", tmsg->uid );
+							} else
+								debug( "  not remote trashing message %d - not new\n", tmsg->uid );
+						}
 					}
-				}
+			}
 
 			info( "Expunging %s...\n", str_ms[t] );
 			debug( "expunging %s\n", str_ms[t] );
