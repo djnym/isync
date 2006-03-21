@@ -481,17 +481,20 @@ main( int argc, char **argv )
 		merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
 		merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
 
+		info( "Channel %s\n", chan->name );
 		boxes[M] = boxes[S] = cboxes = 0;
 		for (t = 0; t < 2; t++) {
 			driver[t] = chan->stores[t]->driver;
 			ctx[t] = driver[t]->own_store( chan->stores[t] );
 		}
 		for (t = 0; t < 2; t++)
-			if (!ctx[t] && !(ctx[t] = driver[t]->open_store( chan->stores[t] ))) {
-				ret = 1;
-				goto next;
+			if (!ctx[t]) {
+				info( "Opening %s %s...\n", str_ms[t], chan->stores[t]->name );
+				if (!(ctx[t] = driver[t]->open_store( chan->stores[t] ))) {
+					ret = 1;
+					goto next;
+				}
 			}
-		info( "Channel %s\n", chan->name );
 		if (list && multiple)
 			printf( "%s:\n", chan->name );
 		if (boxlist) {

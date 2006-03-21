@@ -246,6 +246,8 @@ unsigned char arc4_getbyte( void );
 
 /* sync.c */
 
+extern const char *str_ms[2], *str_hl[2];
+
 #define SYNC_OK      0
 #define SYNC_FAIL    1
 #define SYNC_BAD(ms) (2+(ms))

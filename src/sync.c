@@ -33,7 +33,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-static const char *str_ms[] = { "master", "slave" }, *str_hl[] = { "push", "pull" };
+const char *str_ms[] = { "master", "slave" }, *str_hl[] = { "push", "pull" };
 
 void
 Fclose( FILE *f )
