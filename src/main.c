@@ -484,6 +484,8 @@ static void store_listed( int sts, void *aux );
 static void done_sync_dyn( int sts, void *aux );
 static void done_sync( int sts, void *aux );
 
+#define nz(a,b) ((a)?(a):(b))
+
 static void
 sync_chans( main_vars_t *mvars, int ent )
 {
@@ -578,12 +580,14 @@ sync_chans( main_vars_t *mvars, int ent )
 	  syncmlx:
 		if (mvars->boxlist) {
 			if ((mvars->names[S] = strsep( &mvars->boxp, ",\n" ))) {
+				if (!*mvars->names[S])
+					mvars->names[S] = 0;
 				if (!mvars->list) {
 					mvars->names[M] = mvars->names[S];
 					sync_boxes( mvars->ctx, mvars->names, mvars->chan, done_sync, mvars );
 					goto syncw;
 				}
-				puts( mvars->names[S] );
+				puts( nz( mvars->names[S], "INBOX" ) );
 				goto syncmlx;
 			}
 		} else if (mvars->chan->patterns) {
@@ -624,7 +628,7 @@ sync_chans( main_vars_t *mvars, int ent )
 				if (!mvars->skip)
 					goto syncml;
 			} else
-				printf( "%s <=> %s\n", mvars->chan->boxes[M], mvars->chan->boxes[S] );
+				printf( "%s <=> %s\n", nz( mvars->chan->boxes[M], "INBOX" ), nz( mvars->chan->boxes[S], "INBOX" ) );
 		}
 
 	  next:
