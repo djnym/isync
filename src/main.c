@@ -186,18 +186,27 @@ merge_actions( channel_conf_t *chan, int ops[], int have, int mask, int def )
 	}
 }
 
+typedef struct {
+	int t[2];
+	channel_conf_t *chan;
+	driver_t *drv[2];
+	store_t *ctx[2];
+	string_list_t *boxes[2], *cboxes, *chanptr;
+	const char *names[2];
+	char **argv, *boxlist, *boxp;
+	int oind, ret, multiple, all, list, ops[2], state[2];
+	unsigned done:1, skip:1, cben:1;
+} main_vars_t;
+
+static void sync_chans( main_vars_t *mvars );
+
 int
 main( int argc, char **argv )
 {
-	channel_conf_t *chan;
+	main_vars_t mvars[1];
 	group_conf_t *group;
-	driver_t *driver[2];
-	store_t *ctx[2];
-	string_list_t *boxes[2], *mbox, *sbox, **mboxp, **sboxp, *cboxes, *chanptr;
-	char *config = 0, *channame, *boxlist, *boxp, *opt, *ochar;
-	const char *names[2];
-	int all = 0, list = 0, cops = 0, ops[2] = { 0, 0 };
-	int oind, ret, op, multiple, pseudo = 0, t;
+	char *config = 0, *opt, *ochar;
+	int cops = 0, op, pseudo = 0;
 
 	gethostname( Hostname, sizeof(Hostname) );
 	if ((ochar = strchr( Hostname, '.' )))
@@ -210,26 +219,28 @@ main( int argc, char **argv )
 	Ontty = isatty( 1 ) && isatty( 2 );
 	arc4_init();
 
-	for (oind = 1, ochar = 0; oind < argc; ) {
+	memset( mvars, 0, sizeof(*mvars) );
+
+	for (mvars->oind = 1, ochar = 0; mvars->oind < argc; ) {
 		if (!ochar || !*ochar) {
-			if (argv[oind][0] != '-')
+			if (argv[mvars->oind][0] != '-')
 				break;
-			if (argv[oind][1] == '-') {
-				opt = argv[oind++] + 2;
+			if (argv[mvars->oind][1] == '-') {
+				opt = argv[mvars->oind++] + 2;
 				if (!*opt)
 					break;
 				if (!strcmp( opt, "config" )) {
-					if (oind >= argc) {
+					if (mvars->oind >= argc) {
 						error( "--config requires an argument.\n" );
 						return 1;
 					}
-					config = argv[oind++];
+					config = argv[mvars->oind++];
 				} else if (!memcmp( opt, "config=", 7 ))
 					config = opt + 7;
 				else if (!strcmp( opt, "all" ))
-					all = 1;
+					mvars->all = 1;
 				else if (!strcmp( opt, "list" ))
-					list = 1;
+					mvars->list = 1;
 				else if (!strcmp( opt, "help" ))
 					usage( 0 );
 				else if (!strcmp( opt, "version" ))
@@ -244,9 +255,9 @@ main( int argc, char **argv )
 				else if (!strcmp( opt, "debug" ))
 					DFlags |= DEBUG | QUIET;
 				else if (!strcmp( opt, "pull" ))
-					cops |= XOP_PULL, ops[M] |= XOP_HAVE_TYPE;
+					cops |= XOP_PULL, mvars->ops[M] |= XOP_HAVE_TYPE;
 				else if (!strcmp( opt, "push" ))
-					cops |= XOP_PUSH, ops[M] |= XOP_HAVE_TYPE;
+					cops |= XOP_PUSH, mvars->ops[M] |= XOP_HAVE_TYPE;
 				else if (!memcmp( opt, "create", 6 )) {
 					opt += 6;
 					op = OP_CREATE|XOP_HAVE_CREATE;
@@ -254,24 +265,24 @@ main( int argc, char **argv )
 					if (!*opt)
 						cops |= op;
 					else if (!strcmp( opt, "-master" ))
-						ops[M] |= op, ochar++;
+						mvars->ops[M] |= op, ochar++;
 					else if (!strcmp( opt, "-slave" ))
-						ops[S] |= op, ochar++;
+						mvars->ops[S] |= op, ochar++;
 					else
 						goto badopt;
-					ops[M] |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
+					mvars->ops[M] |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
 				} else if (!memcmp( opt, "expunge", 7 )) {
 					opt += 7;
 					op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
 					goto lcop;
 				} else if (!strcmp( opt, "no-expunge" ))
-					ops[M] |= XOP_HAVE_EXPUNGE;
+					mvars->ops[M] |= XOP_HAVE_EXPUNGE;
 				else if (!strcmp( opt, "no-create" ))
-					ops[M] |= XOP_HAVE_CREATE;
+					mvars->ops[M] |= XOP_HAVE_CREATE;
 				else if (!strcmp( opt, "full" ))
-					ops[M] |= XOP_HAVE_TYPE|XOP_PULL|XOP_PUSH;
+					mvars->ops[M] |= XOP_HAVE_TYPE|XOP_PULL|XOP_PUSH;
 				else if (!strcmp( opt, "noop" ))
-					ops[M] |= XOP_HAVE_TYPE;
+					mvars->ops[M] |= XOP_HAVE_TYPE;
 				else if (!memcmp( opt, "pull", 4 )) {
 					op = XOP_PULL;
 				  lcac:
@@ -299,19 +310,19 @@ main( int argc, char **argv )
 						op |= OP_FLAGS;
 					else {
 					  badopt:
-						error( "Unknown option '%s'\n", argv[oind - 1] );
+						error( "Unknown option '%s'\n", argv[mvars->oind - 1] );
 						return 1;
 					}
 					switch (op & XOP_MASK_DIR) {
-					case XOP_PULL: ops[S] |= op & OP_MASK_TYPE; break;
-					case XOP_PUSH: ops[M] |= op & OP_MASK_TYPE; break;
+					case XOP_PULL: mvars->ops[S] |= op & OP_MASK_TYPE; break;
+					case XOP_PUSH: mvars->ops[M] |= op & OP_MASK_TYPE; break;
 					default: cops |= op; break;
 					}
-					ops[M] |= XOP_HAVE_TYPE;
+					mvars->ops[M] |= XOP_HAVE_TYPE;
 				}
 				continue;
 			}
-			ochar = argv[oind++] + 1;
+			ochar = argv[mvars->oind++] + 1;
 			if (!*ochar) {
 				error( "Invalid option '-'\n" );
 				return 1;
@@ -319,34 +330,34 @@ main( int argc, char **argv )
 		}
 		switch (*ochar++) {
 		case 'a':
-			all = 1;
+			mvars->all = 1;
 			break;
 		case 'l':
-			list = 1;
+			mvars->list = 1;
 			break;
 		case 'c':
 			if (*ochar == 'T') {
 				ochar++;
 				pseudo = 1;
 			}
-			if (oind >= argc) {
+			if (mvars->oind >= argc) {
 				error( "-c requires an argument.\n" );
 				return 1;
 			}
-			config = argv[oind++];
+			config = argv[mvars->oind++];
 			break;
 		case 'C':
 			op = OP_CREATE|XOP_HAVE_CREATE;
 		  cop:
 			if (*ochar == 'm')
-				ops[M] |= op, ochar++;
+				mvars->ops[M] |= op, ochar++;
 			else if (*ochar == 's')
-				ops[S] |= op, ochar++;
+				mvars->ops[S] |= op, ochar++;
 			else if (*ochar == '-')
 				ochar++;
 			else
 				cops |= op;
-			ops[M] |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
+			mvars->ops[M] |= op & (XOP_HAVE_CREATE|XOP_HAVE_EXPUNGE);
 			break;
 		case 'X':
 			op = OP_EXPUNGE|XOP_HAVE_EXPUNGE;
@@ -354,7 +365,7 @@ main( int argc, char **argv )
 		case 'F':
 			cops |= XOP_PULL|XOP_PUSH;
 		case '0':
-			ops[M] |= XOP_HAVE_TYPE;
+			mvars->ops[M] |= XOP_HAVE_TYPE;
 			break;
 		case 'n':
 		case 'd':
@@ -377,13 +388,13 @@ main( int argc, char **argv )
 			}
 			if (op & OP_MASK_TYPE)
 				switch (op & XOP_MASK_DIR) {
-				case XOP_PULL: ops[S] |= op & OP_MASK_TYPE; break;
-				case XOP_PUSH: ops[M] |= op & OP_MASK_TYPE; break;
+				case XOP_PULL: mvars->ops[S] |= op & OP_MASK_TYPE; break;
+				case XOP_PUSH: mvars->ops[M] |= op & OP_MASK_TYPE; break;
 				default: cops |= op; break;
 				}
 			else
 				cops |= op;
-			ops[M] |= XOP_HAVE_TYPE;
+			mvars->ops[M] |= XOP_HAVE_TYPE;
 			break;
 		case 'L':
 			op = XOP_PULL;
@@ -422,13 +433,13 @@ main( int argc, char **argv )
 		signal( SIGILL, crashHandler );
 	}
 
-	if (merge_ops( cops, ops ))
+	if (merge_ops( cops, mvars->ops ))
 		return 1;
 
 	if (load_config( config, pseudo ))
 		return 1;
 
-	if (!all && !argv[oind]) {
+	if (!mvars->all && !argv[mvars->oind]) {
 		fputs( "No channel specified. Try '" EXE " -h'\n", stderr );
 		return 1;
 	}
@@ -437,88 +448,99 @@ main( int argc, char **argv )
 		return 1;
 	}
 
-	ret = 0;
-	chan = channels;
-	chanptr = 0;
-	if (all)
-		multiple = channels->next != 0;
-	else if (argv[oind + 1])
-		multiple = 1;
-	else {
-		multiple = 0;
+	mvars->chan = channels;
+	if (mvars->all)
+		mvars->multiple = channels->next != 0;
+	else if (argv[mvars->oind + 1])
+		mvars->multiple = 1;
+	else
 		for (group = groups; group; group = group->next)
-			if (!strcmp( group->name, argv[oind] )) {
-				multiple = 1;
+			if (!strcmp( group->name, argv[mvars->oind] )) {
+				mvars->multiple = 1;
 				break;
 			}
-	}
+	mvars->argv = argv;
+	sync_chans( mvars );
+	return mvars->ret;
+}
+
+static void
+sync_chans( main_vars_t *mvars )
+{
+	group_conf_t *group;
+	channel_conf_t *chan;
+	string_list_t *mbox, *sbox, **mboxp, **sboxp;
+	char *channame;
+	int t;
+
 	for (;;) {
-		boxlist = 0;
-		if (!all) {
-			if (chanptr)
-				channame = chanptr->string;
+		mvars->boxlist = 0;
+		if (!mvars->all) {
+			if (mvars->chanptr)
+				channame = mvars->chanptr->string;
 			else {
 				for (group = groups; group; group = group->next)
-					if (!strcmp( group->name, argv[oind] )) {
-						chanptr = group->channels;
-						channame = chanptr->string;
+					if (!strcmp( group->name, mvars->argv[mvars->oind] )) {
+						mvars->chanptr = group->channels;
+						channame = mvars->chanptr->string;
 						goto gotgrp;
 					}
-				channame = argv[oind];
+				channame = mvars->argv[mvars->oind];
 			  gotgrp: ;
 			}
-			if ((boxlist = strchr( channame, ':' )))
-				*boxlist++ = 0;
+			if ((mvars->boxlist = strchr( channame, ':' )))
+				*mvars->boxlist++ = 0;
 			for (chan = channels; chan; chan = chan->next)
 				if (!strcmp( chan->name, channame ))
 					goto gotchan;
 			error( "No channel or group named '%s' defined.\n", channame );
-			ret = 1;
+			mvars->ret = 1;
 			goto gotnone;
-		  gotchan: ;
+		  gotchan:
+			mvars->chan = chan;
 		}
-		merge_actions( chan, ops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
-		merge_actions( chan, ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
-		merge_actions( chan, ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
+		merge_actions( mvars->chan, mvars->ops, XOP_HAVE_TYPE, OP_MASK_TYPE, OP_MASK_TYPE );
+		merge_actions( mvars->chan, mvars->ops, XOP_HAVE_CREATE, OP_CREATE, 0 );
+		merge_actions( mvars->chan, mvars->ops, XOP_HAVE_EXPUNGE, OP_EXPUNGE, 0 );
 
-		info( "Channel %s\n", chan->name );
-		boxes[M] = boxes[S] = cboxes = 0;
+		info( "Channel %s\n", mvars->chan->name );
+		mvars->boxes[M] = mvars->boxes[S] = mvars->cboxes = 0;
 		for (t = 0; t < 2; t++) {
-			driver[t] = chan->stores[t]->driver;
-			ctx[t] = driver[t]->own_store( chan->stores[t] );
+			mvars->drv[t] = mvars->chan->stores[t]->driver;
+			mvars->ctx[t] = mvars->drv[t]->own_store( mvars->chan->stores[t] );
 		}
 		for (t = 0; t < 2; t++)
-			if (!ctx[t]) {
-				info( "Opening %s %s...\n", str_ms[t], chan->stores[t]->name );
-				if (!(ctx[t] = driver[t]->open_store( chan->stores[t] ))) {
-					ret = 1;
+			if (!mvars->ctx[t]) {
+				info( "Opening %s %s...\n", str_ms[t], mvars->chan->stores[t]->name );
+				if (!(mvars->ctx[t] = mvars->drv[t]->open_store( mvars->chan->stores[t] ))) {
+					mvars->ret = 1;
 					goto next;
 				}
 			}
-		if (boxlist)
-			boxp = boxlist;
-		else if (chan->patterns) {
+		if (mvars->boxlist)
+			mvars->boxp = mvars->boxlist;
+		else if (mvars->chan->patterns) {
 			for (t = 0; t < 2; t++) {
-				if (!ctx[t]->listed) {
-					if (driver[t]->list( ctx[t] ) != DRV_OK) {
+				if (!mvars->ctx[t]->listed) {
+					if (mvars->drv[t]->list( mvars->ctx[t] ) != DRV_OK) {
 					  screwt:
-						driver[t]->cancel_store( ctx[t] );
-						ctx[t] = 0;
-						ret = 1;
+						mvars->drv[t]->cancel_store( mvars->ctx[t] );
+						mvars->ctx[t] = 0;
+						mvars->ret = 1;
 						goto next;
-					} else if (ctx[t]->conf->map_inbox)
-						add_string_list( &ctx[t]->boxes, ctx[t]->conf->map_inbox );
+					} else if (mvars->ctx[t]->conf->map_inbox)
+						add_string_list( &mvars->ctx[t]->boxes, mvars->ctx[t]->conf->map_inbox );
 				}
-				boxes[t] = filter_boxes( ctx[t]->boxes, chan->patterns );
+				mvars->boxes[t] = filter_boxes( mvars->ctx[t]->boxes, mvars->chan->patterns );
 			}
-			for (mboxp = &boxes[M]; (mbox = *mboxp); ) {
-				for (sboxp = &boxes[S]; (sbox = *sboxp); sboxp = &sbox->next)
+			for (mboxp = &mvars->boxes[M]; (mbox = *mboxp); ) {
+				for (sboxp = &mvars->boxes[S]; (sbox = *sboxp); sboxp = &sbox->next)
 					if (!strcmp( sbox->string, mbox->string )) {
 						*sboxp = sbox->next;
 						free( sbox );
 						*mboxp = mbox->next;
-						mbox->next = cboxes;
-						cboxes = mbox;
+						mbox->next = mvars->cboxes;
+						mvars->cboxes = mbox;
 						goto gotdupe;
 					}
 				mboxp = &mbox->next;
@@ -526,78 +548,76 @@ main( int argc, char **argv )
 			}
 		}
 
-		if (list && multiple)
-			printf( "%s:\n", chan->name );
-		if (boxlist) {
-			while ((names[S] = strsep( &boxp, ",\n" ))) {
-				if (list)
-					puts( names[S] );
+		if (mvars->list && mvars->multiple)
+			printf( "%s:\n", mvars->chan->name );
+		if (mvars->boxlist) {
+			while ((mvars->names[S] = strsep( &mvars->boxp, ",\n" ))) {
+				if (mvars->list)
+					puts( mvars->names[S] );
 				else {
-					names[M] = names[S];
-					switch (sync_boxes( ctx, names, chan )) {
+					mvars->names[M] = mvars->names[S];
+					switch (sync_boxes( mvars->ctx, mvars->names, mvars->chan )) {
 					case SYNC_BAD(M): t = M; goto screwt;
 					case SYNC_BAD(S): t = S; goto screwt;
-					case SYNC_FAIL: ret = 1;
+					case SYNC_FAIL: mvars->ret = 1;
 					}
 				}
 			}
-		} else if (chan->patterns) {
-			for (mbox = cboxes; mbox; mbox = mbox->next)
-				if (list)
+		} else if (mvars->chan->patterns) {
+			for (mbox = mvars->cboxes; mbox; mbox = mbox->next)
+				if (mvars->list)
 					puts( mbox->string );
 				else {
-					names[M] = names[S] = mbox->string;
-					switch (sync_boxes( ctx, names, chan )) {
+					mvars->names[M] = mvars->names[S] = mbox->string;
+					switch (sync_boxes( mvars->ctx, mvars->names, mvars->chan )) {
 					case SYNC_BAD(M): t = M; goto screwt;
 					case SYNC_BAD(S): t = S; goto screwt;
-					case SYNC_FAIL: ret = 1;
+					case SYNC_FAIL: mvars->ret = 1;
 					}
 				}
 			for (t = 0; t < 2; t++)
-				if ((chan->ops[1-t] & OP_MASK_TYPE) && (chan->ops[1-t] & OP_CREATE)) {
-					for (mbox = boxes[t]; mbox; mbox = mbox->next)
-						if (list)
+				if ((mvars->chan->ops[1-t] & OP_MASK_TYPE) && (mvars->chan->ops[1-t] & OP_CREATE)) {
+					for (mbox = mvars->boxes[t]; mbox; mbox = mbox->next)
+						if (mvars->list)
 							puts( mbox->string );
 						else {
-							names[M] = names[S] = mbox->string;
-							switch (sync_boxes( ctx, names, chan )) {
+							mvars->names[M] = mvars->names[S] = mbox->string;
+							switch (sync_boxes( mvars->ctx, mvars->names, mvars->chan )) {
 							case SYNC_BAD(M): t = M; goto screwt;
 							case SYNC_BAD(S): t = S; goto screwt;
-							case SYNC_FAIL: ret = 1;
+							case SYNC_FAIL: mvars->ret = 1;
 							}
 						}
 				}
 		} else
-			if (list)
-				printf( "%s <=> %s\n", chan->boxes[M], chan->boxes[S] );
+			if (mvars->list)
+				printf( "%s <=> %s\n", mvars->chan->boxes[M], mvars->chan->boxes[S] );
 			else
-				switch (sync_boxes( ctx, chan->boxes, chan )) {
+				switch (sync_boxes( mvars->ctx, mvars->chan->boxes, mvars->chan )) {
 				case SYNC_BAD(M): t = M; goto screwt;
 				case SYNC_BAD(S): t = S; goto screwt;
-				case SYNC_FAIL: ret = 1;
+				case SYNC_FAIL: mvars->ret = 1;
 				}
 
 	  next:
-		free_string_list( cboxes );
-		free_string_list( boxes[M] );
-		free_string_list( boxes[S] );
-		if (ctx[M])
-			driver[M]->disown_store( ctx[M] );
-		if (ctx[S])
-			driver[S]->disown_store( ctx[S] );
-		if (all) {
-			if (!(chan = chan->next))
+		if (mvars->ctx[M])
+			mvars->drv[M]->disown_store( mvars->ctx[M] );
+		if (mvars->ctx[S])
+			mvars->drv[S]->disown_store( mvars->ctx[S] );
+		free_string_list( mvars->cboxes );
+		free_string_list( mvars->boxes[M] );
+		free_string_list( mvars->boxes[S] );
+		if (mvars->all) {
+			if (!(mvars->chan = mvars->chan->next))
 				break;
 		} else {
-			if (chanptr && (chanptr = chanptr->next))
+			if (mvars->chanptr && (mvars->chanptr = mvars->chanptr->next))
 				continue;
 		  gotnone:
-			if (!argv[++oind])
+			if (!mvars->argv[++mvars->oind])
 				break;
 		}
 	}
 	for (t = 0; t < N_DRIVERS; t++)
 		drivers[t]->cleanup();
-
-	return ret;
 }
