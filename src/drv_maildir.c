@@ -1046,6 +1046,7 @@ maildir_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 		return;
 	}
 	close( fd );
+	/* Moving seen messages to cur/ is strictly speaking incorrect, but makes mutt happy. */
 	nfsnprintf( nbuf, sizeof(nbuf), "%s%s/%s/%s%s", prefix, box, subdirs[!(data->flags & F_SEEN)], base, fbuf );
 	if (rename( buf, nbuf )) {
 		perror( nbuf );
