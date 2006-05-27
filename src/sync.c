@@ -1222,7 +1222,7 @@ msgs_found_sel( sync_vars_t *svars, int t )
 				if (!(nflags & F_DELETED) || (srec->status & (S_EXPIRE|S_EXPIRED))) {
 					if (nflags & F_FLAGGED)
 						todel--;
-					else if (!(tmsg->status & M_RECENT) &&
+					else if ((!(tmsg->status & M_RECENT) || (tmsg->flags & F_SEEN)) &&
 					         (todel > 0 ||
 					          ((srec->status & (S_EXPIRE|S_EXPIRED)) == (S_EXPIRE|S_EXPIRED)) ||
 					          ((srec->status & (S_EXPIRE|S_EXPIRED)) && (tmsg->flags & F_DELETED)))) {
