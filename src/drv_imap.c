@@ -1261,7 +1261,11 @@ imap_open_store( store_conf_t *conf,
 		info( "ok\n" );
 	} else {
 		memset( &addr, 0, sizeof(addr) );
-		addr.sin_port = htons( srvc->port );
+		addr.sin_port = htons( srvc->port ? srvc->port :
+#ifdef HAVE_LIBSSL
+		                       srvc->use_imaps ? 993 :
+#endif
+		                       143 );
 		addr.sin_family = AF_INET;
 
 		infon( "Resolving %s... ", srvc->host );
@@ -1715,15 +1719,11 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 				server->use_imaps = 1;
 				server->use_sslv2 = 1;
 				server->use_sslv3 = 1;
-				if (!server->port)
-					server->port = 993;
 			} else
 #endif
 			{
 				if (!memcmp( "imap:", cfg->val, 5 ))
 					cfg->val += 5;
-				if (!server->port)
-					server->port = 143;
 			}
 			if (!memcmp( "//", cfg->val, 2 ))
 				cfg->val += 2;
