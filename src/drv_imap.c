@@ -1349,19 +1349,19 @@ imap_open_store( store_conf_t *conf,
 
 		info ("Logging in...\n");
 		if (!srvc->user) {
-			error( "Skipping server %s, no user\n", srvc->host );
+			error( "Skipping account %s, no user\n", srvc->name );
 			goto bail;
 		}
 		if (!srvc->pass) {
 			char prompt[80];
-			sprintf( prompt, "Password (%s@%s): ", srvc->user, srvc->host );
+			sprintf( prompt, "Password (%s): ", srvc->name );
 			arg = getpass( prompt );
 			if (!arg) {
 				perror( "getpass" );
 				exit( 1 );
 			}
 			if (!*arg) {
-				error( "Skipping account %s@%s, no password\n", srvc->user, srvc->host );
+				error( "Skipping account %s, no password\n", srvc->name );
 				goto bail;
 			}
 			/*
@@ -1386,7 +1386,7 @@ imap_open_store( store_conf_t *conf,
 #endif
 		{
 			if (CAP(NOLOGIN)) {
-				error( "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host );
+				error( "Skipping account %s, server forbids LOGIN\n", srvc->name );
 				goto bail;
 			}
 #if HAVE_LIBSSL
