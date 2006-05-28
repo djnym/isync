@@ -233,7 +233,8 @@ will prompt you for it.
 \fBTunnel\fR \fIcommand\fR
 Specify a command to run to establish a connection rather than opening a TCP
 socket.  This allows you to run an IMAP session over an SSH tunnel, for
-example.  This makes most other IMAPAccount options superfluous.
+example.
+\fBHost\fR and \fBPort\fR are ignored when \fBTunnel\fR is set.
 ..
 .TP
 \fBRequireCRAM\fR \fIyes\fR|\fIno\fR
