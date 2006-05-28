@@ -1293,15 +1293,15 @@ imap_open_store( store_conf_t *conf,
 		info( "ok\n" );
 
 		ctx->buf.sock.fd = s;
+	}
 
 #if HAVE_LIBSSL
-		if (srvc->use_imaps) {
-			if (start_tls( ctx ))
-				goto bail;
-			use_ssl = 1;
-		}
-#endif
+	if (srvc->use_imaps) {
+		if (start_tls( ctx ))
+			goto bail;
+		use_ssl = 1;
 	}
+#endif
 
 	/* read the greeting string */
 	if (buffer_gets( &ctx->buf, &rsp )) {
@@ -1713,6 +1713,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 
 	while (getcline( cfg ) && cfg->cmd) {
 		if (!strcasecmp( "Host", cfg->cmd )) {
+			/* The imap[s]: syntax is just a backwards compat hack. */
 #if HAVE_LIBSSL
 			if (!memcmp( "imaps:", cfg->val, 6 )) {
 				cfg->val += 6;
@@ -1745,6 +1746,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 			}
 		} else if (!strcasecmp( "RequireSSL", cfg->cmd ))
 			server->require_ssl = parse_bool( cfg );
+		else if (!strcasecmp( "UseIMAPS", cfg->cmd ))
+			server->use_imaps = parse_bool( cfg );
 		else if (!strcasecmp( "UseSSLv2", cfg->cmd ))
 			server->use_sslv2 = parse_bool( cfg );
 		else if (!strcasecmp( "UseSSLv3", cfg->cmd ))

@@ -210,17 +210,13 @@ The location of the \fBINBOX\fR. This is \fInot\fR relative to \fBPath\fR.
 Define the IMAP4 Account \fIname\fR, opening a section for its parameters.
 ..
 .TP
-\fBHost\fR [\fBimaps:\fR]\fIhost\fR
-Specify the DNS name or IP address of the IMAP server.  If \fIhost\fR is
-prefixed with \fBimaps:\fR the connection is assumed to be an SSL connection
-to port 993.
-Note that modern servers support SSL on the default port 143 via the
-STARTTLS extension, which will be used automatically by default.
+\fBHost\fR \fIhost\fR
+Specify the DNS name or IP address of the IMAP server.
 ..
 .TP
 \fBPort\fR \fIport\fR
-Specify the TCP port number of the IMAP server.  (Default: 143 for imap,
-993 for imaps)
+Specify the TCP port number of the IMAP server.  (Default: 143 for IMAP,
+993 for IMAPS)
 ..
 .TP
 \fBUser\fR \fIusername\fR
@@ -245,6 +241,15 @@ If set to \fIyes\fR, \fBmbsync\fR will abort the connection if no CRAM-MD5
 authentication is possible.  (Default: \fIno\fR)
 ..
 .TP
+\fBUseIMAPS\fR \fIyes\fR|\fIno\fR
+If set to \fIyes\fR, the default for \fBPort\fR is changed to 993 and
+\fBmbsync\fR will start SSL negotiation immediately after establishing
+the connection to the server.
+.br
+Note that modern servers support SSL on the regular IMAP port 143 via the
+STARTTLS extension, which will be used automatically by default.
+..
+.TP
 \fBRequireSSL\fR \fIyes\fR|\fIno\fR
 \fBmbsync\fR will abort the connection if a TLS/SSL session cannot be
 established with the IMAP server.  (Default: \fIyes\fR)
@@ -257,12 +262,14 @@ This option is \fImandatory\fR if SSL is used. See \fBSSL CERTIFICATES\fR below.
 .TP
 \fBUseSSLv2\fR \fIyes\fR|\fIno\fR
 Use SSLv2 for communication with the IMAP server over SSL?
-(Default: \fIyes\fR if an imaps \fBHost\fR is used, otherwise \fIno\fR)
+.br
+Note that this option is deprecated for security reasons.
+(Default: \fIno\fR)
 ..
 .TP
 \fBUseSSLv3\fR \fIyes\fR|\fIno\fR
 Use SSLv3 for communication with the IMAP server over SSL?
-(Default: \fIyes\fR if an imaps \fBHost\fR is used, otherwise \fIno\fR)
+(Default: \fIno\fR)
 ..
 .TP
 \fBUseTLSv1\fR \fIyes\fR|\fIno\fR
