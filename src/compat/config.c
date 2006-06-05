@@ -248,7 +248,7 @@ write_imap_server( FILE *fp, config_t *cfg )
 		nfasprintf( (char **)&cfg->old_server_name, "tunnel%d", ++tunnels );
 	else {
 		if (sscanf( cfg->host, "%d.%d.%d.%d", &a1, &a2, &a3, &a4 ) == 4)
-			cfg->old_server_name = nfstrdup( cfg->host );
+			hl = nfsnprintf( buf, sizeof(buf), "%s", cfg->host );
 		else {
 			p = strrchr( cfg->host, '.' );
 			if (!p)
@@ -259,16 +259,16 @@ write_imap_server( FILE *fp, config_t *cfg )
 				if (p2)
 					hl = sprintf( buf, "%s", p2 + 1 );
 			}
-			if (boxes) /* !o2o */
-				for (pbox = boxes; pbox != cfg; pbox = pbox->next)
-					if (!memcmp( pbox->server_name, buf, hl + 1 )) {
-						nfasprintf( (char **)&cfg->old_server_name, "%s-%d", buf, ++pbox->old_servers );
-						goto gotsrv;
-					}
-			cfg->old_server_name = nfstrdup( buf );
-			cfg->old_servers = 1;
-		  gotsrv: ;
 		}
+		if (boxes) /* !o2o */
+			for (pbox = boxes; pbox != cfg; pbox = pbox->next)
+				if (!memcmp( pbox->server_name, buf, hl + 1 )) {
+					nfasprintf( (char **)&cfg->old_server_name, "%s-%d", buf, ++pbox->old_servers );
+					goto gotsrv;
+				}
+		cfg->old_server_name = nfstrdup( buf );
+		cfg->old_servers = 1;
+	  gotsrv: ;
 	}
 
 	if (cfg->user)
