@@ -41,7 +41,9 @@ typedef struct config {
 	struct config *next;
 
 	const char *server_name;
+	const char *old_server_name;
 	int servers;
+	int old_servers;
 	char *host;
 	int port;
 	char *user;

@@ -241,16 +241,14 @@ write_imap_server( FILE *fp, config_t *cfg )
 	config_t *pbox;
 	char *p, *p2;
 	int hl, a1, a2, a3, a4;
-	char buf[128];
+	char buf[128], ubuf[64];
 	static int tunnels;
 
-	if (cfg->tunnel) {
-		nfasprintf( (char **)&cfg->server_name, "tunnel%d", ++tunnels );
-		fprintf( fp, "IMAPAccount %s\nTunnel \"%s\"\n",
-		         cfg->server_name, cfg->tunnel );
-	} else {
+	if (cfg->tunnel)
+		nfasprintf( (char **)&cfg->old_server_name, "tunnel%d", ++tunnels );
+	else {
 		if (sscanf( cfg->host, "%d.%d.%d.%d", &a1, &a2, &a3, &a4 ) == 4)
-			cfg->server_name = nfstrdup( cfg->host );
+			cfg->old_server_name = nfstrdup( cfg->host );
 		else {
 			p = strrchr( cfg->host, '.' );
 			if (!p)
@@ -264,14 +262,41 @@ write_imap_server( FILE *fp, config_t *cfg )
 			if (boxes) /* !o2o */
 				for (pbox = boxes; pbox != cfg; pbox = pbox->next)
 					if (!memcmp( pbox->server_name, buf, hl + 1 )) {
-						nfasprintf( (char **)&cfg->server_name, "%s-%d", buf, ++pbox->servers );
+						nfasprintf( (char **)&cfg->old_server_name, "%s-%d", buf, ++pbox->old_servers );
 						goto gotsrv;
 					}
-			cfg->server_name = nfstrdup( buf );
-			cfg->servers = 1;
+			cfg->old_server_name = nfstrdup( buf );
+			cfg->old_servers = 1;
 		  gotsrv: ;
 		}
-		fprintf( fp, "IMAPAccount %s\n", cfg->server_name );
+	}
+
+	if (cfg->user)
+		nfsnprintf( ubuf, sizeof(ubuf), "%s@", cfg->user );
+	else
+		ubuf[0] = 0;
+	if (!cfg->host)
+		hl = nfsnprintf( buf, sizeof(buf), "%stunnel", ubuf );
+	else {
+		if (cfg->port != (cfg->use_imaps ? 993 : 143))
+			hl = nfsnprintf( buf, sizeof(buf), "%s%s_%d", ubuf, cfg->host, cfg->port );
+		else
+			hl = nfsnprintf( buf, sizeof(buf), "%s%s", ubuf, cfg->host );
+	}
+	if (boxes) /* !o2o */
+		for (pbox = boxes; pbox != cfg; pbox = pbox->next)
+			if (!memcmp( pbox->server_name, buf, hl + 1 )) {
+				nfasprintf( (char **)&cfg->server_name, "%s-%d", buf, ++pbox->servers );
+				goto ngotsrv;
+			}
+	cfg->server_name = nfstrdup( buf );
+	cfg->servers = 1;
+  ngotsrv: ;
+
+	fprintf( fp, "IMAPAccount %s\n", cfg->server_name );
+	if (cfg->tunnel)
+		fprintf( fp, "Tunnel \"%s\"\n", cfg->tunnel );
+	else {
 		if (cfg->use_imaps)
 			fprintf( fp, "Host imaps:%s\n", cfg->host );
 		else
@@ -285,7 +310,7 @@ write_imap_server( FILE *fp, config_t *cfg )
 	fprintf( fp, "RequireCRAM %s\nRequireSSL %s\n"
 	             "UseSSLv2 %s\nUseSSLv3 %s\nUseTLSv1 %s\n",
 	             tb(cfg->require_cram), tb(cfg->require_ssl),
-		     tb(cfg->use_sslv2), tb(cfg->use_sslv3), tb(cfg->use_tlsv1) );
+	             tb(cfg->use_sslv2), tb(cfg->use_sslv3), tb(cfg->use_tlsv1) );
 	if ((cfg->use_imaps || cfg->use_sslv2 || cfg->use_sslv3 || cfg->use_tlsv1) &&
 	    cfg->cert_file)
 		fprintf( fp, "CertificateFile %s\n", cfg->cert_file );
@@ -296,9 +321,9 @@ static void
 write_imap_store( FILE *fp, config_t *cfg )
 {
 	if (cfg->stores > 1)
-		nfasprintf( (char **)&cfg->store_name, "%s-%d", cfg->server_name, cfg->stores );
+		nfasprintf( (char **)&cfg->store_name, "%s-%d", cfg->old_server_name, cfg->stores );
 	else
-		cfg->store_name = cfg->server_name;
+		cfg->store_name = cfg->old_server_name;
 	fprintf( fp, "IMAPStore %s\nAccount %s\n",
 	         cfg->store_name, cfg->server_name );
 	if (*folder)
