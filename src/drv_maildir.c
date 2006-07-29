@@ -662,7 +662,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 				if (u)
 					ml = u - entry->base;
 				else
-					ru = "", ml = INT_MAX;
+					ru = "", ml = sizeof(buf);
 				fnl = nfsnprintf( buf + bl, sizeof(buf) - bl, "%s/%.*s,U=%d%s", subdirs[entry->recent], ml, entry->base, uid, ru ) + 1 - 4;
 				memcpy( nbuf, buf, bl + 4 );
 				nfsnprintf( nbuf + bl + 4, sizeof(nbuf) - bl - 4, "%s", entry->base );

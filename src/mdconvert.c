@@ -154,7 +154,7 @@ convert( const char *box, int altmap )
 			if (u)
 				ml = u - e->d_name;
 			else
-				ru = "", ml = INT_MAX;
+				ru = "", ml = sizeof(buf);
 			if (altmap) {
 				if (!p)
 					continue;
