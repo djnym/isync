@@ -659,11 +659,10 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 					for (ru = u + 3; isdigit( (unsigned char)*ru ); ru++);
 				else
 					u = ru = strchr( entry->base, ':' );
-				if (u)
-					ml = u - entry->base;
-				else
-					ru = "", ml = sizeof(buf);
-				fnl = nfsnprintf( buf + bl, sizeof(buf) - bl, "%s/%.*s,U=%d%s", subdirs[entry->recent], ml, entry->base, uid, ru ) + 1 - 4;
+				fnl = (u ?
+					nfsnprintf( buf + bl, sizeof(buf) - bl, "%s/%.*s,U=%d%s", subdirs[entry->recent], u - entry->base, entry->base, uid, ru ) :
+					nfsnprintf( buf + bl, sizeof(buf) - bl, "%s/%s,U=%d", subdirs[entry->recent], entry->base, uid ))
+					+ 1 - 4;
 				memcpy( nbuf, buf, bl + 4 );
 				nfsnprintf( nbuf + bl + 4, sizeof(nbuf) - bl - 4, "%s", entry->base );
 				if (rename( nbuf, buf )) {
