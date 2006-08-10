@@ -211,7 +211,7 @@ msg_fetched( int sts, void *aux )
 	copy_vars_t *vars = (copy_vars_t *)aux;
 	SVARS(vars->aux)
 	char *fmap, *buf;
-	int i, len, extra, cra, crd, scr, tcr;
+	int i, len, extra, cra, crd, scr, tcr, crds;
 	int start, sbreak = 0, ebreak = 0;
 	char c;
 
@@ -234,18 +234,19 @@ msg_fetched( int sts, void *aux )
 				extra += 8 + TUIDL + 1 + tcr;
 			  nloop:
 				start = i;
+				crds = 0;
 				while (i < len) {
 					c = fmap[i++];
 					if (c == '\r')
-						extra += crd;
+						crds += crd;
 					else if (c == '\n') {
-						extra += cra;
-						if (i - 1 - scr == start) {
-							sbreak = ebreak = i - 1 - scr;
-							goto oke;
-						}
 						if (!memcmp( fmap + start, "X-TUID: ", 8 )) {
 							extra -= (ebreak = i) - (sbreak = start);
+							goto oke;
+						}
+						extra += cra + crds;
+						if (i - 1 - scr == start) {
+							sbreak = ebreak = i - 1 - scr;
 							goto oke;
 						}
 						goto nloop;
