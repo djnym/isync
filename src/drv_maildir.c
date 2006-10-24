@@ -365,7 +365,8 @@ maildir_init_uid( maildir_store_t *ctx, const char *msg )
 	ctx->uvok = 0;
 #ifdef USE_DB
 	if (ctx->db) {
-		ctx->db->truncate( ctx->db, 0, 0 /* &u_int32_t_dummy */, 0 );
+		u_int32_t count;
+		ctx->db->truncate( ctx->db, 0, &count, 0 );
 		return maildir_set_uid( ctx, 0, 0 );
 	}
 #endif /* USE_DB */
@@ -496,7 +497,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 	DBC *dbc;
 #endif /* USE_DB */
 	msg_t *entry;
-	int i, j, uid, bl, ml, fnl, ret;
+	int i, j, uid, bl, fnl, ret;
 	struct stat st;
 	char buf[_POSIX_PATH_MAX], nbuf[_POSIX_PATH_MAX];
 
