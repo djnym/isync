@@ -22,6 +22,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -167,6 +168,11 @@ main( int argc, char **argv )
 	/* defaults */
 	/* XXX the precedence is borked:
 	   it's defaults < cmdline < file instead of defaults < file < cmdline */
+#ifdef BSD
+	global.user = getenv( "USER" );
+#else
+	global.user = getenv( "LOGNAME" );
+#endif
 	global.port = 143;
 	global.box = "INBOX";
 	global.use_namespace = 1;
