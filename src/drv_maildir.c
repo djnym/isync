@@ -174,15 +174,18 @@ maildir_list( store_t *gctx,
 		return;
 	}
 	while ((de = readdir( dir ))) {
+		const char *inbox = ((maildir_store_conf_t *)gctx->conf)->inbox;
+		int bl;
 		struct stat st;
 		char buf[PATH_MAX];
 
 		if (*de->d_name == '.')
 			continue;
-		nfsnprintf( buf, sizeof(buf), "%s%s/cur", gctx->conf->path, de->d_name );
+		bl = nfsnprintf( buf, sizeof(buf), "%s%s/cur", gctx->conf->path, de->d_name );
 		if (stat( buf, &st ) || !S_ISDIR(st.st_mode))
 			continue;
-		add_string_list( &gctx->boxes, de->d_name );
+		add_string_list( &gctx->boxes,
+		                 !memcmp( buf, inbox, bl - 4 ) && !inbox[bl - 4] ? "INBOX" : de->d_name );
 	}
 	closedir (dir);
 	gctx->listed = 1;
