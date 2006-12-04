@@ -230,6 +230,7 @@ main( int argc, char **argv )
 	arc4_init();
 
 	memset( mvars, 0, sizeof(*mvars) );
+	mvars->t[1] = 1;
 
 	for (mvars->oind = 1, ochar = 0; mvars->oind < argc; ) {
 		if (!ochar || !*ochar) {
