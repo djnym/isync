@@ -281,10 +281,11 @@ sub killcfg()
 # $options
 sub runsync($)
 {
+#	open FILE, "valgrind -q --log-fd=3 ../mbsync ".shift()." -c .mbsyncrc test 3>&2 2>&1 |";
 	open FILE, "../mbsync -D ".shift()." -c .mbsyncrc test 2>&1 |";
 	my @out = <FILE>;
 	close FILE or push(@out, $! ? "*** error closing mbsync: $!\n" : "*** mbsync exited with signal ".($?&127).", code ".($?>>8)."\n");
-	return @out;
+	return $?, @out;
 }
 
 
@@ -584,7 +585,18 @@ sub test($$)
 
 	mkchan($$sx[0], $$sx[1], @{ $$sx[2] });
 	&writecfg(@{ $$tx[0] });
-	my @ret = runsync("-J");
+	my ($xc, @ret) = runsync("-J");
+	if ($xc) {
+		print "Input:\n";
+		printchan($$sx[0], $$sx[1], @{ $$sx[2] });
+		print "Options:\n";
+		print " [ ".join(", ", map('"'.qm($_).'"', @{ $$tx[0] }))." ]\n";
+		print "Expected result:\n";
+		printchan($$tx[1], $$tx[2], @{ $$tx[3] });
+		print "Debug output:\n";
+		print @ret;
+		exit 1;
+	}
 	if (ckchan($$tx[1], $$tx[2], @{ $$tx[3] })) {
 		print "Input:\n";
 		printchan($$sx[0], $$sx[1], @{ $$sx[2] });
