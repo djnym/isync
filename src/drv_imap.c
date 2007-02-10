@@ -1689,6 +1689,7 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 		*serverapp = server;
 		serverapp = &server->next;
 		store = 0;
+		*storep = 0;
 	} else if (!strcasecmp( "IMAPStore", cfg->cmd )) {
 		store = nfcalloc( sizeof(*store) );
 		store->gen.driver = &imap_driver;
