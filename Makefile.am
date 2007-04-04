@@ -20,6 +20,9 @@ distdir distclean: deb-clean
 dist-hook:
 	find $(distdir)/debian \( -name CVS -o -name .cvsignore -o -name .#\*# -o -type l \) -print0 | xargs -0r rm -rf
 
+dist-sign: dist
+	gpg -b -a $(PACKAGE)-$(VERSION).tar.gz
+
 rpm:
 	make dist
 	cp $(PACKAGE)-$(VERSION).tar.gz /usr/src/rpm/SOURCES
