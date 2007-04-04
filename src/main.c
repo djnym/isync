@@ -83,6 +83,7 @@ PACKAGE " " VERSION " - mailbox synchronizer\n"
 	exit( code );
 }
 
+#ifdef __linux__
 static void
 crashHandler( int n )
 {
@@ -94,7 +95,7 @@ crashHandler( int n )
 	dup2( 0, 1 );
 	dup2( 0, 2 );
 	error( "*** " EXE " caught signal %d. Starting debugger ...\n", n );
-	switch ((dpid = fork ())) {
+	switch ((dpid = fork())) {
 	case -1:
 		perror( "fork()" );
 		break;
@@ -110,6 +111,7 @@ crashHandler( int n )
 	}
 	exit( 3 );
 }
+#endif
 
 static int
 matches( const char *t, const char *p )
@@ -438,11 +440,13 @@ main( int argc, char **argv )
 		}
 	}
 
+#ifdef __linux__
 	if (DFlags & DEBUG) {
 		signal( SIGSEGV, crashHandler );
 		signal( SIGBUS, crashHandler );
 		signal( SIGILL, crashHandler );
 	}
+#endif
 
 	if (merge_ops( cops, mvars->ops ))
 		return 1;
