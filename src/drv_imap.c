@@ -1261,11 +1261,11 @@ imap_open_store( store_conf_t *conf,
 		info( "ok\n" );
 	} else {
 		memset( &addr, 0, sizeof(addr) );
-		addr.sin_port = htons( srvc->port ? srvc->port :
+		addr.sin_port = srvc->port ? htons( srvc->port ) :
 #ifdef HAVE_LIBSSL
-		                       srvc->use_imaps ? 993 :
+		                srvc->use_imaps ? htons( 993 ) :
 #endif
-		                       143 );
+		                htons( 143 );
 		addr.sin_family = AF_INET;
 
 		infon( "Resolving %s... ", srvc->host );
