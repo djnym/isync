@@ -305,7 +305,7 @@ write_imap_server( FILE *fp, config_t *cfg )
 		fprintf( fp, "Port %d\n", cfg->port );
 	}
 	if (cfg->user)
-		fprintf( fp, "User %s\n", cfg->user );
+		fprintf( fp, "User \"%s\"\n", cfg->user );
 	if (cfg->pass)
 		fprintf( fp, "Pass \"%s\"\n", cfg->pass );
 	fprintf( fp, "RequireCRAM %s\nRequireSSL %s\n"
