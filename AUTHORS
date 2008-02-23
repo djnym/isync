@@ -1,6 +1,3 @@
-Michael Elkins <me@mutt.org>
-	* Author
-
 Oswald Buddenhagen <ossi@users.sf.net>
 	* Contributor, current maintainer
 
@@ -9,6 +6,9 @@ Theodore Ts'o <tytso@mit.edu>
 
 Nicolas Boullis <nboullis@debian.org>
 	* Debian package maintainer and minor upstream contributions
+
+Michael Elkins <me@mutt.org>
+	* Original author
 
 Send questions and bug reports to the isync-devel@lists.sourceforge.net
 mailing list.
