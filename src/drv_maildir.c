@@ -521,7 +521,7 @@ maildir_scan( maildir_store_t *ctx, msglist_t *msglist )
 				fputs( "Maildir error: db_create() failed\n", stderr );
 				return DRV_BOX_BAD;
 			}
-			if (tdb->open( tdb, 0, 0, 0, DB_HASH, DB_CREATE, 0 )) {
+			if ((tdb->open)( tdb, 0, 0, 0, DB_HASH, DB_CREATE, 0 )) {
 				fputs( "Maildir error: tdb->open() failed\n", stderr );
 				tdb->close( tdb, 0 );
 				return DRV_BOX_BAD;
@@ -825,7 +825,7 @@ maildir_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs,
 			fputs( "Maildir error: db_create() failed\n", stderr );
 			goto bork;
 		}
-		if ((ret = ctx->db->open( ctx->db, 0, uvpath, 0, DB_HASH, DB_CREATE, 0 ))) {
+		if ((ret = (ctx->db->open)( ctx->db, 0, uvpath, 0, DB_HASH, DB_CREATE, 0 ))) {
 			ctx->db->err( ctx->db, ret, "Maildir error: db->open(%s)", uvpath );
 		  dbork:
 			ctx->db->close( ctx->db, 0 );

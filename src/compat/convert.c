@@ -145,7 +145,7 @@ convert( config_t *box )
 			fputs( "dbcreate failed\n", stderr );
 			goto err2;
 		}
-		if (db->open( db, 0, iumname, 0, DB_HASH, 0, 0 )) {
+		if ((db->open)( db, 0, iumname, 0, DB_HASH, 0, 0 )) {
 			fputs( "cannot open db\n", stderr );
 			db->close( db, 0 );
 			goto err2;
