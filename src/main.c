@@ -234,8 +234,10 @@ main( int argc, char **argv )
 	memset( mvars, 0, sizeof(*mvars) );
 	mvars->t[1] = 1;
 
-	for (mvars->oind = 1, ochar = 0; mvars->oind < argc; ) {
+	for (mvars->oind = 1, ochar = 0; ; ) {
 		if (!ochar || !*ochar) {
+			if (mvars->oind >= argc)
+				break;
 			if (argv[mvars->oind][0] != '-')
 				break;
 			if (argv[mvars->oind][1] == '-') {
