@@ -246,7 +246,7 @@ write_imap_server( FILE *fp, config_t *cfg )
 
 	if (cfg->tunnel)
 		nfasprintf( (char **)&cfg->old_server_name, "tunnel%d", ++tunnels );
-	else {
+	else if (cfg->host) {
 		if (sscanf( cfg->host, "%d.%d.%d.%d", &a1, &a2, &a3, &a4 ) == 4)
 			hl = nfsnprintf( buf, sizeof(buf), "%s", cfg->host );
 		else {
@@ -270,6 +270,9 @@ write_imap_server( FILE *fp, config_t *cfg )
 		cfg->old_server_name = nfstrdup( buf );
 		cfg->old_servers = 1;
 	  gotsrv: ;
+	} else {
+		fprintf( stderr, "ERROR: Neither host nor tunnel specified for mailbox %s.\n", cfg->path );
+		exit( 1 );
 	}
 
 	if (cfg->user)
