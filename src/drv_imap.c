@@ -1,7 +1,7 @@
 /*
  * mbsync - mailbox synchronizer
  * Copyright (C) 2000-2002 Michael R. Elkins <me@mutt.org>
- * Copyright (C) 2002-2006 Oswald Buddenhagen <ossi@users.sf.net>
+ * Copyright (C) 2002-2006,2008 Oswald Buddenhagen <ossi@users.sf.net>
  * Copyright (C) 2004 Theodore Y. Ts'o <tytso@mit.edu>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -733,6 +733,8 @@ parse_fetch( imap_store_t *ctx, char *cmd ) /* move this down */
 										mask |= 1 << i;
 										goto flagok;
 									}
+								if (flags->val[1] == 'X' && flags->val[2] == '-')
+									goto flagok; /* ignore system flag extensions */
 								error( "IMAP warning: unknown system flag %s\n", flags->val );
 							}
 						  flagok: ;
