@@ -188,9 +188,11 @@ static int
 verify_cert( SSL *ssl )
 {
 	X509 *cert;
-	int err;
-	char buf[256];
 	BIO *bio;
+	int err;
+	unsigned n, i;
+	char buf[256];
+	unsigned char md[EVP_MAX_MD_SIZE];
 
 	cert = SSL_get_peer_certificate( ssl );
 	if (!cert) {
@@ -219,15 +221,18 @@ verify_cert( SSL *ssl )
 	BIO_read( bio, buf, sizeof(buf) - 1 );
 	BIO_free( bio );
 	info( "      to:   %s\n", buf );
-
-	fputs( "\n*** WARNING ***  There is no way to verify this certificate.  It is\n"
-	       "                 possible that a hostile attacker has replaced the\n"
-	       "                 server certificate.  Continue at your own risk!\n"
-	       "\nAccept this certificate anyway? [no]: ",  stderr );
-	if (fgets( buf, sizeof(buf), stdin ) && (buf[0] == 'y' || buf[0] == 'Y')) {
-		error( "\n*** Fine, but don't say I didn't warn you!\n\n" );
-		return 0;
+	if (!X509_digest( cert, EVP_md5(), md, &n ))
+		info( "*** Unable to calculate fingerprint\n" );
+	else {
+		info( "Fingerprint: " );
+		for (i = 0; i < n; i += 2)
+			info( "%02X%02X ", md[i], md[i + 1] );
+		info( "\n" );
 	}
+
+	fputs( "\nAccept certificate? [y/N]: ",  stderr );
+	if (fgets( buf, sizeof(buf), stdin ) && (buf[0] == 'y' || buf[0] == 'Y'))
+		return 0;
 	return -1;
 }
 
@@ -245,8 +250,7 @@ init_ssl_ctx( imap_store_t *ctx )
 	ctx->SSLContext = SSL_CTX_new( method );
 
 	if (!srvc->cert_file) {
-		error( "Error, CertificateFile not defined\n" );
-		return -1;
+		info( "Note: CertificateFile not defined\n" );
 	} else if (!SSL_CTX_load_verify_locations( ctx->SSLContext, srvc->cert_file, NULL )) {
 		error( "Error while loading certificate file '%s': %s\n",
 		       srvc->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
