@@ -66,6 +66,7 @@ typedef struct imap_server_conf {
 	unsigned use_sslv3:1;
 	unsigned use_tlsv1:1;
 	unsigned require_cram:1;
+	X509_STORE *cert_store;
 #endif
 } imap_server_conf_t;
 
@@ -182,15 +183,46 @@ static const char *Flags[] = {
 };
 
 #if HAVE_LIBSSL
+/* Some of this code is inspired by / lifted from mutt. */
+
+static int
+compare_certificates( X509 *cert, X509 *peercert,
+                      unsigned char *peermd, unsigned peermdlen )
+{
+	unsigned char md[EVP_MAX_MD_SIZE];
+	unsigned mdlen;
+
+	/* Avoid CPU-intensive digest calculation if the certificates are
+	 * not even remotely equal. */
+	if (X509_subject_name_cmp( cert, peercert ) ||
+	    X509_issuer_name_cmp( cert, peercert ))
+		return -1;
+
+	if (!X509_digest( cert, EVP_sha1(), md, &mdlen ) ||
+	    peermdlen != mdlen || memcmp( peermd, md, mdlen ))
+		return -1;
+
+	return 0;
+}
+
+#if OPENSSL_VERSION_NUMBER >= 0x00904000L
+#define READ_X509_KEY(fp, key) PEM_read_X509( fp, key, 0, 0 )
+#else
+#define READ_X509_KEY(fp, key) PEM_read_X509( fp, key, 0 )
+#endif
 
 /* this gets called when a certificate is to be verified */
 static int
-verify_cert( SSL *ssl )
+verify_cert( imap_store_t *ctx )
 {
-	X509 *cert;
+	imap_server_conf_t *srvc = ((imap_store_conf_t *)ctx->gen.conf)->server;
+	SSL *ssl = ctx->buf.sock.ssl;
+	X509 *cert, *lcert;
 	BIO *bio;
+	FILE *fp;
 	int err;
 	unsigned n, i;
+	X509_STORE_CTX xsc;
 	char buf[256];
 	unsigned char md[EVP_MAX_MD_SIZE];
 
@@ -200,12 +232,58 @@ verify_cert( SSL *ssl )
 		return -1;
 	}
 
-	err = SSL_get_verify_result( ssl );
-	if (err == X509_V_OK)
-		return 0;
+	while (srvc->cert_file) { // So break works
+		if (X509_cmp_current_time( X509_get_notBefore( cert )) >= 0) {
+			error( "Server certificate is not yet valid" );
+			break;
+		}
+		if (X509_cmp_current_time( X509_get_notAfter( cert )) <= 0) {
+			error( "Server certificate has expired" );
+			break;
+		}
+		if (!X509_digest( cert, EVP_sha1(), md, &n )) {
+			error( "*** Unable to calculate digest\n" );
+			break;
+		}
+		if (!(fp = fopen( srvc->cert_file, "rt" ))) {
+			error( "Unable to load CertificateFile '%s': %s\n",
+			       srvc->cert_file, strerror( errno ) );
+			return 0;
+		}
+		for (lcert = 0; READ_X509_KEY( fp, &lcert ); )
+			if (!(err = compare_certificates( lcert, cert, md, n )))
+				break;
+		X509_free( lcert );
+		fclose( fp );
+		if (!err)
+			return 0;
+		break;
+	}
 
+	if (!srvc->cert_store) {
+		if (!(srvc->cert_store = X509_STORE_new())) {
+			error( "Error creating certificate store\n" );
+			return -1;
+		}
+		if (!X509_STORE_set_default_paths( srvc->cert_store ))
+			warn( "Error while loading default certificate files: %s\n",
+			      ERR_error_string( ERR_get_error(), 0 ) );
+		if (!srvc->cert_file) {
+			info( "Note: CertificateFile not defined\n" );
+		} else if (!X509_STORE_load_locations( srvc->cert_store, srvc->cert_file, 0 )) {
+			error( "Error while loading certificate file '%s': %s\n",
+			       srvc->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
+			return -1;
+		}
+	}
+
+	X509_STORE_CTX_init( &xsc, srvc->cert_store, cert, 0 );
+	err = X509_verify_cert( &xsc ) > 0 ? 0 : X509_STORE_CTX_get_error( &xsc );
+	X509_STORE_CTX_cleanup( &xsc );
+	if (!err)
+		return 0;
 	error( "Error, can't verify certificate: %s (%d)\n",
-	       X509_verify_cert_error_string(err), err );
+	       X509_verify_cert_error_string( err ), err );
 
 	X509_NAME_oneline( X509_get_subject_name( cert ), buf, sizeof(buf) );
 	info( "\nSubject: %s\n", buf );
@@ -221,9 +299,9 @@ verify_cert( SSL *ssl )
 	BIO_read( bio, buf, sizeof(buf) - 1 );
 	BIO_free( bio );
 	info( "      to:   %s\n", buf );
-	if (!X509_digest( cert, EVP_md5(), md, &n ))
-		info( "*** Unable to calculate fingerprint\n" );
-	else {
+	if (!X509_digest( cert, EVP_md5(), md, &n )) {
+		error( "*** Unable to calculate fingerprint\n" );
+	} else {
 		info( "Fingerprint: " );
 		for (i = 0; i < n; i += 2)
 			info( "%02X%02X ", md[i], md[i + 1] );
@@ -248,14 +326,6 @@ init_ssl_ctx( imap_store_t *ctx )
 	else
 		method = SSLv23_client_method();
 	ctx->SSLContext = SSL_CTX_new( method );
-
-	if (!srvc->cert_file) {
-		info( "Note: CertificateFile not defined\n" );
-	} else if (!SSL_CTX_load_verify_locations( ctx->SSLContext, srvc->cert_file, NULL )) {
-		error( "Error while loading certificate file '%s': %s\n",
-		       srvc->cert_file, ERR_error_string( ERR_get_error(), 0 ) );
-		return -1;
-	}
 
 	if (!srvc->use_sslv2)
 		options |= SSL_OP_NO_SSLv2;
@@ -1121,7 +1191,7 @@ start_tls( imap_store_t *ctx )
 	}
 
 	/* verify the server certificate */
-	if (verify_cert( ctx->buf.sock.ssl ))
+	if (verify_cert( ctx ))
 		return 1;
 
 	ctx->buf.sock.use_ssl = 1;
