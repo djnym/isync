@@ -470,13 +470,14 @@ sync_boxes( store_t *ctx[], const char *names[], channel_conf_t *chan,
 	svars->ctx[0] = ctx[0];
 	svars->ctx[1] = ctx[1];
 	svars->chan = chan;
+	svars->uidval[0] = svars->uidval[1] = -1;
 	svars->srecadd = &svars->srecs;
 
 	for (t = 0; t < 2; t++) {
 		ctx[t]->name =
 			(!names[t] || (ctx[t]->conf->map_inbox && !strcmp( ctx[t]->conf->map_inbox, names[t] ))) ?
 				"INBOX" : names[t];
-		ctx[t]->uidvalidity = 0;
+		ctx[t]->uidvalidity = -1;
 		svars->drv[t] = ctx[t]->conf->driver;
 		svars->drv[t]->prepare_paths( ctx[t] );
 	}
@@ -862,7 +863,7 @@ box_selected( int sts, void *aux )
 
 	if (check_ret( sts, svars, t ))
 		return 1;
-	if (svars->uidval[t] && svars->uidval[t] != svars->ctx[t]->uidvalidity) {
+	if (svars->uidval[t] >= 0 && svars->uidval[t] != svars->ctx[t]->uidvalidity) {
 		error( "Error: UIDVALIDITY of %s changed (got %d, expected %d)\n",
 		         str_ms[t], svars->ctx[t]->uidvalidity, svars->uidval[t] );
 		svars->ret |= SYNC_FAIL;
@@ -1056,7 +1057,7 @@ msgs_found_sel( sync_vars_t *svars, int t )
 	if (!(svars->state[1-t] & ST_SENT_FIND_OLD) || svars->find_old_done[1-t] < svars->find_new_total[1-t])
 		return 0;
 
-	if (!svars->uidval[M] || !svars->uidval[S]) {
+	if (svars->uidval[M] < 0 || svars->uidval[S] < 0) {
 		svars->uidval[M] = svars->ctx[M]->uidvalidity;
 		svars->uidval[S] = svars->ctx[S]->uidvalidity;
 		Fprintf( svars->jfp, "| %d %d\n", svars->uidval[M], svars->uidval[S] );

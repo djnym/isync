@@ -882,7 +882,7 @@ parse_capability( imap_store_t *ctx, char *cmd )
 static int
 parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
 {
-	char *arg, *p;
+	char *arg, *earg, *p;
 
 	if (*s != '[')
 		return RESP_OK;		/* no response code */
@@ -894,7 +894,9 @@ parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
 	*p++ = 0;
 	arg = next_arg( &s );
 	if (!strcmp( "UIDVALIDITY", arg )) {
-		if (!(arg = next_arg( &s )) || !(ctx->gen.uidvalidity = atoi( arg ))) {
+		if (!(arg = next_arg( &s )) ||
+		    (ctx->gen.uidvalidity = strtoll( arg, &earg, 10 ), *earg))
+		{
 			error( "IMAP error: malformed UIDVALIDITY status\n" );
 			return RESP_BAD;
 		}
@@ -912,7 +914,8 @@ parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
 		for (; isspace( (unsigned char)*p ); p++);
 		error( "*** IMAP ALERT *** %s\n", p );
 	} else if (cb && cb->ctx && !strcmp( "APPENDUID", arg )) {
-		if (!(arg = next_arg( &s )) || !(ctx->gen.uidvalidity = atoi( arg )) ||
+		if (!(arg = next_arg( &s )) ||
+		    (ctx->gen.uidvalidity = strtoll( arg, &earg, 10 ), *earg) ||
 		    !(arg = next_arg( &s )) || !(*(int *)cb->ctx = atoi( arg )))
 		{
 			error( "IMAP error: malformed APPENDUID status\n" );
