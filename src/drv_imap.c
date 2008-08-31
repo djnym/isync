@@ -126,21 +126,22 @@ typedef struct imap_store {
 	buffer_t buf; /* this is BIG, so put it last */
 } imap_store_t;
 
-struct imap_cmd_cb {
-	int (*cont)( imap_store_t *ctx, struct imap_cmd *cmd, const char *prompt );
-	void (*done)( imap_store_t *ctx, struct imap_cmd *cmd, int response);
-	void *ctx;
-	char *data;
-	int dlen;
-	int uid;
-	unsigned create:1, trycreate:1;
-};
-
 struct imap_cmd {
 	struct imap_cmd *next;
-	struct imap_cmd_cb cb;
 	char *cmd;
 	int tag;
+
+	struct {
+		int (*cont)( imap_store_t *ctx, struct imap_cmd *cmd, const char *prompt );
+		void (*done)( imap_store_t *ctx, struct imap_cmd *cmd, int response );
+		void *aux;
+		char *data;
+		int data_len;
+		int uid; /* to identify fetch responses */
+		unsigned
+			create:1, /* create the mailbox if we get an error ... */
+			trycreate:1; /* ... but only if this is true or the server says so. */
+	} param;
 };
 
 #define CAP(cap) (ctx->caps & (1 << (cap)))
@@ -475,28 +476,30 @@ buffer_gets( buffer_t * b, char **s )
 }
 
 static struct imap_cmd *
-v_issue_imap_cmd( imap_store_t *ctx, struct imap_cmd_cb *cb,
-                  const char *fmt, va_list ap )
+new_imap_cmd( void )
 {
-	struct imap_cmd *cmd;
+	struct imap_cmd *cmd = nfmalloc( sizeof(*cmd) );
+	memset( &cmd->param, 0, sizeof(cmd->param) );
+	return cmd;
+}
+
+static struct imap_cmd *
+v_submit_imap_cmd( imap_store_t *ctx, struct imap_cmd *cmd,
+                   const char *fmt, va_list ap )
+{
 	int n, bufl;
 	char buf[1024];
-
-	cmd = nfmalloc( sizeof(struct imap_cmd) );
-	nfvasprintf( &cmd->cmd, fmt, ap );
-	cmd->tag = ++ctx->nexttag;
-
-	if (cb)
-		cmd->cb = *cb;
-	else
-		memset( &cmd->cb, 0, sizeof(cmd->cb) );
 
 	while (ctx->literal_pending)
 		get_cmd_result( ctx, 0 );
 
-	bufl = nfsnprintf( buf, sizeof(buf), cmd->cb.data ? CAP(LITERALPLUS) ?
+	if (!cmd)
+		cmd = new_imap_cmd();
+	cmd->tag = ++ctx->nexttag;
+	nfvasprintf( &cmd->cmd, fmt, ap );
+	bufl = nfsnprintf( buf, sizeof(buf), cmd->param.data ? CAP(LITERALPLUS) ?
 	                   "%d %s{%d+}\r\n" : "%d %s{%d}\r\n" : "%d %s\r\n",
-	                   cmd->tag, cmd->cmd, cmd->cb.dlen );
+	                   cmd->tag, cmd->cmd, cmd->param.data_len );
 	if (DFlags & VERBOSE) {
 		if (ctx->num_in_progress)
 			printf( "(%d in progress) ", ctx->num_in_progress );
@@ -506,27 +509,27 @@ v_issue_imap_cmd( imap_store_t *ctx, struct imap_cmd_cb *cb,
 			printf( ">>> %d LOGIN <user> <pass>\n", cmd->tag );
 	}
 	if (socket_write( &ctx->buf.sock, buf, bufl ) != bufl) {
+		if (cmd->param.data)
+			free( cmd->param.data );
 		free( cmd->cmd );
 		free( cmd );
-		if (cb && cb->data)
-			free( cb->data );
 		return NULL;
 	}
-	if (cmd->cb.data) {
+	if (cmd->param.data) {
 		if (CAP(LITERALPLUS)) {
-			n = socket_write( &ctx->buf.sock, cmd->cb.data, cmd->cb.dlen );
-			free( cmd->cb.data );
-			if (n != cmd->cb.dlen ||
+			n = socket_write( &ctx->buf.sock, cmd->param.data, cmd->param.data_len );
+			free( cmd->param.data );
+			if (n != cmd->param.data_len ||
 			    (n = socket_write( &ctx->buf.sock, "\r\n", 2 )) != 2)
 			{
 				free( cmd->cmd );
 				free( cmd );
 				return NULL;
 			}
-			cmd->cb.data = 0;
+			cmd->param.data = 0;
 		} else
 			ctx->literal_pending = 1;
-	} else if (cmd->cb.cont)
+	} else if (cmd->param.cont)
 		ctx->literal_pending = 1;
 	cmd->next = 0;
 	*ctx->in_progress_append = cmd;
@@ -536,40 +539,24 @@ v_issue_imap_cmd( imap_store_t *ctx, struct imap_cmd_cb *cb,
 }
 
 static struct imap_cmd *
-issue_imap_cmd( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
+submit_imap_cmd( imap_store_t *ctx, struct imap_cmd *cmd, const char *fmt, ... )
 {
 	struct imap_cmd *ret;
 	va_list ap;
 
 	va_start( ap, fmt );
-	ret = v_issue_imap_cmd( ctx, cb, fmt, ap );
+	ret = v_submit_imap_cmd( ctx, cmd, fmt, ap );
 	va_end( ap );
-	return ret;
-}
-
-static struct imap_cmd *
-issue_imap_cmd_w( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
-{
-	struct imap_cmd *ret;
-	va_list ap;
-
-	va_start( ap, fmt );
-	ret = v_issue_imap_cmd( ctx, cb, fmt, ap );
-	va_end( ap );
-	while (ctx->num_in_progress > max_in_progress ||
-	       socket_pending( &ctx->buf.sock ))
-		get_cmd_result( ctx, 0 );
 	return ret;
 }
 
 static int
-imap_exec( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
+imap_exec( imap_store_t *ctx, struct imap_cmd *cmdp, const char *fmt, ... )
 {
 	va_list ap;
-	struct imap_cmd *cmdp;
 
 	va_start( ap, fmt );
-	cmdp = v_issue_imap_cmd( ctx, cb, fmt, ap );
+	cmdp = v_submit_imap_cmd( ctx, cmdp, fmt, ap );
 	va_end( ap );
 	if (!cmdp)
 		return RESP_BAD;
@@ -578,13 +565,12 @@ imap_exec( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
 }
 
 static int
-imap_exec_b( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
+imap_exec_b( imap_store_t *ctx, struct imap_cmd *cmdp, const char *fmt, ... )
 {
 	va_list ap;
-	struct imap_cmd *cmdp;
 
 	va_start( ap, fmt );
-	cmdp = v_issue_imap_cmd( ctx, cb, fmt, ap );
+	cmdp = v_submit_imap_cmd( ctx, cmdp, fmt, ap );
 	va_end( ap );
 	if (!cmdp)
 		return DRV_STORE_BAD;
@@ -597,13 +583,12 @@ imap_exec_b( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
 }
 
 static int
-imap_exec_m( imap_store_t *ctx, struct imap_cmd_cb *cb, const char *fmt, ... )
+imap_exec_m( imap_store_t *ctx, struct imap_cmd *cmdp, const char *fmt, ... )
 {
 	va_list ap;
-	struct imap_cmd *cmdp;
 
 	va_start( ap, fmt );
-	cmdp = v_issue_imap_cmd( ctx, cb, fmt, ap );
+	cmdp = v_submit_imap_cmd( ctx, cmdp, fmt, ap );
 	va_end( ap );
 	if (!cmdp)
 		return DRV_STORE_BAD;
@@ -623,6 +608,14 @@ drain_imap_replies( imap_store_t *ctx )
 		get_cmd_result( ctx, 0 );
 }
 */
+
+static void
+process_imap_replies( imap_store_t *ctx )
+{
+	while (ctx->num_in_progress > max_in_progress ||
+	       socket_pending( &ctx->buf.sock ))
+		get_cmd_result( ctx, 0 );
+}
 
 static int
 is_atom( list_t *list )
@@ -838,13 +831,13 @@ parse_fetch( imap_store_t *ctx, char *cmd ) /* move this down */
 
 	if (body) {
 		for (cmdp = ctx->in_progress; cmdp; cmdp = cmdp->next)
-			if (cmdp->cb.uid == uid)
+			if (cmdp->param.uid == uid)
 				goto gotuid;
 		error( "IMAP error: unexpected FETCH response (UID %d)\n", uid );
 		free_list( list );
 		return -1;
 	  gotuid:
-		msgdata = (msg_data_t *)cmdp->cb.ctx;
+		msgdata = (msg_data_t *)cmdp->param.aux;
 		msgdata->data = body;
 		msgdata->len = size;
 		if (status & M_FLAGS)
@@ -880,7 +873,7 @@ parse_capability( imap_store_t *ctx, char *cmd )
 }
 
 static int
-parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
+parse_response_code( imap_store_t *ctx, struct imap_cmd *cmd, char *s )
 {
 	char *arg, *earg, *p;
 
@@ -913,10 +906,10 @@ parse_response_code( imap_store_t *ctx, struct imap_cmd_cb *cb, char *s )
 		 */
 		for (; isspace( (unsigned char)*p ); p++);
 		error( "*** IMAP ALERT *** %s\n", p );
-	} else if (cb && cb->ctx && !strcmp( "APPENDUID", arg )) {
+	} else if (cmd && cmd->param.aux && !strcmp( "APPENDUID", arg )) {
 		if (!(arg = next_arg( &s )) ||
 		    (ctx->gen.uidvalidity = strtoll( arg, &earg, 10 ), *earg) ||
-		    !(arg = next_arg( &s )) || !(*(int *)cb->ctx = atoi( arg )))
+		    !(arg = next_arg( &s )) || !(*(int *)cmd->param.aux = atoi( arg )))
 		{
 			error( "IMAP error: malformed APPENDUID status\n" );
 			return RESP_BAD;
@@ -947,8 +940,8 @@ parse_search( imap_store_t *ctx, char *cmd )
 	 * SEARCH response belongs to which request.
 	 */
 	for (cmdp = ctx->in_progress; cmdp; cmdp = cmdp->next)
-		if (cmdp->cb.uid == -1) {
-			*(int *)cmdp->cb.ctx = uid;
+		if (cmdp->param.uid == -1) {
+			*(int *)cmdp->param.aux = uid;
 			return;
 		}
 	error( "IMAP error: unexpected SEARCH response (UID %u)\n", uid );
@@ -1034,14 +1027,14 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 			   it enforces a round-trip. */
 			cmdp = (struct imap_cmd *)((char *)ctx->in_progress_append -
 			       offsetof(struct imap_cmd, next));
-			if (cmdp->cb.data) {
-				n = socket_write( &ctx->buf.sock, cmdp->cb.data, cmdp->cb.dlen );
-				free( cmdp->cb.data );
-				cmdp->cb.data = 0;
-				if (n != (int)cmdp->cb.dlen)
+			if (cmdp->param.data) {
+				n = socket_write( &ctx->buf.sock, cmdp->param.data, cmdp->param.data_len );
+				free( cmdp->param.data );
+				cmdp->param.data = 0;
+				if (n != (int)cmdp->param.data_len)
 					return RESP_BAD;
-			} else if (cmdp->cb.cont) {
-				if (cmdp->cb.cont( ctx, cmdp, cmd ))
+			} else if (cmdp->param.cont) {
+				if (cmdp->param.cont( ctx, cmdp, cmd ))
 					return RESP_BAD;
 			} else {
 				error( "IMAP error: unexpected command continuation request\n" );
@@ -1049,7 +1042,7 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 			}
 			if (socket_write( &ctx->buf.sock, "\r\n", 2 ) != 2)
 				return RESP_BAD;
-			if (!cmdp->cb.cont)
+			if (!cmdp->param.cont)
 				ctx->literal_pending = 0;
 			if (!tcmd)
 				return DRV_OK;
@@ -1064,23 +1057,25 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 			if (!(*pcmdp = cmdp->next))
 				ctx->in_progress_append = pcmdp;
 			ctx->num_in_progress--;
-			if (cmdp->cb.cont || cmdp->cb.data)
+			if (cmdp->param.cont || cmdp->param.data)
 				ctx->literal_pending = 0;
 			arg = next_arg( &cmd );
 			if (!strcmp( "OK", arg ))
 				resp = DRV_OK;
 			else {
 				if (!strcmp( "NO", arg )) {
-					if (cmdp->cb.create && cmd && (cmdp->cb.trycreate || !memcmp( cmd, "[TRYCREATE]", 11 ))) { /* SELECT, APPEND or UID COPY */
+					if (cmdp->param.create && cmd && (cmdp->param.trycreate || !memcmp( cmd, "[TRYCREATE]", 11 ))) { /* SELECT, APPEND or UID COPY */
 						p = strchr( cmdp->cmd, '"' );
-						if (!issue_imap_cmd( ctx, 0, "CREATE %.*s", strchr( p + 1, '"' ) - p + 1, p )) {
+						if (!submit_imap_cmd( ctx, 0, "CREATE %.*s", strchr( p + 1, '"' ) - p + 1, p )) {
 							resp = RESP_BAD;
 							goto normal;
 						}
 						/* not waiting here violates the spec, but a server that does not
 						   grok this nonetheless violates it too. */
-						cmdp->cb.create = 0;
-						if (!(ncmdp = issue_imap_cmd( ctx, &cmdp->cb, "%s", cmdp->cmd ))) {
+						ncmdp = nfmalloc( sizeof(*ncmdp) );
+						memcpy( &ncmdp->param, &cmdp->param, sizeof(cmdp->param) );
+						ncmdp->param.create = 0;
+						if (!submit_imap_cmd( ctx, ncmdp, "%s", cmdp->cmd )) {
 							resp = RESP_BAD;
 							goto normal;
 						}
@@ -1099,13 +1094,13 @@ get_cmd_result( imap_store_t *ctx, struct imap_cmd *tcmd )
 				       memcmp( cmdp->cmd, "LOGIN", 5 ) ? cmdp->cmd : "LOGIN <user> <pass>",
 				       arg, cmd ? cmd : "" );
 			}
-			if ((resp2 = parse_response_code( ctx, &cmdp->cb, cmd )) > resp)
+			if ((resp2 = parse_response_code( ctx, cmdp, cmd )) > resp)
 				resp = resp2;
 		  normal:
-			if (cmdp->cb.done)
-				cmdp->cb.done( ctx, cmdp, resp );
-			if (cmdp->cb.data)
-				free( cmdp->cb.data );
+			if (cmdp->param.done)
+				cmdp->param.done( ctx, cmdp, resp );
+			if (cmdp->param.data)
+				free( cmdp->param.data );
 			free( cmdp->cmd );
 			free( cmdp );
 			if (!tcmd || tcmd == cmdp)
@@ -1273,7 +1268,7 @@ do_cram_auth( imap_store_t *ctx, struct imap_cmd *cmdp, const char *prompt )
 	free( resp );
 	if (n != l)
 		return -1;
-	cmdp->cb.cont = 0;
+	cmdp->param.cont = 0;
 	return 0;
 }
 #endif
@@ -1451,12 +1446,11 @@ imap_open_store( store_conf_t *conf,
 		}
 #if HAVE_LIBSSL
 		if (CAP(CRAM)) {
-			struct imap_cmd_cb cbd;
+			struct imap_cmd *cmd = new_imap_cmd();
 
 			info( "Authenticating with CRAM-MD5\n" );
-			memset( &cbd, 0, sizeof(cbd) );
-			cbd.cont = do_cram_auth;
-			if (imap_exec( ctx, &cbd, "AUTHENTICATE CRAM-MD5" ) != RESP_OK)
+			cmd->param.cont = do_cram_auth;
+			if (imap_exec( ctx, cmd, "AUTHENTICATE CRAM-MD5" ) != RESP_OK)
 				goto bail;
 		} else if (srvc->require_cram) {
 			error( "IMAP error: CRAM-MD5 authentication is not supported by server\n" );
@@ -1525,9 +1519,9 @@ imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs,
              int (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
+	struct imap_cmd *cmd = new_imap_cmd();
 	const char *prefix;
 	int ret, i, j, bl;
-	struct imap_cmd_cb cbd;
 	char buf[1000];
 
 
@@ -1539,10 +1533,9 @@ imap_select( store_t *gctx, int minuid, int maxuid, int *excs, int nexcs,
 		prefix = ctx->prefix;
 	}
 
-	memset( &cbd, 0, sizeof(cbd) );
-	cbd.create = (gctx->opts & OPEN_CREATE) != 0;
-	cbd.trycreate = 1;
-	if ((ret = imap_exec_b( ctx, &cbd, "SELECT \"%s%s\"", prefix, gctx->name )) != DRV_OK)
+	cmd->param.create = (gctx->opts & OPEN_CREATE) != 0;
+	cmd->param.trycreate = 1;
+	if ((ret = imap_exec_b( ctx, cmd, "SELECT \"%s%s\"", prefix, gctx->name )) != DRV_OK)
 		goto bail;
 
 	if (gctx->count) {
@@ -1584,12 +1577,10 @@ static int
 imap_fetch_msg( store_t *ctx, message_t *msg, msg_data_t *data,
                 int (*cb)( int sts, void *aux ), void *aux )
 {
-	struct imap_cmd_cb cbd;
-
-	memset( &cbd, 0, sizeof(cbd) );
-	cbd.uid = msg->uid;
-	cbd.ctx = data;
-	return cb( imap_exec_m( (imap_store_t *)ctx, &cbd, "UID FETCH %d (%sBODY.PEEK[])",
+	struct imap_cmd *cmd = new_imap_cmd();
+	cmd->param.uid = msg->uid;
+	cmd->param.aux = data;
+	return cb( imap_exec_m( (imap_store_t *)ctx, cmd, "UID FETCH %d (%sBODY.PEEK[])",
 	                        msg->uid, (msg->status & M_FLAGS) ? "" : "FLAGS " ), aux );
 }
 
@@ -1617,7 +1608,10 @@ imap_flags_helper( imap_store_t *ctx, int uid, char what, int flags)
 	char buf[256];
 
 	buf[imap_make_flags( flags, buf )] = 0;
-	return issue_imap_cmd_w( ctx, 0, "UID STORE %d %cFLAGS.SILENT %s", uid, what, buf ) ? DRV_OK : DRV_STORE_BAD;
+	if (!submit_imap_cmd( ctx, 0, "UID STORE %d %cFLAGS.SILENT %s", uid, what, buf ))
+		return DRV_STORE_BAD;
+	process_imap_replies( ctx );
+	return DRV_OK;
 }
 
 static int
@@ -1652,11 +1646,9 @@ imap_trash_msg( store_t *gctx, message_t *msg,
                 int (*cb)( int sts, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	struct imap_cmd_cb cbd;
-
-	memset( &cbd, 0, sizeof(cbd) );
-	cbd.create = 1;
-	return cb( imap_exec_m( ctx, &cbd, "UID COPY %d \"%s%s\"",
+	struct imap_cmd *cmd = new_imap_cmd();
+	cmd->param.create = 1;
+	return cb( imap_exec_m( ctx, cmd, "UID COPY %d \"%s%s\"",
 	                        msg->uid, ctx->prefix, gctx->conf->trash ), aux );
 }
 
@@ -1665,7 +1657,7 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
                 int (*cb)( int sts, int uid, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	struct imap_cmd_cb cbd;
+	struct imap_cmd *cmd = new_imap_cmd();
 	const char *prefix, *box;
 	int ret, d, uid;
 	char flagstr[128];
@@ -1677,26 +1669,25 @@ imap_store_msg( store_t *gctx, msg_data_t *data, int to_trash,
 	}
 	flagstr[d] = 0;
 
-	memset( &cbd, 0, sizeof(cbd) );
-	cbd.dlen = data->len;
-	cbd.data = data->data;
-	cbd.ctx = &uid;
+	cmd->param.data_len = data->len;
+	cmd->param.data = data->data;
+	cmd->param.aux = &uid;
 	uid = -2;
 
 	if (to_trash) {
 		box = gctx->conf->trash;
 		prefix = ctx->prefix;
-		cbd.create = 1;
+		cmd->param.create = 1;
 		if (ctx->trashnc)
 			ctx->caps = ctx->rcaps & ~(1 << LITERALPLUS);
 	} else {
 		box = gctx->name;
 		prefix = !strcmp( box, "INBOX" ) ? "" : ctx->prefix;
-		cbd.create = (gctx->opts & OPEN_CREATE) != 0;
+		cmd->param.create = (gctx->opts & OPEN_CREATE) != 0;
 		/*if (ctx->currentnc)
 			ctx->caps = ctx->rcaps & ~(1 << LITERALPLUS);*/
 	}
-	ret = imap_exec_m( ctx, &cbd, "APPEND \"%s%s\" %s", prefix, box, flagstr );
+	ret = imap_exec_m( ctx, cmd, "APPEND \"%s%s\" %s", prefix, box, flagstr );
 	ctx->caps = ctx->rcaps;
 	if (ret != DRV_OK)
 		return cb( ret, -1, aux );
@@ -1714,14 +1705,13 @@ imap_find_msg( store_t *gctx, const char *tuid,
                int (*cb)( int sts, int uid, void *aux ), void *aux )
 {
 	imap_store_t *ctx = (imap_store_t *)gctx;
-	struct imap_cmd_cb cbd;
+	struct imap_cmd *cmd = new_imap_cmd();
 	int ret, uid;
 
-	memset( &cbd, 0, sizeof(cbd) );
-	cbd.uid = -1; /* we're looking for a UID */
-	cbd.ctx = &uid;
+	cmd->param.uid = -1; /* we're looking for a UID */
+	cmd->param.aux = &uid;
 	uid = -1; /* in case we get no SEARCH response at all */
-	if ((ret = imap_exec_m( ctx, &cbd, "UID SEARCH HEADER X-TUID %." stringify(TUIDL) "s", tuid )) != DRV_OK)
+	if ((ret = imap_exec_m( ctx, cmd, "UID SEARCH HEADER X-TUID %." stringify(TUIDL) "s", tuid )) != DRV_OK)
 		return cb( ret, -1, aux );
 	else
 		return cb( uid <= 0 ? DRV_MSG_BAD : DRV_OK, uid, aux );
