@@ -22,6 +22,13 @@
  * despite that library's more restrictive license.
  */
 
+#include <config.h>
+#if HAVE_LIBSSL
+# include <openssl/ssl.h>
+# include <openssl/err.h>
+# include <openssl/hmac.h>
+#endif
+
 #include "isync.h"
 
 #include <assert.h>
@@ -40,16 +47,11 @@
 #ifdef HAVE_SYS_FILIO_H
 # include <sys/filio.h>
 #endif
+
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#if HAVE_LIBSSL
-# include <openssl/ssl.h>
-# include <openssl/err.h>
-# include <openssl/hmac.h>
-#endif
-
 typedef struct imap_server_conf {
 	struct imap_server_conf *next;
 	char *name;
