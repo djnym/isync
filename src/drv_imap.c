@@ -1724,7 +1724,7 @@ imap_list( store_t *gctx,
 	imap_store_t *ctx = (imap_store_t *)gctx;
 	int ret;
 
-	if ((ret = imap_exec_b( ctx, 0, "LIST \"\" \"%s%%\"", ctx->prefix )) == DRV_OK)
+	if ((ret = imap_exec_b( ctx, 0, "LIST \"\" \"%s*\"", ctx->prefix )) == DRV_OK)
 		gctx->listed = 1;
 	cb( ret, aux );
 }

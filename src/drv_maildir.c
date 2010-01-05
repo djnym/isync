@@ -24,6 +24,7 @@
 
 #include "isync.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +46,56 @@
 #ifdef USE_DB
 #include <db.h>
 #endif /* USE_DB */
+
+static void encode_maildir_box(const char* in, char* out, size_t size)
+{
+	const char* p;
+	char c;
+	size_t out_chars;
+
+	for (p = in, out_chars = 0; (c = *p); ++p, ++out, ++out_chars) {
+		assert(out_chars < size);
+		if (c == '/') {
+			assert(out_chars < size - 1);
+			*(out++) = '~';
+			*out = '-';
+			++out_chars;
+		}
+		else if (c == '~') {
+			assert(out_chars < size - 1);
+			*(out++) = '~';
+			*out = '~';
+			++out_chars;
+		}
+		else {
+			*out = c;
+		}
+	}
+	assert(out_chars < size);
+	*out = 0;
+}
+
+static void decode_maildir_box(const char* in, char* out, size_t size)
+{
+	const char* p;
+	char c;
+	size_t out_chars;
+
+	for (p = in, out_chars = 0; (c = *p); ++p, ++out, ++out_chars) {
+		assert(out_chars < size);
+		if (c == '~') {
+			assert(out_chars < size - 1);
+			c = *(++p);
+			*out = (c == '-' ? '/' : '~');
+			++out_chars;
+		}
+		else {
+			*out = c;
+		}
+	}
+	assert(out_chars < size);
+	*out = 0;
+}
 
 typedef struct maildir_store_conf {
 	store_conf_t gen;
@@ -177,15 +228,17 @@ maildir_list( store_t *gctx,
 		const char *inbox = ((maildir_store_conf_t *)gctx->conf)->inbox;
 		int bl;
 		struct stat st;
-		char buf[PATH_MAX];
+		char buf[PATH_MAX], box[PATH_MAX];
 
 		if (*de->d_name == '.')
 			continue;
 		bl = nfsnprintf( buf, sizeof(buf), "%s%s/cur", gctx->conf->path, de->d_name );
 		if (stat( buf, &st ) || !S_ISDIR(st.st_mode))
 			continue;
+
+		decode_maildir_box(de->d_name, box, PATH_MAX);
 		add_string_list( &gctx->boxes,
-		                 !memcmp( buf, inbox, bl - 4 ) && !inbox[bl - 4] ? "INBOX" : de->d_name );
+		                 !memcmp( buf, inbox, bl - 4 ) && !inbox[bl - 4] ? "INBOX" : box );
 	}
 	closedir (dir);
 	gctx->listed = 1;
@@ -753,8 +806,11 @@ maildir_prepare_paths( store_t *gctx )
 #endif /* USE_DB */
 	if (!strcmp( gctx->name, "INBOX" ))
 		gctx->path = nfstrdup( ((maildir_store_conf_t *)gctx->conf)->inbox );
-	else
-		nfasprintf( &gctx->path, "%s%s", gctx->conf->path, gctx->name );
+	else {
+		char box[_POSIX_PATH_MAX];
+		encode_maildir_box(gctx->name, box, _POSIX_PATH_MAX);
+		nfasprintf( &gctx->path, "%s%s", gctx->conf->path, box );
+	}
 }
 
 static void
