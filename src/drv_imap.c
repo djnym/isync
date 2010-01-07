@@ -68,6 +68,7 @@ typedef struct imap_server_conf {
 	unsigned use_sslv3:1;
 	unsigned use_tlsv1:1;
 	unsigned require_cram:1;
+	unsigned verify_cert:1;
 	X509_STORE *cert_store;
 #endif
 } imap_server_conf_t;
@@ -1169,7 +1170,7 @@ imap_cleanup( void )
 
 #ifdef HAVE_LIBSSL
 static int
-start_tls( imap_store_t *ctx )
+start_tls( imap_store_t *ctx, imap_store_conf_t *conf )
 {
 	int ret;
 	static int ssl_inited;
@@ -1191,7 +1192,7 @@ start_tls( imap_store_t *ctx )
 	}
 
 	/* verify the server certificate */
-	if (verify_cert( ctx ))
+	if (conf->server->verify_cert && verify_cert( ctx ))
 		return 1;
 
 	ctx->buf.sock.use_ssl = 1;
@@ -1373,7 +1374,7 @@ imap_open_store( store_conf_t *conf,
 
 #if HAVE_LIBSSL
 	if (srvc->use_imaps) {
-		if (start_tls( ctx ))
+		if (start_tls( ctx, cfg ))
 			goto bail;
 		use_ssl = 1;
 	}
@@ -1407,7 +1408,7 @@ imap_open_store( store_conf_t *conf,
 			if (CAP(STARTTLS)) {
 				if (imap_exec( ctx, 0, "STARTTLS" ) != RESP_OK)
 					goto bail;
-				if (start_tls( ctx ))
+				if (start_tls( ctx, cfg ))
 					goto bail;
 				use_ssl = 1;
 
@@ -1825,6 +1826,8 @@ imap_parse_store( conffile_t *cfg, store_conf_t **storep, int *err )
 			server->use_tlsv1 = parse_bool( cfg );
 		else if (!strcasecmp( "RequireCRAM", cfg->cmd ))
 			server->require_cram = parse_bool( cfg );
+		else if (!strcasecmp( "VerifyCert", cfg->cmd ))
+			server->verify_cert = parse_bool( cfg);
 #endif
 		else if (!strcasecmp( "Tunnel", cfg->cmd ))
 			server->tunnel = nfstrdup( cfg->val );
